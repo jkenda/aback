@@ -17,6 +17,7 @@ type operation =
 
     | Macro | Func | Is
     | If | Then | Else | End
+    | While | Do
     | Peek | Take | In
     | Let | Assign | Return
 
@@ -28,7 +29,7 @@ type operation =
     | Div | FDiv
     | Mod | FMod
 
-    | BAnd | BOr | BXor
+    | BAnd | BOr | BXor | Lsl | Lsr
     | And  | Or
 
     | Putc | Puts | Puti
@@ -40,9 +41,10 @@ type operation =
 type operations = operation list [@@deriving show { with_path = false }]
 
 let instr_of_word = function
-    | ";;" -> Rev | "->" -> Return
+    | "|>" -> Rev | "->" -> Return
     | "macro" -> Macro | "func" -> Func | "is" -> Is
     | "if" -> If | "then" -> Then | "else" -> Else | "end" -> End
+    | "while" -> While | "do" -> Do
     | "peek" -> Peek | "take" -> Take | "in" -> In
     | "let" -> Let | ":=" -> Assign
 
@@ -61,6 +63,7 @@ let instr_of_word = function
     | "%" -> Mod | "%." -> FMod
 
     | "&" -> BAnd | "|" -> BOr | "^" -> BXor
+    | "<<" -> Lsl | ">>" -> Lsr
     | "&&" -> And | "||" -> Or
 
     | "putc" -> Putc
@@ -69,9 +72,9 @@ let instr_of_word = function
     | word ->
             if String.ends_with ~suffix:{|"|} word then
                 if String.starts_with ~prefix:{|"|} word then
-                    Str (String.sub word 1 (String.length word - 1))
+                    Str (String.sub word 1 (String.length word - 2))
                 else if String.starts_with ~prefix:"c\"" word then
-                    CStr word
+                    CStr (String.sub word 2 (String.length word - 3))
                 else
                     Unknown
             else
@@ -87,12 +90,50 @@ let instr_of_word = function
                         | Some f -> Float f
                         | None -> Word word
 
-let pp = show_operation
-
 let lex text =
-    text
-    |> Str.split @@ Str.regexp "[ \n\r\x0c\t]+"
-    |> List.map instr_of_word
+    let rec skip_whitespace i =
+        if i >= String.length text then i
+        else
+            match text.[i] with
+            | ' ' | '\n' | '\r' | '\t' -> skip_whitespace (i + 1)
+            | _ -> i
+    and get_string i =
+        if i >= String.length text then i
+        else
+            match text.[i] with
+            | '"' -> i
+            | _ -> get_string (i + 1)
+    and get_char i =
+        if i >= String.length text then i
+        else
+            match text.[i] with
+            | '\'' -> i
+            | _ -> get_char (i + 1)
+    and get_word i =
+        if i >= String.length text then i
+        else
+            match text.[i] with
+            | ' ' | '\n' | '\r' | '\t' -> i
+            | _ -> get_word (i + 1)
+    in
+    let rec lex' (acc, i) =
+        if i >= String.length text then acc
+        else
+            match text.[i] with
+            | ' ' | '\n' | '\r' | '\t' ->
+                    lex' (acc, skip_whitespace i)
+            | '"' ->
+                    let next = get_string (i + 1) in
+                    lex' (String.sub text i (next - i + 1) :: acc, next + 1)
+            | '\'' ->
+                    let next = get_char (i + 1) in
+                    lex' (String.sub text i (next - i + 1) :: acc, next + 1)
+            | _ ->
+                    let next = get_word i in
+                    lex' (String.sub text i (next - i) :: acc, next)
+    in
+    lex' ([], 0)
+    |> List.rev_map instr_of_word
 
 let test actual expected =
     let matches = actual = expected in
