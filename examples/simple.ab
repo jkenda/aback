@@ -1,0 +1,42 @@
+macro add s32 s32 -> s32 is
+    +
+end
+
+let thirteen := add 7 6 in
+puts "7 + 6 = " |>
+puti thirteen |>
+putc '\n'
+
+macro drop is
+    take _ in
+    end
+end
+
+macro dup is
+    peek a in
+        a
+    end
+end
+
+macro 2dup is
+    peek a b in
+        a b
+    end
+end
+
+macro swap is
+    take a b in
+        b a
+    end
+end
+
+func max
+    s32 s32
+    -> s32
+is
+    take a b in
+        if >= a b then a
+        else b end
+    end
+end
+

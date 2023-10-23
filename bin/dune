@@ -1,0 +1,5 @@
+(executable
+ (public_name aback)
+ (name main)
+ (preprocess (pps ppx_deriving.show))
+ (libraries aback str))
