@@ -1,23 +1,30 @@
 open Lexer
 open Program
 
-let rec parse strings words =
-    let macros = Hashtbl.create 10
-    and nstrings = ref (List.length !strings) in
-    let add_macro name words =
+type strings = string list
+[@@deriving show { with_path = false }]
+
+let rec parse strings funcs macros words =
+    let nstrings = ref (List.length !strings) in
+    let add name words table =
         let rec skip_types = function
+            | [] -> raise @@ Failure "Expected type"
             | Is :: words -> words
             | _ :: words -> skip_types words
-            | [] -> raise @@ Failure "Expected type"
-        and add_macro' acc starts = function
-            | End :: words when starts = 0 -> Hashtbl.add macros name @@ parse strings acc; words
-            | (While | Peek | Take) as word :: words -> add_macro' (word :: acc) (starts + 1) words
-            | (Macro | Func) :: _ -> raise @@ Failure "Nesting macros and functions not allowed"
+        and add' acc starts = function
             | [] -> raise @@ Failure "'end' expected"
-            | _ when starts < 0 -> raise @@ Failure "Too many 'end's"
-            | word :: words -> add_macro' (word :: acc) starts words
+            | _ when starts < 0   -> raise @@ Failure "Too many 'end's"
+            | (Macro | Func) :: _ -> raise @@ Failure "Nesting macros and functions not allowed"
+
+            | End :: words when starts = 0 ->
+                    parse strings funcs macros acc
+                    |> List.rev
+                    |> Hashtbl.add table name;
+                    words
+            | word :: words -> add' (word :: acc) starts words
         in
-        add_macro' [] 0 @@ skip_types words
+        skip_types words
+        |> add' [] 0
     and add_string str =
         let addr = !nstrings in
         strings := str :: !strings;
@@ -30,22 +37,42 @@ let rec parse strings words =
         | Char c -> Char c
         | _ -> raise @@ Failure "Invalid data"
     in
+    let ir_of_word = function
+        (Int _ : word) | Float _ | Char _ as push ->
+            [Push (data_of_operation push)]
+
+        | String str ->
+                let addr, len = add_string str in
+                [Push (Int len); Push (Ptr addr)]
+
+        | Add -> [Add] | FAdd -> [FAdd]
+        | Sub -> [Sub] | FSub -> [FSub]
+        | Mul -> [Mul] | FMul -> [FMul]
+        | Div -> [Div] | FDiv -> [FDiv]
+        | Mod -> [Mod] | FMod -> [FMod]
+
+        | Puti -> [Puti] | Putf -> [Putf]
+        | Putc -> [Putc] | Puts -> [Puts]
+
+        | Unknown word -> raise @@ Failure (Format.sprintf "unknown word: '%s'" word)
+        | word -> raise @@ Failure (Format.sprintf "'%s' not implemeted" @@ show_word word)
+    in
     let rec parse' (top, rest) = function
         | [] -> top :: rest
-        | (Int _ : word) | Float _ | Char _ as push :: tl ->
-                parse' (Push (data_of_operation push) :: top, rest) tl
-        | Macro :: Word name :: tl -> parse' ([], top :: rest) @@ add_macro name tl
-        | Add  :: tl -> parse' (Add  :: top, rest) tl
-        | Putc :: tl -> parse' (Putc :: top, rest) tl
-        | Puti :: tl -> parse' (Puti :: top, rest) tl
-        | Puts :: tl -> parse' (Puts :: top, rest) tl
-        | String str :: tl ->
-                let addr, len = add_string str in
-                parse' (Push (Int len) :: Push (Ptr addr) :: top, rest) tl
-
+        | Macro :: Word name :: tl -> parse' ([], top :: rest) @@ add name tl macros
+        | Func  :: Word name :: tl -> parse' ([], top :: rest) @@ add name tl funcs
         | Rev :: tl -> parse' ([], top :: rest) tl
-        | Word name :: tl -> parse' (Hashtbl.find macros name @ top, rest) tl
-        | word :: _ -> raise @@ Failure (Format.sprintf "'%s' not implemeted" @@ show_word word)
+
+        | Word name :: tl ->
+                let macro =
+                    match Hashtbl.find_opt macros name with
+                    | Some macro -> macro
+                    | None -> raise 
+                        @@ Failure (Format.sprintf "Macro '%s' not found. Available macros: %s" name
+                        @@ Hashtbl.fold (fun acc _ v -> acc ^ v) macros "")
+                in
+                parse' (macro @ top, rest) tl
+        | word :: tl -> parse' (ir_of_word word @ top, rest) tl
     in
     parse' ([], []) words
     |> List.rev

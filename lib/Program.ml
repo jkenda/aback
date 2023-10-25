@@ -10,11 +10,11 @@ type data =
 type ir =
     | Push of data
 
-    | Add | Fadd
-    | Sub | Fsub
-    | Mul | Fmul
-    | Div | Fdiv
-    | Mod | Fmod
+    | Add | FAdd
+    | Sub | FSub
+    | Mul | FMul
+    | Div | FDiv
+    | Mod | FMod
 
     | Putc | Puts | Puti | Putf
 [@@deriving show { with_path = false }]

@@ -1,5 +1,19 @@
-puts "+ 48 7 = " |>
-puti + 48 7 |>
+macro add
+    int int
+    -> int
+is
+    +
+end
+
+macro print-result
+    int int
+is
+    add 7 6 |> puti
+end
+
+puts "7 + 6 = " |>
+print-result |>
+putc ',' |>
 putc ' ' |>
 puts "14 = " |>
 puti 14
