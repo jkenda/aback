@@ -37,7 +37,6 @@ type word =
     | Putc | Puts | Puti | Putf
 
     | Word of string
-    | Unknown of string
 [@@deriving show { with_path = false }]
 
 type words = word list [@@deriving show { with_path = false }]
@@ -79,7 +78,7 @@ let instr_of_word = function
                 else if String.starts_with ~prefix:"c\"" word then
                     CStr (String.sub word 2 (String.length word - 3))
                 else
-                    Unknown word
+                    Word word
             else
                 if String.length word = 3
                 && String.starts_with ~prefix:"'" word
@@ -146,4 +145,4 @@ let test actual expected =
         print_endline (Format.asprintf "%s\n!=\n%s" (show_words actual) (show_words expected));
     matches
 
-let%test _ = test (lex "+ 12 13 'c' 'cc'") ([Add; Int 12; Int 13; Char 'c'; Unknown "cc"])
+let%test _ = test (lex "+ 12 13 'c' 'cc'") ([Add; Int 12; Int 13; Char 'c'; Word "cc"])

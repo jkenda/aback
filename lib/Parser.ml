@@ -1,5 +1,6 @@
 open Lexer
 open Program
+open Format
 
 type strings = string list
 [@@deriving show { with_path = false }]
@@ -54,8 +55,7 @@ let rec parse strings funcs macros words =
         | Puti -> [Puti] | Putf -> [Putf]
         | Putc -> [Putc] | Puts -> [Puts]
 
-        | Unknown word -> raise @@ Failure (Format.sprintf "unknown word: '%s'" word)
-        | word -> raise @@ Failure (Format.sprintf "'%s' not implemeted" @@ show_word word)
+        | word -> raise @@ Failure (sprintf "'%s' not implemeted" @@ show_word word)
     in
     let rec parse' (top, rest) = function
         | [] -> top :: rest
@@ -65,11 +65,13 @@ let rec parse strings funcs macros words =
 
         | Word name :: tl ->
                 let macro =
-                    match Hashtbl.find_opt macros name with
-                    | Some macro -> macro
-                    | None -> raise 
-                        @@ Failure (Format.sprintf "Macro '%s' not found. Available macros: %s" name
-                        @@ Hashtbl.fold (fun acc _ v -> acc ^ v) macros "")
+                    try Hashtbl.find macros name with Not_found ->
+                    try Hashtbl.find funcs name with Not_found ->
+                        raise @@ Failure (
+                            sprintf "Unknown word: '%s'.\n\tavailable macros: %s\n\tavailable functions: %s"
+                            name
+                            (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) macros "")
+                            (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) funcs ""))
                 in
                 parse' (macro @ top, rest) tl
         | word :: tl -> parse' (ir_of_word word @ top, rest) tl
