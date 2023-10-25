@@ -5,27 +5,37 @@ open Format
 type strings = string list
 [@@deriving show { with_path = false }]
 
+type func = {
+    t_in : t list;
+    t_out : t list;
+    seq : ir list
+}
+[@@deriving show { with_path = false }]
+
 let rec parse strings funcs macros words =
     let nstrings = ref (List.length !strings) in
     let add name words table =
-        let rec skip_types = function
-            | [] -> raise @@ Failure "Expected type"
-            | Is :: words -> words
-            | _ :: words -> skip_types words
+        let rec extract_types input t_in t_out = function
+            | Type t :: words ->
+                    if input then extract_types input (t :: t_in) t_out words
+                    else extract_types input t_in (t :: t_out) words
+            | Return :: words -> extract_types false t_in t_out words
+            | Is :: words -> words, t_in, t_out
+            | word :: _ -> raise @@ Failure (sprintf "Expected type, got %s" (show_word word))
+            | [] -> raise @@ Failure "unreachable"
         and add' acc starts = function
             | [] -> raise @@ Failure "'end' expected"
             | _ when starts < 0   -> raise @@ Failure "Too many 'end's"
             | (Macro | Func) :: _ -> raise @@ Failure "Nesting macros and functions not allowed"
 
             | End :: words when starts = 0 ->
-                    parse strings funcs macros acc
-                    |> List.rev
-                    |> Hashtbl.add table name;
-                    words
+                    List.rev @@ parse strings funcs macros acc, words
             | word :: words -> add' (word :: acc) starts words
         in
-        skip_types words
-        |> add' [] 0
+        let words, t_in, t_out = extract_types true [] [] words in
+        let seq, rest = add' [] 0 words in
+        Hashtbl.add table name { seq; t_in; t_out };
+        rest
     and add_string str =
         let addr = !nstrings in
         strings := str :: !strings;
@@ -73,7 +83,7 @@ let rec parse strings funcs macros words =
                             (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) macros "")
                             (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) funcs ""))
                 in
-                parse' (macro @ top, rest) tl
+                parse' (macro.seq @ top, rest) tl
         | word :: tl -> parse' (ir_of_word word @ top, rest) tl
     in
     parse' ([], []) words
