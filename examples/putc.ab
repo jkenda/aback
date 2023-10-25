@@ -1,2 +1,6 @@
-putc + 48 7
+puts "+ 48 7 = " |>
+puti + 48 7 |>
+putc ' ' |>
+puts "14 = " |>
+puti 14
 

@@ -14,7 +14,7 @@ let () =
         exit 1);
 
     read_whole_file Sys.argv.(1)
-    |> Aback.lex
-    |> List.fold_left (fun str op -> str ^ "\n" ^ Aback.show_operation op) ""
-    |> print_endline
+    |> Aback.compile
+    |> Aback.simulate
+    |> fun stack -> assert (stack = [])
 
