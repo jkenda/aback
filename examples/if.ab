@@ -1,5 +1,8 @@
 if = + 7 6 13 then
     puts "eq!"
-else
-    puts "neq!"
+    if = + 3 4 7 then
+        puts "eq!"
+    else
+        puts "neq!"
+    end
 end

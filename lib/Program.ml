@@ -22,7 +22,8 @@ type ir =
 
     | PUTC | PUTS | PUTI | PUTF | PUTB
 
-    | IF of int | THEN of int | ELSE of int | END_IF of int
+    | IF of int | THEN of int | ELSE of int
+    | END of int
 [@@deriving show { with_path = false }]
 
 type program = {
@@ -69,7 +70,7 @@ let exec program =
         | IF _ -> raise @@ Unreachable "IF: please run postprocess"
         | THEN addr -> cond_jmp stack ip addr
         | ELSE addr -> stack, addr
-        | END_IF _ -> raise @@ Unreachable "END_IF: please run postprocess"
+        | END _ -> raise @@ Unreachable "END_IF: please run postprocess"
 
         | PUSH d -> d :: stack, ip + 1
 

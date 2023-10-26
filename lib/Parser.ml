@@ -10,6 +10,15 @@ type func = {
 }
 [@@deriving show { with_path = false }]
 
+let _print_ir ir =
+    let open Format in
+    let str, _ = List.fold_left (fun (acc, i) ir -> acc ^ sprintf "%d: %s\n" i (show_ir ir), i + 1) ("", 0) ir in
+    print_string str
+
+let _print_funcs funcs =
+    print_string 
+    @@ Hashtbl.fold (fun name macro acc -> acc ^ sprintf "%s: %s\n" name (show_func macro)) funcs ""
+
 let rec parse strings funcs macros words =
     let nstrings = ref (List.length !strings) in
     let add name words table =
@@ -73,14 +82,14 @@ let rec parse strings funcs macros words =
     in
     let rec parse' (top, rest) = function
         | [] -> top :: rest
-        | Macro :: Word name :: tl -> parse' ([], top :: rest) @@ add name tl macros
+        | (Macro : prep) :: Word name :: tl -> parse' ([], top :: rest) @@ add name tl macros
         | Func  :: Word name :: tl -> parse' ([], top :: rest) @@ add name tl funcs
         | Rev :: tl -> parse' ([], top :: rest) tl
         
         | If id :: tl -> parse' ([], [IF id] :: top :: rest) tl
         | Then id :: tl -> parse' ([], [THEN id] :: top :: rest) tl
         | Else id :: tl -> parse' ([], [ELSE id] :: top :: rest) tl
-        | End_if id :: tl -> parse' ([], [END_IF id] :: top :: rest) tl
+        | End id :: tl -> parse' ([], [END id] :: top :: rest) tl
 
         | Word name :: tl ->
                 let macro =

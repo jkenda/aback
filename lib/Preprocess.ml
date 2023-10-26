@@ -15,9 +15,10 @@ type prep =
     | Rev
 
     | Macro | Func | Is | End_func
-    | If of int | Then of int | Else of int | End_if of int
-    | While of int | Do of int | End_while of int
-    | Peek of int | Take of int | In | End_peek of int | End_take of int
+    | If of int | Then of int | Else of int
+    | While of int | Do of int
+    | Peek of int | Take of int | In | End_peek of int
+    | End of int
     | Let | Assign | Return
 
     | Eq | NEq | Lt | LEq | Gt | GEq
@@ -47,31 +48,32 @@ let preprocess tokens =
         | Is -> Is :: acc, end_stack, next_id
 
         | If ->
-                let next = If (next_id + 1) in
-                next :: acc, next :: end_stack, next_id + 1
+                let next_id = next_id + 1 in
+                let next = If next_id in
+                next :: acc, next :: end_stack, next_id
         | Then -> Then next_id :: acc, end_stack, next_id
         | Else -> Else next_id :: acc, end_stack, next_id
 
         | While ->
-                let next = While (next_id + 1) in
-                next :: acc, next :: end_stack, next_id + 1
+                let next_id = next_id + 1 in
+                let next = While next_id in
+                next :: acc, next :: end_stack, next_id
         | Do -> Do next_id :: acc, end_stack, next_id
 
         | Peek ->
-                let next = Peek (next_id + 1) in
-                next :: acc, next :: end_stack, next_id + 1
+                let next_id = next_id + 1 in
+                let next = Peek next_id in
+                next :: acc, next :: end_stack, next_id
         | Take ->
-                let next = Take (next_id + 1) in
-                next :: acc, next :: end_stack, next_id + 1
+                let next_id = next_id + 1 in
+                let next = Take next_id in
+                next :: acc, next :: end_stack, next_id
         | In -> In :: acc, end_stack, next_id
 
         | End ->
                 (match List.hd end_stack with
                 | Func | Macro -> End_func :: acc, List.tl end_stack, next_id
-                | If id -> End_if id :: acc, end_stack, next_id
-                | While id -> End_while id :: acc, end_stack, next_id
-                | Peek id -> End_peek id :: acc, end_stack, next_id
-                | Take id -> End_take id :: acc, end_stack, next_id
+                | If id | While id | Peek id | Take id -> End id :: acc, List.tl end_stack, next_id
                 | _ | exception _ -> raise @@ Failure "end reqires matching macro | func | if | while | peek | take")
 
         | word ->
