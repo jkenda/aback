@@ -1,4 +1,5 @@
 open Lexer
+open Preprocess
 open Parser
 open Program
 
@@ -9,6 +10,7 @@ let compile text =
     let ir =
         try text
         |> lex
+        |> preprocess
         |> parse strings funcs macros with Failure msg ->
                 print_endline msg;
                 exit 1

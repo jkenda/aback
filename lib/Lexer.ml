@@ -1,8 +1,6 @@
-type t =
-    | Int
-    | Float
-    | Char
-    | Ptr
+exception Unreachable of string
+
+type t = Int | Float | Char | Ptr | String | CStr
 [@@deriving show { with_path = false }]
 
 type word =
@@ -34,7 +32,7 @@ type word =
     | And  | Or
     | Ref | Deref
 
-    | Putc | Puts | Puti | Putf
+    | Putc | Puts | Puti | Putf | Putb
 
     | Word of string
 [@@deriving show { with_path = false }]
@@ -66,10 +64,8 @@ let instr_of_word = function
     | "&&" -> And  | "||" -> Or
     | "@"  -> Ref  | "."  -> Deref
 
-    | "putc" -> Putc
-    | "puts" -> Puts
-    | "puti" -> Puti
-    | "putf" -> Putf
+    | "putc" -> Putc | "puts" -> Puts
+    | "puti" -> Puti | "putb" -> Putb | "putf" -> Putf
 
     | word ->
             if String.ends_with ~suffix:{|"|} word then

@@ -6,7 +6,6 @@ is
 end
 
 macro print-result
-    int int
 is
     add 7 6 |> puti
 end

@@ -1,9 +1,7 @@
 open Lexer
+open Preprocess
 open Program
 open Format
-
-type strings = string list
-[@@deriving show { with_path = false }]
 
 type func = {
     t_in : t list;
@@ -20,20 +18,19 @@ let rec parse strings funcs macros words =
                     if input then extract_types input (t :: t_in) t_out words
                     else extract_types input t_in (t :: t_out) words
             | Return :: words -> extract_types false t_in t_out words
-            | Is :: words -> words, t_in, t_out
-            | word :: _ -> raise @@ Failure (sprintf "Expected type, got %s" (show_word word))
+            | Is :: words -> words, List.rev t_in, List.rev t_out
+            | word :: _ -> raise @@ Failure (sprintf "Expected type, got %s" (show_prep word))
             | [] -> raise @@ Failure "unreachable"
-        and add' acc starts = function
+        and add' acc = function
             | [] -> raise @@ Failure "'end' expected"
-            | _ when starts < 0   -> raise @@ Failure "Too many 'end's"
-            | (Macro | Func) :: _ -> raise @@ Failure "Nesting macros and functions not allowed"
+            | (Macro | Func ) :: _ -> raise @@ Failure "Nesting macros and functions not allowed"
 
-            | End :: words when starts = 0 ->
+            | End_func :: words ->
                     List.rev @@ parse strings funcs macros acc, words
-            | word :: words -> add' (word :: acc) starts words
+            | word :: words -> add' (word :: acc) words
         in
         let words, t_in, t_out = extract_types true [] [] words in
-        let seq, rest = add' [] 0 words in
+        let seq, rest = add' [] words in
         Hashtbl.add table name { seq; t_in; t_out };
         rest
     and add_string str =
@@ -43,29 +40,36 @@ let rec parse strings funcs macros words =
         addr, String.length str
     in
     let data_of_operation = function
-        | (Int i : word) -> Int i
+        | (Int i : Preprocess.data) -> Int i
         | Float f -> Float f
         | Char c -> Char c
         | _ -> raise @@ Failure "Invalid data"
     in
     let ir_of_word = function
-        (Int _ : word) | Float _ | Char _ as push ->
-            [Push (data_of_operation push)]
+        | Push push ->
+                (match push with
+                | String str ->
+                        let addr, len = add_string str in
+                        [PUSH (Int len); PUSH (Ptr addr)]
+                | CStr str ->
+                        let addr, _ = add_string str in
+                        [PUSH (Ptr addr)]
+                | _  as push ->
+                        [PUSH (data_of_operation push)])
 
-        | String str ->
-                let addr, len = add_string str in
-                [Push (Int len); Push (Ptr addr)]
+        | Eq -> [EQ] | NEq -> [NE] | Lt -> [LT] | LEq -> [LE] | Gt -> [GT] | GEq -> [GE]
 
-        | Add -> [Add] | FAdd -> [FAdd]
-        | Sub -> [Sub] | FSub -> [FSub]
-        | Mul -> [Mul] | FMul -> [FMul]
-        | Div -> [Div] | FDiv -> [FDiv]
-        | Mod -> [Mod] | FMod -> [FMod]
+        | Add -> [ADD] | FAdd -> [FADD]
+        | Sub -> [SUB] | FSub -> [FSUB]
+        | Mul -> [MUL] | FMul -> [FMUL]
+        | Div -> [DIV] | FDiv -> [FDIV]
+        | Mod -> [MOD] | FMod -> [FMOD]
 
-        | Puti -> [Puti] | Putf -> [Putf]
-        | Putc -> [Putc] | Puts -> [Puts]
+        | Puti -> [PUTI] | Putf -> [PUTF]
+        | Putc -> [PUTC] | Puts -> [PUTS]
+        | Putb -> [PUTB]
 
-        | word -> raise @@ Failure (sprintf "'%s' not implemeted" @@ show_word word)
+        | prep -> raise @@ Failure (sprintf "'%s' not implemeted" @@ show_prep prep)
     in
     let rec parse' (top, rest) = function
         | [] -> top :: rest
@@ -89,3 +93,4 @@ let rec parse strings funcs macros words =
     parse' ([], []) words
     |> List.rev
     |> List.flatten
+
