@@ -1,4 +1,5 @@
 open Format
+open Lexer
 
 type data =
     | Int of int
@@ -20,12 +21,17 @@ type ir =
     | MOD | FMOD
 
     | PUTC | PUTS | PUTI | PUTF | PUTB
+
+    | IF of int | THEN of int | ELSE of int | END_IF of int
 [@@deriving show { with_path = false }]
 
 type program = {
     ir : ir list;
     strings : string array
 }
+
+type stack = data list
+[@@deriving show { with_path = false }]
 
 let exec program =
     let int_op op = function
@@ -37,7 +43,7 @@ let exec program =
         | Int i :: Int j :: rest -> Bool (op i j) :: rest
         | a :: b :: _ -> raise @@ Failure (
             sprintf "expected Int Int, got %s %s" (show_data a) (show_data b))
-        | _ -> raise @@ Failure "not enough data on stack"
+        | stack -> raise @@ Failure (sprintf "not enough data on stack : %s" @@ show_stack stack)
     and float_op op = function
         | Float i :: Float j :: rest -> Float (op i j) :: rest
         | a :: b :: _ -> raise @@ Failure (
@@ -51,32 +57,54 @@ let exec program =
         | Ptr p :: Int _ :: rest when t = PUTS -> print_string (program.strings.(p)); rest
         | [] -> raise @@ Failure (sprintf "%s: not enough data on stack" (show_ir t))
         | stack -> raise @@ Failure (sprintf "Expected %s, got %s" (show_ir t) (show_data (List.hd stack)))
+    and cond_jmp stack ip addr =
+        match stack with
+        | Bool true :: tl -> tl, ip + 1
+        | Bool false :: tl -> tl, addr
+        | _ :: _ -> raise @@ Failure (sprintf "expected bool, got %s" (show_data (List.hd stack)))
+        | [] -> raise @@ Failure "not enough data on stack"
     in
-    let exec' stack = function
-        | PUSH d -> d :: stack
 
-        | EQ -> int_cmp ( = ) stack
-        | NE -> int_cmp ( = ) stack
-        | LT -> int_cmp ( = ) stack
-        | LE -> int_cmp ( = ) stack
-        | GT -> int_cmp ( = ) stack
-        | GE -> int_cmp ( = ) stack
+    let exec' stack ip = function
+        | IF _ -> raise @@ Unreachable "IF: please run postprocess"
+        | THEN addr -> cond_jmp stack ip addr
+        | ELSE addr -> stack, addr
+        | END_IF _ -> raise @@ Unreachable "END_IF: please run postprocess"
 
-        | ADD -> int_op ( + ) stack
-        | SUB -> int_op ( - ) stack
-        | MUL -> int_op ( * ) stack
-        | DIV -> int_op ( / ) stack
-        | MOD -> int_op (mod) stack
+        | PUSH d -> d :: stack, ip + 1
 
-        | FADD -> float_op ( +. ) stack
-        | FSUB -> float_op ( -. ) stack
-        | FMUL -> float_op ( *. ) stack
-        | FDIV -> float_op ( /. ) stack
+        | EQ -> int_cmp ( = ) stack, ip + 1
+        | NE -> int_cmp ( = ) stack, ip + 1
+        | LT -> int_cmp ( = ) stack, ip + 1
+        | LE -> int_cmp ( = ) stack, ip + 1
+        | GT -> int_cmp ( = ) stack, ip + 1
+        | GE -> int_cmp ( = ) stack, ip + 1
+
+        | ADD -> int_op ( + ) stack, ip + 1
+        | SUB -> int_op ( - ) stack, ip + 1
+        | MUL -> int_op ( * ) stack, ip + 1
+        | DIV -> int_op ( / ) stack, ip + 1
+        | MOD -> int_op (mod) stack, ip + 1
+
+        | FADD -> float_op ( +. ) stack, ip + 1
+        | FSUB -> float_op ( -. ) stack, ip + 1
+        | FMUL -> float_op ( *. ) stack, ip + 1
+        | FDIV -> float_op ( /. ) stack, ip + 1
         | FMOD -> float_op (fun a b ->
                 let _, c = modf a in
                 let _, d = modf b in
-                c /. d) stack
+                c /. d) stack, ip + 1
 
-        | (PUTC | PUTS | PUTI | PUTF | PUTB) as t -> put t stack
+        | (PUTC | PUTS | PUTI | PUTF | PUTB) as t -> put t stack, ip + 1
     in
-    List.fold_left exec' [] program.ir
+    let instr = Array.of_list program.ir in
+
+    let rec exec'' stack ip =
+        if ip >= Array.length instr then stack
+        else
+            let stack, ip = exec' stack ip instr.(ip) in
+            exec'' stack ip
+    in
+    exec'' [] 0
+
+

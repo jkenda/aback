@@ -1,0 +1,5 @@
+if = + 7 6 13 then
+    puts "eq!"
+else
+    puts "neq!"
+end

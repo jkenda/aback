@@ -42,26 +42,26 @@ let preprocess tokens =
         match word with
         | (Rev : word) -> Rev :: acc, end_stack, next_id
 
-        | Macro -> Macro :: acc, Macro :: end_stack, next_id + 1
-        | Func -> Func :: acc, Func :: end_stack, next_id + 1
+        | Macro -> Macro :: acc, Macro :: end_stack, next_id
+        | Func -> Func :: acc, Func :: end_stack, next_id
         | Is -> Is :: acc, end_stack, next_id
 
         | If ->
-                let next = If next_id in
+                let next = If (next_id + 1) in
                 next :: acc, next :: end_stack, next_id + 1
         | Then -> Then next_id :: acc, end_stack, next_id
         | Else -> Else next_id :: acc, end_stack, next_id
 
         | While ->
-                let next = While next_id in
+                let next = While (next_id + 1) in
                 next :: acc, next :: end_stack, next_id + 1
         | Do -> Do next_id :: acc, end_stack, next_id
 
         | Peek ->
-                let next = Peek next_id in
+                let next = Peek (next_id + 1) in
                 next :: acc, next :: end_stack, next_id + 1
         | Take ->
-                let next = Take next_id in
+                let next = Take (next_id + 1) in
                 next :: acc, next :: end_stack, next_id + 1
         | In -> In :: acc, end_stack, next_id
 

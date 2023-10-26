@@ -1,7 +1,13 @@
 open Lexer
 open Preprocess
 open Parser
+open Postprocess
 open Program
+
+let _print_ir ir =
+    let open Format in
+    let str, _ = List.fold_left (fun (acc, i) ir -> acc ^ sprintf "%d: %s\n" i (show_ir ir), i + 1) ("", 0) ir in
+    print_string str
 
 let compile text =
     let strings = ref [] in
@@ -11,7 +17,9 @@ let compile text =
         try text
         |> lex
         |> preprocess
-        |> parse strings funcs macros with Failure msg ->
+        |> parse strings funcs macros
+        |> postprocess
+        with Failure msg ->
                 print_endline msg;
                 exit 1
     and strings =
@@ -19,9 +27,8 @@ let compile text =
         |> List.rev
         |> Array.of_list
     in
-    (* let open Format in
-    print_string @@ Hashtbl.fold (fun name macro acc -> acc ^ sprintf "%s: %s\n" name (show_func macro)) macros "";
-    print_string @@ List.fold_left (fun acc str -> acc ^ str ^ "\n") "" (List.map show_ir ir); *)
+    (* print_string @@ Hashtbl.fold (fun name macro acc -> acc ^ sprintf "%s: %s\n" name (show_func macro)) macros ""; *)
+    _print_ir ir;
 
     { ir; strings }
 

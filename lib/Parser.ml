@@ -69,13 +69,18 @@ let rec parse strings funcs macros words =
         | Putc -> [PUTC] | Puts -> [PUTS]
         | Putb -> [PUTB]
 
-        | prep -> raise @@ Failure (sprintf "'%s' not implemeted" @@ show_prep prep)
+        | prep -> raise @@ Not_implemented (sprintf "'%s'" @@ show_prep prep)
     in
     let rec parse' (top, rest) = function
         | [] -> top :: rest
         | Macro :: Word name :: tl -> parse' ([], top :: rest) @@ add name tl macros
         | Func  :: Word name :: tl -> parse' ([], top :: rest) @@ add name tl funcs
         | Rev :: tl -> parse' ([], top :: rest) tl
+        
+        | If id :: tl -> parse' ([], [IF id] :: top :: rest) tl
+        | Then id :: tl -> parse' ([], [THEN id] :: top :: rest) tl
+        | Else id :: tl -> parse' ([], [ELSE id] :: top :: rest) tl
+        | End_if id :: tl -> parse' ([], [END_IF id] :: top :: rest) tl
 
         | Word name :: tl ->
                 let macro =

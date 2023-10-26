@@ -1,4 +1,5 @@
 exception Unreachable of string
+exception Not_implemented of string
 
 type t = Int | Float | Char | Ptr | String | CStr
 [@@deriving show { with_path = false }]
