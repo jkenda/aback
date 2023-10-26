@@ -6,3 +6,8 @@ if = + 7 6 13 then
         puts "neq!"
     end
 end
+putc '
+'
+
+if > 10 0 then "gt!" else "lt!" end
+puts 

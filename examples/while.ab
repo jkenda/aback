@@ -1,0 +1,6 @@
+0 while > 10 dup do
+    puti dup |>
+    putc ' ' |>
+    + 1
+end
+drop

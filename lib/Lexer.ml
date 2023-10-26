@@ -35,6 +35,9 @@ type word =
 
     | Putc | Puts | Puti | Putf | Putb
 
+    (* TODO: implement with take and peek *)
+    | Dup | Drop
+
     | Word of string
 [@@deriving show { with_path = false }]
 
@@ -67,6 +70,8 @@ let instr_of_word = function
 
     | "putc" -> Putc | "puts" -> Puts
     | "puti" -> Puti | "putb" -> Putb | "putf" -> Putf
+
+    | "dup" -> Dup | "drop" -> Drop
 
     | word ->
             if String.ends_with ~suffix:{|"|} word then

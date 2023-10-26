@@ -22,8 +22,11 @@ type ir =
 
     | PUTC | PUTS | PUTI | PUTF | PUTB
 
-    | IF of int | THEN of int | ELSE of int
-    | END of int
+    | IF of int | THEN of int | ELSE of int | END_IF of int
+    | WHILE of int | DO of int | END_WHILE of int
+
+    (* TODO: implement with take and peek *)
+    | DUP | DROP
 [@@deriving show { with_path = false }]
 
 type program = {
@@ -58,28 +61,32 @@ let exec program =
         | Ptr p :: Int _ :: rest when t = PUTS -> print_string (program.strings.(p)); rest
         | [] -> raise @@ Failure (sprintf "%s: not enough data on stack" (show_ir t))
         | stack -> raise @@ Failure (sprintf "Expected %s, got %s" (show_ir t) (show_data (List.hd stack)))
-    and cond_jmp stack ip addr =
+    and cond_jmp stack t f =
         match stack with
-        | Bool true :: tl -> tl, ip + 1
-        | Bool false :: tl -> tl, addr
+        | Bool true :: tl -> tl, t
+        | Bool false :: tl -> tl, f
         | _ :: _ -> raise @@ Failure (sprintf "expected bool, got %s" (show_data (List.hd stack)))
         | [] -> raise @@ Failure "not enough data on stack"
     in
 
     let exec' stack ip = function
-        | IF _ -> raise @@ Unreachable "IF: please run postprocess"
-        | THEN addr -> cond_jmp stack ip addr
+        | (IF _ | WHILE _ as ir) -> raise @@ Unreachable (sprintf "%s: please run postprocess" (show_ir ir))
+        | THEN addr -> cond_jmp stack (ip + 1) addr
         | ELSE addr -> stack, addr
-        | END _ -> raise @@ Unreachable "END_IF: please run postprocess"
+
+        | DO addr -> cond_jmp stack (ip + 1) addr 
+        | END_WHILE addr -> stack, addr
+
+        | END_IF _ -> raise @@ Unreachable "END_IF: please run postprocess"
 
         | PUSH d -> d :: stack, ip + 1
 
-        | EQ -> int_cmp ( = ) stack, ip + 1
-        | NE -> int_cmp ( = ) stack, ip + 1
-        | LT -> int_cmp ( = ) stack, ip + 1
-        | LE -> int_cmp ( = ) stack, ip + 1
-        | GT -> int_cmp ( = ) stack, ip + 1
-        | GE -> int_cmp ( = ) stack, ip + 1
+        | EQ -> int_cmp ( =  ) stack, ip + 1
+        | NE -> int_cmp ( != ) stack, ip + 1
+        | LT -> int_cmp ( <  ) stack, ip + 1
+        | LE -> int_cmp ( <= ) stack, ip + 1
+        | GT -> int_cmp ( >  ) stack, ip + 1
+        | GE -> int_cmp ( >= ) stack, ip + 1
 
         | ADD -> int_op ( + ) stack, ip + 1
         | SUB -> int_op ( - ) stack, ip + 1
@@ -97,6 +104,11 @@ let exec program =
                 c /. d) stack, ip + 1
 
         | (PUTC | PUTS | PUTI | PUTF | PUTB) as t -> put t stack, ip + 1
+
+        | DUP -> (try List.hd stack :: stack, ip + 1 with Failure _ ->
+                raise @@ Failure "DUP: empty stack")
+        | DROP -> (try List.tl stack, ip + 1 with Failure _ ->
+                raise @@ Failure "DROP: empty stack")
     in
     let instr = Array.of_list program.ir in
 
