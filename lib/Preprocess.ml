@@ -14,10 +14,10 @@ type prep =
 
     | Rev
 
-    | Macro | Func | Is | End_func
+    | Macro | Proc | Is | End_func
     | If of int | Then of int | Else of int | End_if of int
     | While of int | Do of int | End_while of int
-    | Peek of int | Take of int | In | End_peek of int | End_take of int
+    | Peek | Take | In | End_peek
     | Let | Assign | Return
 
     | Eq | NEq | Lt | LEq | Gt | GEq
@@ -34,11 +34,12 @@ type prep =
 
     | Putc | Puts | Puti | Putf | Putb
 
-    (* TODO: implement with take and peek *)
-    | Dup | Drop
-
     | Word of string
 [@@deriving show { with_path = false }]
+
+let _print_prep prep =
+    List.iter (fun x -> print_endline (show_prep x)) prep;
+    print_newline ()
 
 let preprocess tokens =
     let preprocess (acc, end_stack, next_id) word =
@@ -46,7 +47,7 @@ let preprocess tokens =
         | (Rev : word) -> Rev :: acc, end_stack, next_id
 
         | Macro -> Macro :: acc, Macro :: end_stack, next_id
-        | Func -> Func :: acc, Func :: end_stack, next_id
+        | Proc -> Proc :: acc, Proc :: end_stack, next_id
         | Is -> Is :: acc, end_stack, next_id
 
         | If ->
@@ -62,23 +63,17 @@ let preprocess tokens =
                 next :: acc, next :: end_stack, next_id
         | Do -> Do next_id :: acc, end_stack, next_id
 
-        | Peek ->
-                let next_id = next_id + 1 in
-                let next = Peek next_id in
-                next :: acc, next :: end_stack, next_id
-        | Take ->
-                let next_id = next_id + 1 in
-                let next = Take next_id in
-                next :: acc, next :: end_stack, next_id
+        | Peek -> Peek :: acc, Peek :: end_stack, next_id
+        | Take -> Take :: acc, Take :: end_stack, next_id
         | In -> In :: acc, end_stack, next_id
 
         | End ->
                 ((match List.hd end_stack with
-                | Func | Macro -> End_func
+                | Proc | Macro -> End_func
                 | If id -> End_if id
                 | While id -> End_while id
-                | Peek id -> End_peek id
-                | Take id -> End_take id
+                | Peek
+                | Take -> End_peek
                 | _ | exception _ -> raise @@ Failure "end reqires matching macro | func | if | while | peek | take")
                     :: acc, List.tl end_stack, next_id)
 
@@ -105,8 +100,6 @@ let preprocess tokens =
                 | Ref -> Ref | Deref -> Deref
 
                 | Putc -> Putc | Puts -> Puts | Puti -> Puti | Putf -> Putf | Putb -> Putb
-
-                | Dup -> Dup | Drop -> Drop
 
                 | Word w -> Word w
                 | _ -> raise @@ Unreachable (show_word word)) :: acc, end_stack, next_id

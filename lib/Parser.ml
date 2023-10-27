@@ -19,34 +19,42 @@ let _print_funcs funcs =
     print_string 
     @@ Hashtbl.fold (fun name macro acc -> acc ^ sprintf "%s: %s\n" name (show_func macro)) funcs ""
 
-let rec parse strings funcs macros words =
+let rec parse strings procs macros words =
     let nstrings = ref (List.length !strings) in
-    let add name words table =
+    let add_func name words table =
         let rec extract_types input t_in t_out = function
             | Type t :: words ->
                     if input then extract_types input (t :: t_in) t_out words
                     else extract_types input t_in (t :: t_out) words
             | Return :: words -> extract_types false t_in t_out words
-            | Is :: words -> words, List.rev t_in, List.rev t_out
+            | Is :: words -> List.rev t_in, List.rev t_out, words
             | word :: _ -> raise @@ Failure (sprintf "Expected type, got %s" (show_prep word))
-            | [] -> raise @@ Failure "unreachable"
+            | [] -> raise @@ Failure "expected 'is' after function declaration"
         and add' acc = function
             | [] -> raise @@ Failure "'end' expected"
-            | (Macro | Func ) :: _ -> raise @@ Failure "Nesting macros and functions not allowed"
-
+            | (Macro | Proc) :: _ ->
+                    raise @@ Failure "Nesting macros and procs is not allowed"
             | End_func :: words ->
-                    List.rev @@ parse strings funcs macros acc, words
+                    parse strings procs macros @@ List.rev acc, words
             | word :: words -> add' (word :: acc) words
         in
-        let words, t_in, t_out = extract_types true [] [] words in
-        let seq, rest = add' [] words in
-        Hashtbl.add table name { seq; t_in; t_out };
-        rest
+        let t_in, t_out, words = extract_types true [] [] words in
+        let seq, words = add' [] words in
+        Hashtbl.add table name { t_in; t_out; seq };
+        words
     and add_string str =
         let addr = !nstrings in
         strings := str :: !strings;
         nstrings := !nstrings + 1;
         addr, String.length str
+    and parse_vars words =
+        let rec parse' vars = function
+            | In :: words -> List.rev vars, words
+            | Word name :: words -> parse' (name :: vars) words
+            | word :: _ -> raise @@ Failure (sprintf "Expected name or In, got %s" (show_prep word))
+            | [] -> raise @@ Failure "expected 'is' after variable list"
+        in
+        parse' [] words
     in
     let data_of_operation = function
         | (Int i : Preprocess.data) -> Int i
@@ -78,39 +86,68 @@ let rec parse strings funcs macros words =
         | Putc -> [PUTC] | Puts -> [PUTS]
         | Putb -> [PUTB]
 
-        | Dup -> [DUP] | Drop -> [DROP]
-
         | prep -> raise @@ Not_implemented (show_prep prep)
     in
-    let rec parse' (top, rest) = function
-        | [] -> top :: rest
-        | (Macro : prep) :: Word name :: tl -> parse' ([], top :: rest) @@ add name tl macros
-        | Func  :: Word name :: tl -> parse' ([], top :: rest) @@ add name tl funcs
-        | Rev :: tl -> parse' ([], top :: rest) tl
-        
-        | If id :: tl -> parse' ([], [IF id] :: top :: rest) tl
-        | Then id :: tl -> parse' ([], [THEN id] :: top :: rest) tl
-        | Else id :: tl -> parse' ([], [ELSE id] :: top :: rest) tl
-        | End_if id :: tl -> parse' ([], [END_IF id] :: top :: rest) tl
 
-        | While id :: tl -> parse' ([], [WHILE id] :: top :: rest) tl
-        | Do id :: tl -> parse' ([], [DO id] :: top :: rest) tl
-        | End_while id :: tl -> parse' ([], [END_WHILE id] :: top :: rest) tl
+    let vars = Hashtbl.create 10 in
+    let rec parse' (top, rest) names = function
+        | [] -> top :: rest
+        | (Macro : prep) :: Word name :: tl ->
+                parse' ([], top :: rest) names
+                @@ add_func name tl macros
+        | Macro :: _ -> raise @@ Failure "macro: expected name"
+        | Proc  :: Word name :: tl ->
+                parse' ([], top :: rest) names
+                @@ add_func name tl procs
+        | Proc :: _ -> raise @@ Failure "proc: expected name"
+        | Rev :: tl -> parse' ([], top :: rest) names tl
+        
+        | (If _ | Then _ | Else _ | End_if _ | While _ | Do _ | End_while _) as word :: tl ->
+                (parse' ([], (match word with
+                | If id        -> [IF id]
+                | Then id      -> [THEN id]
+                | Else id      -> [ELSE id]
+                | End_if id    -> [END_IF id]
+                | While id     -> [WHILE id]
+                | Do id        -> [DO id]
+                | End_while id -> [END_WHILE id]
+                | _ -> raise (Unreachable "")) :: top :: rest) names tl)
+
+        | Peek | Take as word :: tl ->
+                let n, tl = parse_vars tl in
+                (* TODO: check if variable exists (shadowing?) *)
+                List.iter (fun name -> Hashtbl.add vars name @@ Hashtbl.length vars) n;
+                let irs =
+                    List.mapi (fun depth name ->
+                    if word = Peek
+                    then PEEK (depth, (Hashtbl.find vars name))
+                    else TAKE (Hashtbl.find vars name)) n
+                in
+                parse' ([], irs :: top :: rest) (n :: names) tl
+        | End_peek :: tl ->
+                (try List.hd names with Failure _ ->
+                    raise @@ Unreachable "cannot end peek/take")
+                |> List.iter @@ Hashtbl.remove vars;
+                parse' ([], top :: rest) (List.tl names) tl
 
         | Word name :: tl ->
+                (match Hashtbl.find_opt vars name with
+                | Some var -> parse' (PUT var :: top, rest) names tl
+                | None ->
                 let macro =
                     try Hashtbl.find macros name with Not_found ->
-                    try Hashtbl.find funcs name with Not_found ->
+                    try Hashtbl.find procs name with Not_found ->
                         raise @@ Failure (
-                            sprintf "Unknown word: '%s'.\n\tavailable macros: %s\n\tavailable functions: %s"
+                            sprintf "Unknown word: '%s'.\n\tavailable vars: %s\n\tavailable macros: %s\n\tavailable procs: %s"
                             name
+                            (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) vars "")
                             (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) macros "")
-                            (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) funcs ""))
+                            (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) procs ""))
                 in
-                parse' (macro.seq @ top, rest) tl
-        | word :: tl -> parse' (ir_of_word word @ top, rest) tl
+                parse' (macro.seq @ top, rest) names tl)
+        | word :: tl -> parse' (ir_of_word word @ top, rest) names tl
     in
-    parse' ([], []) words
+    parse' ([], []) [] words
     |> List.rev
     |> List.flatten
 

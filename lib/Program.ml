@@ -24,9 +24,8 @@ type ir =
 
     | IF of int | THEN of int | ELSE of int | END_IF of int
     | WHILE of int | DO of int | END_WHILE of int
-
-    (* TODO: implement with take and peek *)
-    | DUP | DROP
+    | PEEK of int * int | TAKE of int
+    | PUT of int
 [@@deriving show { with_path = false }]
 
 type program = {
@@ -69,15 +68,19 @@ let exec program =
         | [] -> raise @@ Failure "not enough data on stack"
     in
 
+    let storage = Hashtbl.create 10 in
     let exec' stack ip = function
         | (IF _ | WHILE _ as ir) -> raise @@ Unreachable (sprintf "%s: please run postprocess" (show_ir ir))
         | THEN addr -> cond_jmp stack (ip + 1) addr
         | ELSE addr -> stack, addr
+        | END_IF _ -> raise @@ Unreachable "END_IF: please run postprocess"
 
         | DO addr -> cond_jmp stack (ip + 1) addr 
         | END_WHILE addr -> stack, addr
 
-        | END_IF _ -> raise @@ Unreachable "END_IF: please run postprocess"
+        | PEEK (i, addr) -> Hashtbl.add storage addr (List.nth stack i); stack, ip + 1
+        | TAKE addr -> Hashtbl.add storage addr (List.hd stack); List.tl stack, ip + 1
+        | PUT  addr -> Hashtbl.find storage addr :: stack, ip + 1
 
         | PUSH d -> d :: stack, ip + 1
 
@@ -104,11 +107,6 @@ let exec program =
                 c /. d) stack, ip + 1
 
         | (PUTC | PUTS | PUTI | PUTF | PUTB) as t -> put t stack, ip + 1
-
-        | DUP -> (try List.hd stack :: stack, ip + 1 with Failure _ ->
-                raise @@ Failure "DUP: empty stack")
-        | DROP -> (try List.tl stack, ip + 1 with Failure _ ->
-                raise @@ Failure "DROP: empty stack")
     in
     let instr = Array.of_list program.ir in
 

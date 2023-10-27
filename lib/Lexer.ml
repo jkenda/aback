@@ -15,7 +15,7 @@ type word =
 
     | Rev
 
-    | Macro | Func | Is | End
+    | Macro | Proc | Is | End
     | If | Then | Else
     | While | Do (* while ... end *)
     | Peek | Take | In (* peek ... end, take ... end *)
@@ -35,9 +35,6 @@ type word =
 
     | Putc | Puts | Puti | Putf | Putb
 
-    (* TODO: implement with take and peek *)
-    | Dup | Drop
-
     | Word of string
 [@@deriving show { with_path = false }]
 
@@ -45,7 +42,7 @@ type words = word list [@@deriving show { with_path = false }]
 
 let instr_of_word = function
     | "|>" -> Rev | "->" -> Return
-    | "macro" -> Macro | "func" -> Func | "is" -> Is
+    | "macro" -> Macro | "proc" -> Proc | "is" -> Is
     | "if" -> If | "then" -> Then | "else" -> Else | "end" -> End
     | "while" -> While | "do" -> Do
     | "peek" -> Peek | "take" -> Take | "in" -> In
@@ -70,8 +67,6 @@ let instr_of_word = function
 
     | "putc" -> Putc | "puts" -> Puts
     | "puti" -> Puti | "putb" -> Putb | "putf" -> Putf
-
-    | "dup" -> Dup | "drop" -> Drop
 
     | word ->
             if String.ends_with ~suffix:{|"|} word then

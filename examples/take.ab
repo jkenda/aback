@@ -1,0 +1,46 @@
+macro drop is
+    take _ in
+    end
+end
+
+macro dup is
+    peek a in
+        a
+    end
+end
+
+macro 2dup is
+    peek a b in
+        a b
+    end
+end
+
+macro swap is
+    take a b in
+        b a
+    end
+end
+
+0 while > 10 dup do
+    puti dup |>
+    putc ' ' |>
+    + 1
+end
+
+puti swap 0 |>
+putc ' '
+
+take a in
+    puti a
+end
+
+putc '
+'
+
+7 13 take a b in
+    puti a |> putc ' ' |>
+    puti b
+end
+
+putc '
+'
