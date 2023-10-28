@@ -2,13 +2,18 @@ open Format
 
 type location = {
     filename : string;
+    included_from : string list;
     row : int;
-    col : int
+    col : int;
 }
 [@@deriving show { with_path = false }]
-let print_location loc = (sprintf "%s:%d:%d" loc.filename loc.row loc.col)
 
 exception Error of location * string
+let print_error (loc, msg) =
+    printf "'%s':%d:%d:\n" loc.filename loc.row loc.col;
+    printf "\t%s\n\n" msg;
+    List.iter (fun filename -> printf "included from '%s'\n" filename) loc.included_from;
+
 exception Not_implemented of location * string
 exception Unreachable of string
 
@@ -144,7 +149,7 @@ let instr_of_word (loc, word) =
         in
         loc, word
 
-let lex filename text =
+let lex filename included_from text =
     let rec skip_whitespace i loc =
         if i >= String.length text then i, loc
         else
@@ -189,7 +194,7 @@ let lex filename text =
                     let next, next_loc = get_word i loc in
                     lex' ((loc, String.sub text i (next - i)) :: acc) (next, next_loc)
     in
-    lex' [] (0, { filename; row = 1; col = 1 })
+    lex' [] (0, { filename; included_from; row = 1; col = 1 })
     |> List.rev_map instr_of_word
 
 let test actual expected =
@@ -200,11 +205,11 @@ let test actual expected =
         print_endline (Format.asprintf "%s\n!=\n%s" (show_words actual) (show_words expected));
     matches
 
-let%test _ = test (lex "+ 12 13 'c' 'cc'" "[test]")
+let%test _ = test (lex "[test]" [] "+ 12 13 'c' 'cc'")
 ([
-    { filename = "[test]"; row = 1; col = 1  }, Add;
-    { filename = "[test]"; row = 1; col = 3  }, Int 12;
-    { filename = "[test]"; row = 1; col = 6  }, Int 13;
-    { filename = "[test]"; row = 1; col = 9  }, Char 'c';
-    { filename = "[test]"; row = 1; col = 13 }, Word "cc"
+    { filename = "[test]"; included_from = []; row = 1; col = 1  }, Add;
+    { filename = "[test]"; included_from = []; row = 1; col = 3  }, Int 12;
+    { filename = "[test]"; included_from = []; row = 1; col = 6  }, Int 13;
+    { filename = "[test]"; included_from = []; row = 1; col = 9  }, Char 'c';
+    { filename = "[test]"; included_from = []; row = 1; col = 13 }, Word "cc"
 ])

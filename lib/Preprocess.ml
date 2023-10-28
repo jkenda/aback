@@ -43,10 +43,10 @@ let _print_prep prep =
     List.iter (fun x -> print_endline (show_prep x)) prep;
     print_newline ()
 
-let rec include_file src =
+let rec include_file included_from src =
     let text = read_lib_file src in
     text
-    |> lex src
+    |> lex src included_from
     |> preprocess
     |> List.rev
 
@@ -54,7 +54,9 @@ and preprocess words =
     let preprocess'' (acc, end_stack, next_id, words) =
         match words with
         | [] -> acc, end_stack, next_id, []
-        | (_, Include) :: (_, String src) :: tl -> include_file src @ acc, end_stack, next_id, tl
+        | (loc, Include) :: (_, String src) :: tl ->
+                let included_from = loc.filename :: loc.included_from in
+                include_file included_from src @ acc, end_stack, next_id, tl
         | (_, Include) :: (loc, _) :: _
         | (loc, Include) :: _ -> raise @@ Error (loc, "expected string after include")
 
@@ -62,40 +64,40 @@ and preprocess words =
 
         | (loc, Macro) :: tl ->
                 let next_id = next_id + 1 in
-                let next = Macro next_id in
-                (loc, next) :: acc, next :: end_stack, next_id, tl
+                let next = loc, Macro next_id in
+                next :: acc, next :: end_stack, next_id, tl
         | (loc, Proc) :: tl ->
                 let next_id = next_id + 1 in
-                let next = Proc next_id in
-                (loc, next) :: acc, next :: end_stack, next_id, tl
+                let next = loc, Proc next_id in
+                next :: acc, next :: end_stack, next_id, tl
         | (loc, Is) :: tl -> (loc, Is) :: acc, end_stack, next_id, tl
 
         | (loc, If) :: tl ->
                 let next_id = next_id + 1 in
-                let next = If next_id in
-                (loc, next) :: acc, next :: end_stack, next_id, tl
+                let next = loc, If next_id in
+                next :: acc, next :: end_stack, next_id, tl
         | (loc, Then) :: tl -> (loc, Then next_id) :: acc, end_stack, next_id, tl
         | (loc, Else) :: tl -> (loc, Else next_id) :: acc, end_stack, next_id, tl
 
         | (loc, While) :: tl ->
                 let next_id = next_id + 1 in
-                let next = While next_id in
-                (loc, next) :: acc, next :: end_stack, next_id, tl
+                let next = loc, While next_id in
+                next :: acc, next :: end_stack, next_id, tl
         | (loc, Do) :: tl -> (loc, Do next_id) :: acc, end_stack, next_id, tl
 
-        | (loc, Peek) :: tl -> (loc, Peek) :: acc, Peek :: end_stack, next_id, tl
-        | (loc, Take) :: tl -> (loc, Take) :: acc, Take :: end_stack, next_id, tl
+        | (loc, Peek) :: tl -> (loc, Peek) :: acc, (loc, Peek) :: end_stack, next_id, tl
+        | (loc, Take) :: tl -> (loc, Take) :: acc, (loc, Take) :: end_stack, next_id, tl
         | (loc, In) :: tl -> (loc, In) :: acc, end_stack, next_id, tl
 
         | (loc, End) :: tl ->
                 let ir, end_stack =
                     match end_stack with
-                    | Proc id  :: e
-                    | Macro id :: e -> End_func id, e
-                    | If id    :: e -> End_if id, e
-                    | While id :: e -> End_while id, e
-                    | Peek     :: e
-                    | Take     :: e -> End_peek, e
+                    | (_, Proc id)  :: e
+                    | (_, Macro id) :: e -> End_func id, e
+                    | (_, If id)    :: e -> End_if id, e
+                    | (_, While id) :: e -> End_while id, e
+                    | (_, Peek)     :: e
+                    | (_, Take)     :: e -> End_peek, e
                     | _ | exception _ ->
                             raise @@ Error (loc,
                             "end reqires matching begin: one of macro, func, if, while, peek, take")
@@ -133,10 +135,15 @@ and preprocess words =
 
 
     in
-    let rec preprocess' ((acc, _, _, words) as data) =
+    let rec preprocess' ((acc, end_stack, _, words) as data) =
         match words with
-        | [] -> List.rev acc
+        | [] -> List.rev acc, end_stack
         | _ -> preprocess' @@ preprocess'' data
     in
-    preprocess' ([], [], 0, words)
+    let acc, end_stack = preprocess' ([], [], 0, words) in
+    if end_stack = [] then acc
+    else
+        let loc, _ = List.hd end_stack in
+        raise @@ Error (loc, "no matching 'end'")
+
 

@@ -1,4 +1,3 @@
-open Format
 open Lexer
 open Preprocess
 open Parser
@@ -12,12 +11,12 @@ let compile filename =
     let loc, ir =
         try
             read_src_file filename
-            |> lex filename
+            |> lex filename []
             |> preprocess
             |> parse strings funcs macros
             |> postprocess
         with Error (loc, msg) ->
-            printf "%s:\n\t%s\n" (print_location loc) msg;
+            print_error (loc, msg);
             exit 1
     and strings =
         !strings
@@ -30,5 +29,5 @@ let compile filename =
 let simulate program =
     try Program.exec program
     with Error (loc, msg) ->
-        printf "%s:\n\t%s\n" (print_location loc) msg;
+        print_error (loc, msg);
         exit 1
