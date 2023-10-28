@@ -97,7 +97,8 @@ and preprocess words =
                     | Peek     :: e
                     | Take     :: e -> End_peek, e
                     | _ | exception _ ->
-                            raise @@ Error (loc, "end reqires matching begin: macro | func | if | while | peek | take")
+                            raise @@ Error (loc,
+                            "end reqires matching begin: one of macro, func, if, while, peek, take")
                 in
                 (loc, ir) :: acc, end_stack, next_id, tl
 

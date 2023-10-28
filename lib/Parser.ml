@@ -28,7 +28,7 @@ let rec parse strings procs macros words =
                     else extract_types input t_in (t :: t_out) words
             | (_, Return) :: words -> extract_types false t_in t_out words
             | (_, Is) :: words -> List.rev t_in, List.rev t_out, words
-            | (loc, word) :: _ -> raise @@ Error (loc, sprintf "Expected type, got %s" (show_prep word))
+            | (loc, word) :: _ -> raise @@ Error (loc, sprintf "Expected 'is' or type, got %s" (show_prep word))
             | [] -> raise @@ Error (loc, "expected 'is' after function declaration")
         and add' acc = function
             | [] -> raise @@ Error (loc, "'end' expected")

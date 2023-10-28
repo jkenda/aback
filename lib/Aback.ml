@@ -10,13 +10,14 @@ let compile filename =
     let funcs = Hashtbl.create 10
     and macros = Hashtbl.create 10 in
     let loc, ir =
-        try read_src_file filename
-        |> lex filename
-        |> preprocess
-        |> parse strings funcs macros
-        |> postprocess
+        try
+            read_src_file filename
+            |> lex filename
+            |> preprocess
+            |> parse strings funcs macros
+            |> postprocess
         with Error (loc, msg) ->
-            printf "%s: %s\n" (print_location loc) msg;
+            printf "%s:\n\t%s\n" (print_location loc) msg;
             exit 1
     and strings =
         !strings
@@ -29,5 +30,5 @@ let compile filename =
 let simulate program =
     try Program.exec program
     with Error (loc, msg) ->
-        printf "%s: %s\n" (print_location loc) msg;
+        printf "%s:\n\t%s\n" (print_location loc) msg;
         exit 1
