@@ -9,7 +9,7 @@ let compile filename =
     let strings = ref [] in
     let funcs = Hashtbl.create 10
     and macros = Hashtbl.create 10 in
-    let ir =
+    let loc, ir =
         try read_src_file filename
         |> lex filename
         |> preprocess
@@ -24,7 +24,10 @@ let compile filename =
         |> Array.of_list
     in
 
-    { ir; strings }
+    { ir; loc; strings }
 
-let simulate =
-    Program.exec
+let simulate program =
+    try Program.exec program
+    with Error (loc, msg) ->
+        printf "%s: %s\n" (print_location loc) msg;
+        exit 1

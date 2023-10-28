@@ -1,3 +1,4 @@
+open Lexer
 open Program
 
 let postprocess program =
@@ -5,45 +6,47 @@ let postprocess program =
     let else_addr = Hashtbl.create 10 in
     let end_addr = Hashtbl.create 10 in
     let collect_jumps (acc, addr) = function
-        | IF _ -> acc, addr
-        | ELSE id as ir -> Hashtbl.add else_addr id addr; ir :: acc, addr + 1
-        | END_IF id -> Hashtbl.add end_addr id addr; acc, addr
+        | _, IF _ -> acc, addr
+        | _, ELSE id as ir -> Hashtbl.add else_addr id addr; ir :: acc, addr + 1
+        | _, END_IF id -> Hashtbl.add end_addr id addr; acc, addr
         
-        | WHILE id -> Hashtbl.add while_addr id addr; acc, addr
-        | DO _ as ir -> ir :: acc, addr + 1
-        | END_WHILE id as ir -> Hashtbl.add end_addr id addr; ir :: acc, addr + 1
+        | _, WHILE id -> Hashtbl.add while_addr id addr; acc, addr
+        | _, DO _ as ir -> ir :: acc, addr + 1
+        | _, END_WHILE id as ir -> Hashtbl.add end_addr id addr; ir :: acc, addr + 1
 
         | ir -> ir :: acc, addr + 1
     and postprocess' acc = function
-        | THEN id ->
+        | loc, THEN id ->
                 let addr =
                     try Hashtbl.find else_addr id with Not_found ->
                     try Hashtbl.find end_addr id
-                    with Not_found -> raise @@ Failure "expected 'else' or 'end'"
+                    with Not_found -> raise @@ Error (loc, "expected 'else' or 'end'")
                 in
-                THEN (addr + 1) :: acc
-        | ELSE id ->
+                (loc, THEN (addr + 1)) :: acc
+        | loc, ELSE id ->
                 let addr =
                     try Hashtbl.find end_addr id
-                    with Not_found -> raise @@ Failure "expected 'end'"
+                    with Not_found -> raise @@ Error (loc, "expected 'end'")
                 in
-                ELSE addr :: acc
+                (loc, ELSE addr) :: acc
 
-        | DO id ->
+        | loc, DO id ->
                 let addr =
                     try Hashtbl.find end_addr id
-                    with Not_found -> raise @@ Failure "expected 'end'"
+                    with Not_found -> raise @@ Error (loc, "expected 'end'")
                 in
-                DO (addr + 1) :: acc
-        | END_WHILE id ->
+                (loc, DO (addr + 1)) :: acc
+        | loc, END_WHILE id ->
                 let addr =
                     try Hashtbl.find while_addr id
-                    with Not_found -> raise @@ Failure "expected 'while'"
+                    with Not_found -> raise @@ Error (loc, "expected 'while'")
                 in
-                END_WHILE addr :: acc
+                (loc, END_WHILE addr) :: acc
 
         | ir -> ir :: acc
     in
     let acc, _ = List.fold_left collect_jumps ([], 0) program in
     List.fold_left postprocess' [] acc
+    |> Array.of_list
+    |> Array.split
 

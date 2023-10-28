@@ -32,7 +32,8 @@ type ir =
 [@@deriving show { with_path = false }]
 
 type program = {
-    ir : ir list;
+    ir : ir array;
+    loc : location array;
     strings : string array
 }
 
@@ -40,44 +41,66 @@ type stack = data list
 [@@deriving show { with_path = false }]
 
 let exec program =
-    let int_op op = function
-        | Int i :: Int j :: rest -> Int (op i j) :: rest
-        | a :: b :: _ -> raise @@ Failure (
-            sprintf "expected Int Int, got %s %s" (show_data a) (show_data b))
-        | _ -> raise @@ Failure "not enough data on stack"
-    and int_cmp op = function
-        | Int i :: Int j :: rest -> Bool (op i j) :: rest
-        | a :: b :: _ -> raise @@ Failure (
-            sprintf "expected Int Int, got %s %s" (show_data a) (show_data b))
-        | stack -> raise @@ Failure (sprintf "not enough data on stack : %s" @@ show_stack stack)
-    and float_op op = function
-        | Float i :: Float j :: rest -> Float (op i j) :: rest
-        | a :: b :: _ -> raise @@ Failure (
-            sprintf "expected Float Float, got %s %s" (show_data a) (show_data b))
-        | _ -> raise @@ Failure "not enough data on stack"
-    and bool_op op = function
-        | Bool i :: Bool j :: rest -> Bool (op i j) :: rest
-        | a :: b :: _ -> raise @@ Failure (
-            sprintf "expected Bool Bool, got %s %s" (show_data a) (show_data b))
-        | _ -> raise @@ Failure "not enough data on stack"
-    and put t = function
-        | Int i   :: rest when t = PUTI -> print_int i; rest
-        | Bool b  :: rest when t = PUTB -> print_bool b; rest
-        | Char c  :: rest when t = PUTC -> print_char c; rest
-        | Float f :: rest when t = PUTF -> print_float f; rest
-        | Ptr p :: Int _ :: rest when t = PUTS -> print_string (program.strings.(p)); rest
-        | [] -> raise @@ Failure (sprintf "%s: not enough data on stack" (show_ir t))
-        | stack -> raise @@ Failure (sprintf "Expected %s, got %s" (show_ir t) (show_data (List.hd stack)))
-    and cond_jmp stack t f =
-        match stack with
-        | Bool true :: tl -> tl, t
-        | Bool false :: tl -> tl, f
-        | _ :: _ -> raise @@ Failure (sprintf "expected bool, got %s" (show_data (List.hd stack)))
-        | [] -> raise @@ Failure "not enough data on stack"
-    in
-
     let storage = Hashtbl.create 10 in
-    let exec' stack ip = function
+
+    let exec' stack ip instr =
+        let int_op op = function
+            | Int i :: Int j :: rest -> Int (op i j) :: rest
+            | a :: b :: _ -> raise @@ Error (
+                program.loc.(ip),
+                sprintf "expected Int Int, got %s %s" (show_data a) (show_data b))
+            | _ -> raise @@ Error (
+                program.loc.(ip),
+                "not enough data on stack")
+        and int_cmp op = function
+            | Int i :: Int j :: rest -> Bool (op i j) :: rest
+            | a :: b :: _ -> raise @@ Error (
+                program.loc.(ip),
+                sprintf "expected Int Int, got %s %s" (show_data a) (show_data b))
+            | stack -> raise @@ Error (
+                program.loc.(ip),
+                sprintf "not enough data on stack : %s" @@ show_stack stack)
+        and float_op op = function
+            | Float i :: Float j :: rest -> Float (op i j) :: rest
+            | a :: b :: _ -> raise @@ Error (
+                program.loc.(ip),
+                sprintf "expected Float Float, got %s %s" (show_data a) (show_data b))
+            | _ -> raise @@ Error (
+                program.loc.(ip),
+                "not enough data on stack")
+        and bool_op op = function
+            | Bool i :: Bool j :: rest -> Bool (op i j) :: rest
+            | a :: b :: _ -> raise @@ Error (
+                program.loc.(ip),
+                sprintf "expected Bool Bool, got %s %s" (show_data a) (show_data b))
+            | _ -> raise @@ Error (
+                program.loc.(ip),
+            "not enough data on stack")
+        and put t = function
+            | Int i   :: rest when t = PUTI -> print_int i; rest
+            | Bool b  :: rest when t = PUTB -> print_bool b; rest
+            | Char c  :: rest when t = PUTC -> print_char c; rest
+            | Float f :: rest when t = PUTF -> print_float f; rest
+            | Ptr p :: Int _ :: rest when t = PUTS -> print_string (program.strings.(p)); rest
+            | [] -> raise @@ Error (
+                program.loc.(ip),
+                sprintf "%s: not enough data on stack" (show_ir t))
+            | stack -> raise @@ Error (
+                program.loc.(ip),
+                sprintf "Expected %s, got %s" (show_ir t) (show_data (List.hd stack)))
+        and cond_jmp stack t f =
+            match stack with
+            | Bool true :: tl -> tl, t
+            | Bool false :: tl -> tl, f
+            | _ :: _ -> raise @@ Error (
+                program.loc.(ip),
+                sprintf "expected bool, got %s" (show_data (List.hd stack)))
+            | [] -> raise @@ Error (
+                program.loc.(ip),
+                "not enough data on stack")
+        in
+
+        match instr with
         | (IF _ | WHILE _ as ir) -> raise @@ Unreachable (sprintf "%s: please run postprocess" (show_ir ir))
         | THEN addr -> cond_jmp stack (ip + 1) addr
         | ELSE addr -> stack, addr
@@ -125,12 +148,11 @@ let exec program =
 
         | (PUTC | PUTS | PUTI | PUTF | PUTB) as t -> put t stack, ip + 1
     in
-    let instr = Array.of_list program.ir in
 
     let rec exec'' stack ip =
-        if ip >= Array.length instr then stack
+        if ip >= Array.length program.ir then stack
         else
-            let stack, ip = exec' stack ip instr.(ip) in
+            let stack, ip = exec' stack ip program.ir.(ip) in
             exec'' stack ip
     in
     exec'' [] 0

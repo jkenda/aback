@@ -6,7 +6,7 @@ open Format
 type func = {
     t_in : t list;
     t_out : t list;
-    seq : ir list
+    seq : (location * ir) list
 }
 [@@deriving show { with_path = false }]
 
@@ -50,7 +50,7 @@ let rec parse strings procs macros words =
     and parse_vars loc words =
         let rec parse' vars = function
             | (_, In) :: words -> List.rev vars, words
-            | (_, Word name) :: words -> parse' (name :: vars) words
+            | (loc, Word name) :: words -> parse' ((loc, name) :: vars) words
             | (loc, word) :: _ -> raise @@ Error (loc, sprintf "Expected name or In, got %s" (show_prep word))
             | [] -> raise @@ Error (loc, "expected 'is' after variable list")
         in
@@ -63,38 +63,43 @@ let rec parse strings procs macros words =
         | Bool b -> Bool b
         | _ -> raise @@ Not_implemented (loc, "Invalid data")
     in
-    let ir_of_word loc = function
-        | Push push ->
-                (match push with
-                | String str ->
-                        let addr, len = add_string str in
-                        [PUSH (Int len); PUSH (Ptr addr)]
-                | CStr str ->
-                        let addr, _ = add_string str in
-                        [PUSH (Ptr addr)]
-                | _  as push ->
-                        [PUSH (data_of_operation loc push)])
+    let ir_of_word loc word =
+        let ir_of_word' = function
+            | Push push ->
+                    (match push with
+                    | String str ->
+                            let addr, len = add_string str in
+                            [PUSH (Int len); PUSH (Ptr addr)]
+                    | CStr str ->
+                            let addr, _ = add_string str in
+                            [PUSH (Ptr addr)]
+                    | _  as push ->
+                            [PUSH (data_of_operation loc push)])
 
-        | Eq -> [EQ] | NEq -> [NE] | Lt -> [LT] | LEq -> [LE] | Gt -> [GT] | GEq -> [GE]
+            | Eq -> [EQ] | NEq -> [NE] | Lt -> [LT] | LEq -> [LE] | Gt -> [GT] | GEq -> [GE]
 
-        | Add -> [ADD] | FAdd -> [FADD]
-        | Sub -> [SUB] | FSub -> [FSUB]
-        | Mul -> [MUL] | FMul -> [FMUL]
-        | Div -> [DIV] | FDiv -> [FDIV]
-        | Mod -> [MOD] | FMod -> [FMOD]
+            | Add -> [ADD] | FAdd -> [FADD]
+            | Sub -> [SUB] | FSub -> [FSUB]
+            | Mul -> [MUL] | FMul -> [FMUL]
+            | Div -> [DIV] | FDiv -> [FDIV]
+            | Mod -> [MOD] | FMod -> [FMOD]
 
-        | And -> [AND] | Or -> [OR]
-        | BAnd -> [BAND] | BOr -> [BOR] | BXor -> [BXOR]
-        | Lsl -> [LSL] | Lsr -> [LSR]
+            | And -> [AND] | Or -> [OR]
+            | BAnd -> [BAND] | BOr -> [BOR] | BXor -> [BXOR]
+            | Lsl -> [LSL] | Lsr -> [LSR]
 
-        | Puti -> [PUTI] | Putf -> [PUTF]
-        | Putc -> [PUTC] | Puts -> [PUTS]
-        | Putb -> [PUTB]
+            | Puti -> [PUTI] | Putf -> [PUTF]
+            | Putc -> [PUTC] | Puts -> [PUTS]
+            | Putb -> [PUTB]
 
-        | prep -> raise @@ Not_implemented (loc, show_prep prep)
+            | prep -> raise @@ Not_implemented (loc, show_prep prep)
+        in
+        ir_of_word' word
+        |> List.map (fun ir -> loc, ir)
     in
 
-    let vars = Hashtbl.create 10 in
+    let vars = Hashtbl.create 10
+    and locs = Hashtbl.create 10 in
     let rec parse' (top, rest) names = function
         | [] -> top :: rest
         | (_, (Macro id : prep)) :: (loc, Word name) :: tl ->
@@ -107,27 +112,33 @@ let rec parse strings procs macros words =
         | (loc, Proc _) :: _ -> raise @@ Error (loc, "proc: expected name")
         | (_, Rev) :: tl -> parse' ([], top :: rest) names tl
         
-        | (_,  ((If _ | Then _ | Else _ | End_if _ | While _ | Do _ | End_while _) as word)) :: tl ->
-                (parse' ([], (match word with
-                | If id        -> [IF id]
-                | Then id      -> [THEN id]
-                | Else id      -> [ELSE id]
-                | End_if id    -> [END_IF id]
-                | While id     -> [WHILE id]
-                | Do id        -> [DO id]
-                | End_while id -> [END_WHILE id]
-                | _ -> raise (Unreachable "")) :: top :: rest) names tl)
+        | (loc,  ((If _ | Then _ | Else _ | End_if _ | While _ | Do _ | End_while _) as word)) :: tl ->
+                let instr =
+                    match word with
+                    | If id        -> IF id
+                    | Then id      -> THEN id
+                    | Else id      -> ELSE id
+                    | End_if id    -> END_IF id
+                    | While id     -> WHILE id
+                    | Do id        -> DO id
+                    | End_while id -> END_WHILE id
+                    | _ -> raise (Unreachable "")
+                in
+                (parse' ([], [loc, instr] :: top :: rest) names tl)
 
         | (loc, ((Peek | Take) as word)) :: tl ->
                 let n, tl = parse_vars loc tl in
                 (* TODO: check if variable exists (shadowing?) *)
-                List.iter (fun name -> Hashtbl.add vars name @@ Hashtbl.length vars) n;
+                List.iter (fun (loc, name) ->
+                    Hashtbl.add vars name @@ Hashtbl.length vars;
+                    Hashtbl.add locs loc  @@ Hashtbl.length vars) n;
                 let irs =
-                    List.mapi (fun depth name ->
+                    List.mapi (fun depth (loc, name) ->
                     if word = Peek
-                    then PEEK (depth, (Hashtbl.find vars name))
-                    else TAKE (Hashtbl.find vars name)) n
+                    then loc, PEEK (depth, (Hashtbl.find vars name))
+                    else loc, TAKE (Hashtbl.find vars name)) n
                 in
+                let _, n = List.split n in
                 parse' ([], irs :: top :: rest) (n :: names) tl
         | (loc, End_peek) :: tl ->
                 (try List.hd names with _ ->
@@ -137,11 +148,11 @@ let rec parse strings procs macros words =
 
         | (loc, Word name) :: tl ->
                 (match Hashtbl.find_opt vars name with
-                | Some var -> parse' (PUT var :: top, rest) names tl
+                | Some var -> parse' ((loc, PUT var) :: top, rest) names tl
                 | None ->
                 let macro =
                     try Hashtbl.find macros name with Not_found ->
-                    try Hashtbl.find procs name with Not_found ->
+                    (* try Hashtbl.find procs name with Not_found -> *)
                         raise @@ Error (loc, 
                             sprintf "Unknown word: '%s'.\n\tavailable vars: %s\n\tavailable macros: %s\n\tavailable procs: %s"
                             name
