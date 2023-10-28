@@ -1,3 +1,4 @@
+open Format
 open Lexer
 
 type data =
@@ -41,33 +42,48 @@ let _print_prep prep =
     List.iter (fun x -> print_endline (show_prep x)) prep;
     print_newline ()
 
-let preprocess tokens =
-    let preprocess (acc, end_stack, next_id) word =
-        match word with
-        | (Rev : word) -> Rev :: acc, end_stack, next_id
+let rec include_file src =
+    let text = read_lib_file src in
+    try text
+    |> lex
+    |> preprocess
+    |> List.rev
+    with Failure msg ->
+            print_endline msg;
+            exit 1
 
-        | Macro -> Macro :: acc, Macro :: end_stack, next_id
-        | Proc -> Proc :: acc, Proc :: end_stack, next_id
-        | Is -> Is :: acc, end_stack, next_id
+and preprocess words =
+    let preprocess'' (acc, end_stack, next_id, words) =
+        match words with
+        | [] -> acc, end_stack, next_id, []
+        | Include :: String src :: tl -> include_file src @ acc, end_stack, next_id, tl
+        | Include :: word :: _ -> raise @@ Failure (sprintf "expected string after include, got %s" (show_word word))
+        | Include :: _ -> raise @@ Failure "expected string after include"
 
-        | If ->
+        | Rev :: tl -> Rev :: acc, end_stack, next_id, tl
+
+        | Macro :: tl -> Macro :: acc, Macro :: end_stack, next_id, tl
+        | Proc :: tl -> Proc :: acc, Proc :: end_stack, next_id   , tl
+        | Is :: tl -> Is :: acc, end_stack, next_id               , tl
+
+        | If :: tl ->
                 let next_id = next_id + 1 in
                 let next = If next_id in
-                next :: acc, next :: end_stack, next_id
-        | Then -> Then next_id :: acc, end_stack, next_id
-        | Else -> Else next_id :: acc, end_stack, next_id
+                next :: acc, next :: end_stack, next_id, tl
+        | Then :: tl -> Then next_id :: acc, end_stack, next_id, tl
+        | Else :: tl -> Else next_id :: acc, end_stack, next_id, tl
 
-        | While ->
+        | While :: tl ->
                 let next_id = next_id + 1 in
                 let next = While next_id in
-                next :: acc, next :: end_stack, next_id
-        | Do -> Do next_id :: acc, end_stack, next_id
+                next :: acc, next :: end_stack, next_id, tl
+        | Do :: tl -> Do next_id :: acc, end_stack, next_id, tl
 
-        | Peek -> Peek :: acc, Peek :: end_stack, next_id
-        | Take -> Take :: acc, Take :: end_stack, next_id
-        | In -> In :: acc, end_stack, next_id
+        | Peek :: tl -> Peek :: acc, Peek :: end_stack, next_id, tl
+        | Take :: tl -> Take :: acc, Take :: end_stack, next_id, tl
+        | In :: tl -> In :: acc, end_stack, next_id, tl
 
-        | End ->
+        | End :: tl ->
                 ((match List.hd end_stack with
                 | Proc | Macro -> End_func
                 | If id -> End_if id
@@ -75,9 +91,9 @@ let preprocess tokens =
                 | Peek
                 | Take -> End_peek
                 | _ | exception _ -> raise @@ Failure "end reqires matching macro | func | if | while | peek | take")
-                    :: acc, List.tl end_stack, next_id)
+                    :: acc, List.tl end_stack, next_id, tl)
 
-        | word ->
+        | word :: tl ->
                 (match word with
                 | Int i -> Push (Int i)
                 | Float f -> Push (Float f)
@@ -102,10 +118,14 @@ let preprocess tokens =
                 | Putc -> Putc | Puts -> Puts | Puti -> Puti | Putf -> Putf | Putb -> Putb
 
                 | Word w -> Word w
-                | _ -> raise @@ Unreachable (show_word word)) :: acc, end_stack, next_id
+                | _ -> raise @@ Not_implemented (show_word word)) :: acc, end_stack, next_id, tl
 
 
     in
-    let acc, _, _ = List.fold_left preprocess ([], [], 0) tokens in
-    List.rev acc
+    let rec preprocess' ((acc, _, _, words) as data) =
+        match words with
+        | [] -> List.rev acc
+        | _ -> preprocess' @@ preprocess'' data
+    in
+    preprocess' ([], [], 0, words)
 

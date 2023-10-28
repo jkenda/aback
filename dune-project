@@ -5,20 +5,17 @@
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github jkenda/aback))
 
-(authors "Author Name")
+(authors "Jakob Kenda")
+(maintainers "Jakob Kenda")
 
-(maintainers "Maintainer Name")
-
-(license LICENSE)
-
-(documentation https://url/to/documentation)
+(license MIT)
 
 (package
  (name aback)
- (synopsis "A short synopsis")
- (description "A longer description")
+ (synopsis "A programming language")
+ (description "Aback is a programming language that uses polish notation, which can be reversed")
  (depends ocaml dune str)
  (tags
   (topics "to describe" your project)))

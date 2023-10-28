@@ -1,0 +1,76 @@
+macro drop is
+    take _ in
+    end
+end
+
+macro nip is
+    take a b in
+        b
+    end
+end
+
+macro dup is
+    peek a in
+        a
+    end
+end
+
+macro over is
+    peek a b in
+        b
+    end
+end
+
+macro tuck is
+    take a b in
+        b a b
+    end
+end
+
+macro swap is
+    take a b in
+        b a
+    end
+end
+
+macro rot is
+    take a b c in
+        b c a
+    end
+end
+
+macro -rot is
+    take a b c in
+        c a b
+    end
+end
+
+macro 2drop is
+    take a b in
+    end
+end
+
+macro 2nip is
+    take a b c d in
+        c d
+    end
+end
+
+macro 2dup is
+    peek a b in
+        a b
+    end
+end
+
+macro 2over is
+    peek a b c d in
+        a b
+    end
+end
+
+macro 2tuck is
+    take a b c d in
+        c d a b c d
+    end
+end
+

@@ -1,27 +1,6 @@
-macro drop is
-    take _ in
-    end
-end
+include "core/stack.ab"
 
-macro dup is
-    peek a in
-        a
-    end
-end
-
-macro 2dup is
-    peek a b in
-        a b
-    end
-end
-
-macro swap is
-    take a b in
-        b a
-    end
-end
-
-0 while > 10 dup do
+0 while < over 10 do
     puti dup |>
     putc ' ' |>
     + 1

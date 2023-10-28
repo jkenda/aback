@@ -14,7 +14,11 @@ syn keyword abackCond take peek in
 syn keyword abackCond while do
 syn keyword abackCond end
 syn keyword abackCond macro proc is
-syn keyword abackStack dup 2dup swap drop
+syn keyword abackStack drop  nip  dup  over  tuck  swap  rot  -rot
+syn keyword abackStack 2drop 2nip 2dup 2over 2tuck 2swap 2rot 2-rot
+syn keyword forthStack 3dup 4dup 5dup 3drop 4drop 5drop
+
+syn keyword abackInclude include
 
 syn keyword abackBool true false
 syn keyword abackFunc puts putc puti putf putb
@@ -51,4 +55,5 @@ hi def link abackOperator Operator
 hi def link abackCond     Conditional
 hi def link abackFunc     Function
 hi def link abackStack    Macro
+hi def link abackInclude  Include
 

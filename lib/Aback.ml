@@ -4,18 +4,18 @@ open Parser
 open Postprocess
 open Program
 
-let compile text =
+let compile filename =
     let strings = ref [] in
     let funcs = Hashtbl.create 10
     and macros = Hashtbl.create 10 in
     let ir =
-        try text
+        try read_src_file filename
         |> lex
         |> preprocess
         |> parse strings funcs macros
         |> postprocess
         with Failure msg ->
-                print_endline msg;
+            print_endline msg;
                 exit 1
     and strings =
         !strings

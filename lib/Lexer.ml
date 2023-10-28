@@ -1,10 +1,38 @@
+open Format
+
 exception Unreachable of string
 exception Not_implemented of string
+
+let src_dirs = [
+    "./";
+    "~/.local/share/aback/"
+]
+
+let read_src_file filename =
+    let ch = open_in_bin filename in
+    let s = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    s
+
+let read_lib_file filename =
+    let rec open_file = function
+        | [] -> raise @@ Failure (sprintf "cannot find file \"%s\"" filename)
+        | dir :: rest -> 
+                try
+                    let f = open_in (dir ^ filename) in
+                    let s = really_input_string f (in_channel_length f) in
+                    close_in f; s
+                with _ -> open_file rest
+    in
+    open_file src_dirs
+
 
 type t = Int | Float | Char | Ptr | String | CStr
 [@@deriving show { with_path = false }]
 
 type word =
+    | Include
+
     | Int of int
     | Float of float
     | Char of char
@@ -41,6 +69,7 @@ type word =
 type words = word list [@@deriving show { with_path = false }]
 
 let instr_of_word = function
+    | "include" -> Include
     | "|>" -> Rev | "->" -> Return
     | "macro" -> Macro | "proc" -> Proc | "is" -> Is
     | "if" -> If | "then" -> Then | "else" -> Else | "end" -> End
