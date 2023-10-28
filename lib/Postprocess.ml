@@ -1,4 +1,3 @@
-open Format
 open Program
 
 let postprocess program =
@@ -19,14 +18,29 @@ let postprocess program =
         | THEN id ->
                 let addr =
                     try Hashtbl.find else_addr id with Not_found ->
-                    Hashtbl.find end_addr id
+                    try Hashtbl.find end_addr id
+                    with Not_found -> raise @@ Failure "expected 'else' or 'end'"
                 in
                 THEN (addr + 1) :: acc
-        | ELSE id -> ELSE (try Hashtbl.find end_addr id with Not_found ->
-                raise @@ Failure (sprintf "(END %d) not found" id)) :: acc
+        | ELSE id ->
+                let addr =
+                    try Hashtbl.find end_addr id
+                    with Not_found -> raise @@ Failure "expected 'end'"
+                in
+                ELSE addr :: acc
 
-        | DO id -> DO (Hashtbl.find end_addr id + 1) :: acc
-        | END_WHILE id -> END_WHILE (Hashtbl.find while_addr id) :: acc
+        | DO id ->
+                let addr =
+                    try Hashtbl.find end_addr id
+                    with Not_found -> raise @@ Failure "expected 'end'"
+                in
+                DO (addr + 1) :: acc
+        | END_WHILE id ->
+                let addr =
+                    try Hashtbl.find while_addr id
+                    with Not_found -> raise @@ Failure "expected 'while'"
+                in
+                END_WHILE addr :: acc
 
         | ir -> ir :: acc
     in

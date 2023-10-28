@@ -55,50 +55,54 @@ and preprocess words =
         match words with
         | [] -> acc, end_stack, next_id, []
         | (_, Include) :: (_, String src) :: tl -> include_file src @ acc, end_stack, next_id, tl
-        | (_, Include) :: (_, word) :: _ -> raise @@ Failure (sprintf "expected string after include, got %s" (show_word word))
-        | (_, Include) :: _ -> raise @@ Failure "expected string after include"
+        | (_, Include) :: (loc, _) :: _
+        | (loc, Include) :: _ -> raise @@ Error (loc, "expected string after include")
 
-        | (_, Rev) :: tl -> Rev :: acc, end_stack, next_id, tl
+        | (loc, Rev) :: tl -> (loc, Rev) :: acc, end_stack, next_id, tl
 
-        | (_, Macro) :: tl ->
+        | (loc, Macro) :: tl ->
                 let next_id = next_id + 1 in
                 let next = Macro next_id in
-                next :: acc, next :: end_stack, next_id, tl
-        | (_, Proc) :: tl ->
+                (loc, next) :: acc, next :: end_stack, next_id, tl
+        | (loc, Proc) :: tl ->
                 let next_id = next_id + 1 in
                 let next = Proc next_id in
-                next :: acc, next :: end_stack, next_id, tl
-        | (_, Is) :: tl -> Is :: acc, end_stack, next_id, tl
+                (loc, next) :: acc, next :: end_stack, next_id, tl
+        | (loc, Is) :: tl -> (loc, Is) :: acc, end_stack, next_id, tl
 
-        | (_, If) :: tl ->
+        | (loc, If) :: tl ->
                 let next_id = next_id + 1 in
                 let next = If next_id in
-                next :: acc, next :: end_stack, next_id, tl
-        | (_, Then) :: tl -> Then next_id :: acc, end_stack, next_id, tl
-        | (_, Else) :: tl -> Else next_id :: acc, end_stack, next_id, tl
+                (loc, next) :: acc, next :: end_stack, next_id, tl
+        | (loc, Then) :: tl -> (loc, Then next_id) :: acc, end_stack, next_id, tl
+        | (loc, Else) :: tl -> (loc, Else next_id) :: acc, end_stack, next_id, tl
 
-        | (_, While) :: tl ->
+        | (loc, While) :: tl ->
                 let next_id = next_id + 1 in
                 let next = While next_id in
-                next :: acc, next :: end_stack, next_id, tl
-        | (_, Do) :: tl -> Do next_id :: acc, end_stack, next_id, tl
+                (loc, next) :: acc, next :: end_stack, next_id, tl
+        | (loc, Do) :: tl -> (loc, Do next_id) :: acc, end_stack, next_id, tl
 
-        | (_, Peek) :: tl -> Peek :: acc, Peek :: end_stack, next_id, tl
-        | (_, Take) :: tl -> Take :: acc, Take :: end_stack, next_id, tl
-        | (_, In) :: tl -> In :: acc, end_stack, next_id, tl
+        | (loc, Peek) :: tl -> (loc, Peek) :: acc, Peek :: end_stack, next_id, tl
+        | (loc, Take) :: tl -> (loc, Take) :: acc, Take :: end_stack, next_id, tl
+        | (loc, In) :: tl -> (loc, In) :: acc, end_stack, next_id, tl
 
-        | (_, End) :: tl ->
-                ((match List.hd end_stack with
-                | Proc id | Macro id -> End_func id
-                | If id -> End_if id
-                | While id -> End_while id
-                | Peek
-                | Take -> End_peek
-                | _ | exception _ -> raise @@ Failure "end reqires matching macro | func | if | while | peek | take")
-                    :: acc, List.tl end_stack, next_id, tl)
+        | (loc, End) :: tl ->
+                let ir, end_stack =
+                    match end_stack with
+                    | Proc id  :: e
+                    | Macro id :: e -> End_func id, e
+                    | If id    :: e -> End_if id, e
+                    | While id :: e -> End_while id, e
+                    | Peek     :: e
+                    | Take     :: e -> End_peek, e
+                    | _ | exception _ ->
+                            raise @@ Error (loc, "end reqires matching begin: macro | func | if | while | peek | take")
+                in
+                (loc, ir) :: acc, end_stack, next_id, tl
 
-        | (_, word) :: tl ->
-                (match word with
+        | (loc, word) :: tl ->
+                (loc, match word with
                 | Int i -> Push (Int i)
                 | Float f -> Push (Float f)
                 | Char c -> Push (Char c)
@@ -124,7 +128,7 @@ and preprocess words =
                 | Putc -> Putc | Puts -> Puts | Puti -> Puti | Putf -> Putf | Putb -> Putb
 
                 | Word w -> Word w
-                | _ -> raise @@ Not_implemented (show_word word)) :: acc, end_stack, next_id, tl
+                | _ -> raise @@ Not_implemented (loc, show_word word)) :: acc, end_stack, next_id, tl
 
 
     in

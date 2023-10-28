@@ -1,7 +1,16 @@
 open Format
 
+type location = {
+    filename : string;
+    row : int;
+    col : int
+}
+[@@deriving show { with_path = false }]
+let print_location loc = (sprintf "%s:%d:%d" loc.filename loc.row loc.col)
+
+exception Error of location * string
+exception Not_implemented of location * string
 exception Unreachable of string
-exception Not_implemented of string
 
 let src_dirs = [
     "./";
@@ -26,16 +35,6 @@ let read_lib_file filename =
     in
     open_file src_dirs
 
-
-type location = {
-    filename : string;
-    row : int;
-    col : int
-}
-[@@deriving show { with_path = false }]
-let print_location loc = (sprintf "%s:%d:%d" loc.filename loc.row loc.col)
-
-exception Error of location * string
 
 type t = Int | Float | Char | Ptr | String | CStr
 [@@deriving show { with_path = false }]
