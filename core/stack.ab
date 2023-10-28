@@ -5,7 +5,7 @@ end
 
 macro nip is
     take a b in
-        b
+        a
     end
 end
 
@@ -23,7 +23,7 @@ end
 
 macro tuck is
     take a b in
-        b a b
+        a b a
     end
 end
 

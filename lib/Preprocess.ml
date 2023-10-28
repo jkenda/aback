@@ -5,6 +5,7 @@ type data =
     | Int of int
     | Float of float
     | Char of char
+    | Bool of bool
     | String of string
     | CStr of string
 [@@deriving show { with_path = false }]
@@ -15,7 +16,7 @@ type prep =
 
     | Rev
 
-    | Macro | Proc | Is | End_func
+    | Macro of int | Proc of int | Is | End_func of int
     | If of int | Then of int | Else of int | End_if of int
     | While of int | Do of int | End_while of int
     | Peek | Take | In | End_peek
@@ -44,48 +45,51 @@ let _print_prep prep =
 
 let rec include_file src =
     let text = read_lib_file src in
-    try text
-    |> lex
+    text
+    |> lex src
     |> preprocess
     |> List.rev
-    with Failure msg ->
-            print_endline msg;
-            exit 1
 
 and preprocess words =
     let preprocess'' (acc, end_stack, next_id, words) =
         match words with
         | [] -> acc, end_stack, next_id, []
-        | Include :: String src :: tl -> include_file src @ acc, end_stack, next_id, tl
-        | Include :: word :: _ -> raise @@ Failure (sprintf "expected string after include, got %s" (show_word word))
-        | Include :: _ -> raise @@ Failure "expected string after include"
+        | (_, Include) :: (_, String src) :: tl -> include_file src @ acc, end_stack, next_id, tl
+        | (_, Include) :: (_, word) :: _ -> raise @@ Failure (sprintf "expected string after include, got %s" (show_word word))
+        | (_, Include) :: _ -> raise @@ Failure "expected string after include"
 
-        | Rev :: tl -> Rev :: acc, end_stack, next_id, tl
+        | (_, Rev) :: tl -> Rev :: acc, end_stack, next_id, tl
 
-        | Macro :: tl -> Macro :: acc, Macro :: end_stack, next_id, tl
-        | Proc :: tl -> Proc :: acc, Proc :: end_stack, next_id   , tl
-        | Is :: tl -> Is :: acc, end_stack, next_id               , tl
+        | (_, Macro) :: tl ->
+                let next_id = next_id + 1 in
+                let next = Macro next_id in
+                next :: acc, next :: end_stack, next_id, tl
+        | (_, Proc) :: tl ->
+                let next_id = next_id + 1 in
+                let next = Proc next_id in
+                next :: acc, next :: end_stack, next_id, tl
+        | (_, Is) :: tl -> Is :: acc, end_stack, next_id, tl
 
-        | If :: tl ->
+        | (_, If) :: tl ->
                 let next_id = next_id + 1 in
                 let next = If next_id in
                 next :: acc, next :: end_stack, next_id, tl
-        | Then :: tl -> Then next_id :: acc, end_stack, next_id, tl
-        | Else :: tl -> Else next_id :: acc, end_stack, next_id, tl
+        | (_, Then) :: tl -> Then next_id :: acc, end_stack, next_id, tl
+        | (_, Else) :: tl -> Else next_id :: acc, end_stack, next_id, tl
 
-        | While :: tl ->
+        | (_, While) :: tl ->
                 let next_id = next_id + 1 in
                 let next = While next_id in
                 next :: acc, next :: end_stack, next_id, tl
-        | Do :: tl -> Do next_id :: acc, end_stack, next_id, tl
+        | (_, Do) :: tl -> Do next_id :: acc, end_stack, next_id, tl
 
-        | Peek :: tl -> Peek :: acc, Peek :: end_stack, next_id, tl
-        | Take :: tl -> Take :: acc, Take :: end_stack, next_id, tl
-        | In :: tl -> In :: acc, end_stack, next_id, tl
+        | (_, Peek) :: tl -> Peek :: acc, Peek :: end_stack, next_id, tl
+        | (_, Take) :: tl -> Take :: acc, Take :: end_stack, next_id, tl
+        | (_, In) :: tl -> In :: acc, end_stack, next_id, tl
 
-        | End :: tl ->
+        | (_, End) :: tl ->
                 ((match List.hd end_stack with
-                | Proc | Macro -> End_func
+                | Proc id | Macro id -> End_func id
                 | If id -> End_if id
                 | While id -> End_while id
                 | Peek
@@ -93,13 +97,15 @@ and preprocess words =
                 | _ | exception _ -> raise @@ Failure "end reqires matching macro | func | if | while | peek | take")
                     :: acc, List.tl end_stack, next_id, tl)
 
-        | word :: tl ->
+        | (_, word) :: tl ->
                 (match word with
                 | Int i -> Push (Int i)
                 | Float f -> Push (Float f)
                 | Char c -> Push (Char c)
                 | String s -> Push (String s)
                 | CStr s -> Push (CStr s)
+                | True -> Push (Bool true)
+                | False -> Push (Bool false)
 
                 | Type t -> Type t
 

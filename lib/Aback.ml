@@ -1,3 +1,4 @@
+open Format
 open Lexer
 open Preprocess
 open Parser
@@ -10,13 +11,13 @@ let compile filename =
     and macros = Hashtbl.create 10 in
     let ir =
         try read_src_file filename
-        |> lex
+        |> lex filename
         |> preprocess
         |> parse strings funcs macros
         |> postprocess
-        with Failure msg ->
-            print_endline msg;
-                exit 1
+        with Error (loc, msg) ->
+            printf "%s: %s\n" (print_location loc) msg;
+            exit 1
     and strings =
         !strings
         |> List.rev

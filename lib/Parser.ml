@@ -21,7 +21,7 @@ let _print_funcs funcs =
 
 let rec parse strings procs macros words =
     let nstrings = ref (List.length !strings) in
-    let add_func name words table =
+    let add_func id name words table =
         let rec extract_types input t_in t_out = function
             | Type t :: words ->
                     if input then extract_types input (t :: t_in) t_out words
@@ -32,9 +32,9 @@ let rec parse strings procs macros words =
             | [] -> raise @@ Failure "expected 'is' after function declaration"
         and add' acc = function
             | [] -> raise @@ Failure "'end' expected"
-            | (Macro | Proc) :: _ ->
-                    raise @@ Failure "Nesting macros and procs is not allowed"
-            | End_func :: words ->
+            | Word _name :: _ when name = _name ->
+                    raise @@ Failure (sprintf "%s: recursive macros not supported" name)
+            | End_func _id :: words when _id = id ->
                     parse strings procs macros @@ List.rev acc, words
             | word :: words -> add' (word :: acc) words
         in
@@ -60,7 +60,8 @@ let rec parse strings procs macros words =
         | (Int i : Preprocess.data) -> Int i
         | Float f -> Float f
         | Char c -> Char c
-        | _ -> raise @@ Failure "Invalid data"
+        | Bool b -> Bool b
+        | _ -> raise @@ Not_implemented "Invalid data"
     in
     let ir_of_word = function
         | Push push ->
@@ -82,6 +83,10 @@ let rec parse strings procs macros words =
         | Div -> [DIV] | FDiv -> [FDIV]
         | Mod -> [MOD] | FMod -> [FMOD]
 
+        | And -> [AND] | Or -> [OR]
+        | BAnd -> [BAND] | BOr -> [BOR] | BXor -> [BXOR]
+        | Lsl -> [LSL] | Lsr -> [LSR]
+
         | Puti -> [PUTI] | Putf -> [PUTF]
         | Putc -> [PUTC] | Puts -> [PUTS]
         | Putb -> [PUTB]
@@ -92,14 +97,14 @@ let rec parse strings procs macros words =
     let vars = Hashtbl.create 10 in
     let rec parse' (top, rest) names = function
         | [] -> top :: rest
-        | (Macro : prep) :: Word name :: tl ->
+        | (Macro id : prep) :: Word name :: tl ->
                 parse' ([], top :: rest) names
-                @@ add_func name tl macros
-        | Macro :: _ -> raise @@ Failure "macro: expected name"
-        | Proc  :: Word name :: tl ->
+                @@ add_func id name tl macros
+        | Macro _ :: _ -> raise @@ Failure "macro: expected name"
+        | Proc id :: Word name :: tl ->
                 parse' ([], top :: rest) names
-                @@ add_func name tl procs
-        | Proc :: _ -> raise @@ Failure "proc: expected name"
+                @@ add_func id name tl procs
+        | Proc _ :: _ -> raise @@ Failure "proc: expected name"
         | Rev :: tl -> parse' ([], top :: rest) names tl
         
         | (If _ | Then _ | Else _ | End_if _ | While _ | Do _ | End_while _) as word :: tl ->

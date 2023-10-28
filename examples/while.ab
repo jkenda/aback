@@ -1,6 +1,6 @@
 include "core/stack.ab"
 
-0 while > 10 dup do
+0 while < over 10 do
     puti dup |>
     putc ' ' |>
     + 1

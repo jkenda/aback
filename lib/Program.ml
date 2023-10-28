@@ -20,6 +20,9 @@ type ir =
     | DIV | FDIV
     | MOD | FMOD
 
+    | BAND | BOR | BXOR | LSL | LSR
+    | AND  | OR
+
     | PUTC | PUTS | PUTI | PUTF | PUTB
 
     | IF of int | THEN of int | ELSE of int | END_IF of int
@@ -51,6 +54,11 @@ let exec program =
         | Float i :: Float j :: rest -> Float (op i j) :: rest
         | a :: b :: _ -> raise @@ Failure (
             sprintf "expected Float Float, got %s %s" (show_data a) (show_data b))
+        | _ -> raise @@ Failure "not enough data on stack"
+    and bool_op op = function
+        | Bool i :: Bool j :: rest -> Bool (op i j) :: rest
+        | a :: b :: _ -> raise @@ Failure (
+            sprintf "expected Bool Bool, got %s %s" (show_data a) (show_data b))
         | _ -> raise @@ Failure "not enough data on stack"
     and put t = function
         | Int i   :: rest when t = PUTI -> print_int i; rest
@@ -105,6 +113,15 @@ let exec program =
                 let _, c = modf a in
                 let _, d = modf b in
                 c /. d) stack, ip + 1
+
+        | AND -> bool_op ( && ) stack, ip + 1
+        | OR  -> bool_op ( || ) stack, ip + 1
+
+        | BAND -> int_op ( land ) stack, ip + 1
+        | BOR  -> int_op ( lor  ) stack, ip + 1
+        | BXOR -> int_op ( lxor ) stack, ip + 1
+        | LSL  -> int_op ( lsl  ) stack, ip + 1
+        | LSR  -> int_op ( lsr  ) stack, ip + 1
 
         | (PUTC | PUTS | PUTI | PUTF | PUTB) as t -> put t stack, ip + 1
     in
