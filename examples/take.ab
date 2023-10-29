@@ -5,15 +5,16 @@ include "core/stack.ab"
     putc ' ' |>
     + 1
 end drop |>
-|> putc '\n'
+putc '\n'
 
 0 while
     peek i in < i 10 end
 do
-    puti dup |>
+peek i in
+    puti i |>
     putc ' ' |>
     + 1
-end
+end end
 
 puti swap 0 |>
 putc ' '
