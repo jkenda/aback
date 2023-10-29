@@ -104,13 +104,23 @@ let check program =
 
         | PUSH d -> type_of_data d :: stack, stack_size + 1
 
-        | ADD | SUB | MUL | DIV | MOD ->
+        | ADD | SUB | MUL | DIV | MOD
+        | BAND | BOR | BXOR | LSL | LSR ->
                 (match stack with
                 | Int :: Int :: tl -> Int :: tl, stack_size - 1
                 | a :: b :: _ -> raise @@ Error (loc,
                         sprintf "expected Int Int, got %s %s" (show_typ a) (show_typ b))
                 | a ::  _ -> raise @@ Error (loc,
-                        sprintf "expected Int Int, got %s " (show_typ a))
+                        sprintf "expected Int Int, got %s" (show_typ a))
+                | _ -> raise @@ Error (loc, "not enough elements on the stack"))
+
+        | AND | OR  ->
+                (match stack with
+                | Bool :: Bool :: tl -> Bool :: tl, stack_size - 1
+                | a :: b :: _ -> raise @@ Error (loc,
+                        sprintf "expected Bool Bool, got %s %s" (show_typ a) (show_typ b))
+                | a ::  _ -> raise @@ Error (loc,
+                        sprintf "expected Bool Bool, got %s" (show_typ a))
                 | _ -> raise @@ Error (loc, "not enough elements on the stack"))
 
         | EQ | NE | LT | LE | GT | GE ->
@@ -119,7 +129,7 @@ let check program =
                 | a :: b :: _ -> raise @@ Error (loc,
                         sprintf "expected Int Int, got %s %s" (show_typ a) (show_typ b))
                 | a ::  _ -> raise @@ Error (loc,
-                        sprintf "expected Int Int, got %s " (show_typ a))
+                        sprintf "expected Int Int, got %s" (show_typ a))
                 | _ -> raise @@ Error (loc, "not enough elements on the stack"))
 
         | PUTS ->
@@ -130,29 +140,18 @@ let check program =
                 | _ -> raise @@ Error (loc, "not enough elements on the stack"))
         | (PUTC | PUTI | PUTF | PUTB) as t -> put t loc stack, stack_size - 1
 
-        | ir -> raise @@ Not_implemented (loc, show_ir ir)
-
-        (*
-
-        | FADD -> float_op ( +. ) stack, ip + 1
-        | FSUB -> float_op ( -. ) stack, ip + 1
-        | FMUL -> float_op ( *. ) stack, ip + 1
-        | FDIV -> float_op ( /. ) stack, ip + 1
-        | FMOD -> float_op (fun a b ->
-                let _, c = modf a in
-                let _, d = modf b in
-                c /. d) stack, ip + 1
-
-        | AND -> bool_op ( && ) stack, ip + 1
-        | OR  -> bool_op ( || ) stack, ip + 1
-
-        | BAND -> int_op ( land ) stack, ip + 1
-        | BOR  -> int_op ( lor  ) stack, ip + 1
-        | BXOR -> int_op ( lxor ) stack, ip + 1
-        | LSL  -> int_op ( lsl  ) stack, ip + 1
-        | LSR  -> int_op ( lsr  ) stack, ip + 1
-
-        *)
+        | FADD
+        | FSUB
+        | FMUL
+        | FDIV
+        | FMOD ->
+                (match stack with
+                | Float :: Float :: tl -> Float :: tl, stack_size - 1
+                | a :: b :: _ -> raise @@ Error (loc,
+                        sprintf "expected Float Float, got %s %s" (show_typ a) (show_typ b))
+                | a ::  _ -> raise @@ Error (loc,
+                        sprintf "expected Float Float, got %s" (show_typ a))
+                | _ -> raise @@ Error (loc, "not enough elements on the stack"))
     in
     List.fold_left check' ([], 0) program |> ignore;
     program
