@@ -151,10 +151,10 @@ let rec parse strings procs macros words =
                 let var = Hashtbl.find vars name in
                 parse' ((loc, PUT var) :: top, rest) names tl
 
-        | (_loc, Word name) :: tl when Hashtbl.mem macros name ->
+        | (loc, Word name) :: tl when Hashtbl.mem macros name ->
                 let expand =
-                    List.map (fun (loc, ir) ->
-                        { loc with expanded_from = _loc :: loc.expanded_from }, ir)
+                    List.map (fun (l, ir) ->
+                        { l with expanded_from = (loc, name) :: l.expanded_from }, ir)
                 in
                 let macro = Hashtbl.find macros name in
                 parse' (expand macro.seq @ top, rest) names tl

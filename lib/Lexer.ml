@@ -3,7 +3,7 @@ open Format
 type location = {
     filename : string;
     included_from : string list;
-    expanded_from : location list;
+    expanded_from : (location * string) list;
     row : int;
     col : int;
 }
@@ -12,7 +12,7 @@ let print_location loc = sprintf "'%s':%d:%d" loc.filename loc.row loc.col
 
 exception Error of location * string
 let print_error (loc, msg) =
-    List.iter (fun loc      -> printf "expanded from %s\n" (print_location loc)) loc.expanded_from;
+    List.iter (fun (loc, name) -> printf "expanded from %s (%s)\n" (print_location loc) name) loc.expanded_from;
     printf "%s:\n" (print_location loc);
     printf "\t%s\n\n" msg;
     List.iter (fun filename -> printf "included from '%s'\n" filename) loc.included_from;
