@@ -8,23 +8,25 @@ if exists("b:current_syntax")
     finish
 endif
 
+setlocal iskeyword=!,@,33-35,%,$,38-64,A-Z,91-96,a-z,123-126,128-255
+
 " Keywords
 syn keyword abackCond if then else
 syn keyword abackCond take peek in
 syn keyword abackCond while do
-syn keyword abackCond end
 syn keyword abackCond macro proc is
+syn keyword abackCond end
 syn keyword abackStack drop  nip  dup  over  tuck  swap  rot  -rot
 syn keyword abackStack 2drop 2nip 2dup 2over 2tuck 2swap 2rot 2-rot
-syn keyword forthStack 3dup 4dup 5dup 3drop 4drop 5drop
+syn keyword abackStack 3dup 4dup 5dup 3drop 4drop 5drop
 
 syn keyword abackInclude include
 
 syn keyword abackBool true false
 syn keyword abackFunc puts putc puti putf putb
 
-syn match abackOperator '+\|-\|*\|/\|%'
-syn match abackOperator '=\|!=\|<\|>\|<=\|>='
+syn keyword abackOperator + - * / %
+syn keyword abackOperator = != < > <= >=
 syn match abackOperator '|>'
 
 " Matches
