@@ -1,10 +1,10 @@
 if = + 7 6 13 then
     puts "eq!"
     if = + 3 4 7 then
-        puts "eq!"
+        "eq!"
     else
-        puts "neq!"
-    end
+        "neq!"
+    end puts
 end
 putc '\n'
 

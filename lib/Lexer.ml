@@ -44,7 +44,7 @@ let read_lib_file filename =
     open_file src_dirs
 
 
-type t = Int | Float | Char | Ptr | String | CStr
+type typ = Int | Float | Char | Bool | Ptr | String | CStr
 [@@deriving show { with_path = false }]
 
 type word =
@@ -57,7 +57,7 @@ type word =
     | CStr of string
     | True | False
 
-    | Type of t
+    | Type of typ
 
     | Rev
 
@@ -97,7 +97,9 @@ let instr_of_word (loc, word) =
         | "peek" -> Peek | "take" -> Take | "in" -> In
         | "let" -> Let | ":=" -> Assign
 
-        | "int" -> Type Int | "float" -> Type Float | "char" -> Type Char | "ptr" -> Type Ptr
+        | "int" -> Type Int | "float" -> Type Float
+        | "char" -> Type Char | "ptr" -> Type Ptr
+        | "bool" -> Type Bool
 
         | "=" -> Eq | "/=" -> NEq
         | "<" -> Lt | "<=" -> LEq

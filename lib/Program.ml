@@ -9,6 +9,13 @@ type data =
     | Ptr of int
 [@@deriving show { with_path = false }]
 
+let type_of_data = function
+    | Int _   -> (Int : typ)
+    | Bool _  -> Bool
+    | Char _  -> Char
+    | Float _ -> Float
+    | Ptr _   -> Ptr
+
 type ir =
     | PUSH of data
 
@@ -81,7 +88,11 @@ let exec program =
             | Bool b  :: rest when t = PUTB -> print_bool b; rest
             | Char c  :: rest when t = PUTC -> print_char c; rest
             | Float f :: rest when t = PUTF -> print_float f; rest
-            | Ptr p :: Int _ :: rest when t = PUTS -> print_string (program.strings.(p)); rest
+            | Ptr p :: Int len :: rest when t = PUTS ->
+                    if len != String.length program.strings.(p) then
+                        raise @@ Error (program.loc.(ip),
+                        "string length does not match")
+                    else print_string (program.strings.(p)); rest
             | [] -> raise @@ Error (
                 program.loc.(ip),
                 sprintf "%s: not enough data on stack" (show_ir t))
@@ -109,18 +120,19 @@ let exec program =
         | DO addr -> cond_jmp stack (ip + 1) addr 
         | END_WHILE addr -> stack, addr
 
-        | PEEK (i, addr) ->
+        | PEEK (depth, addr) ->
                 let data =
-                    try List.nth stack i
+                    try List.nth stack depth
                     with _ -> raise @@ Error (program.loc.(ip), "stack underflow")
                 in
                 Hashtbl.add storage addr data; stack, ip + 1
         | TAKE addr ->
-                let data =
-                    try List.hd stack
-                    with _ -> raise @@ Error (program.loc.(ip), "stack underflow")
+                let data, stack =
+                    match stack with
+                    | hd :: tl -> hd, tl
+                    | _ -> raise @@ Error (loc, "stack underflow")
                 in
-                Hashtbl.add storage addr data; List.tl stack, ip + 1
+                Hashtbl.add storage addr data; stack, ip + 1
         | PUT addr -> Hashtbl.find storage addr :: stack, ip + 1
 
         | PUSH d -> d :: stack, ip + 1

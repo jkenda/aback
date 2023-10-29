@@ -12,7 +12,7 @@ type data =
 
 type prep =
     | Push of data
-    | Type of t
+    | Type of typ
 
     | Rev
 

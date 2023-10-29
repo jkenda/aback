@@ -1,6 +1,7 @@
 open Lexer
 open Preprocess
 open Parser
+open Check
 open Postprocess
 open Program
 
@@ -14,6 +15,7 @@ let compile filename =
             |> lex filename []
             |> preprocess
             |> parse strings funcs macros
+            |> check
             |> postprocess
         with Error (loc, msg) ->
             print_error (loc, msg);

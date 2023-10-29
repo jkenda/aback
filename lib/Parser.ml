@@ -4,8 +4,8 @@ open Program
 open Format
 
 type func = {
-    t_in : t list;
-    t_out : t list;
+    t_in  : typ list;
+    t_out : typ list;
     seq : (location * ir) list
 }
 [@@deriving show { with_path = false }]
