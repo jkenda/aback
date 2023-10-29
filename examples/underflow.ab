@@ -1,0 +1,4 @@
+include "core/stack.ab"
+
+drop drop "this is not supposed to fail" |>
+drop drop drop "this is supposed to fail"

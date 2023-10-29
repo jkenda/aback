@@ -109,9 +109,19 @@ let exec program =
         | DO addr -> cond_jmp stack (ip + 1) addr 
         | END_WHILE addr -> stack, addr
 
-        | PEEK (i, addr) -> Hashtbl.add storage addr (List.nth stack i); stack, ip + 1
-        | TAKE addr -> Hashtbl.add storage addr (List.hd stack); List.tl stack, ip + 1
-        | PUT  addr -> Hashtbl.find storage addr :: stack, ip + 1
+        | PEEK (i, addr) ->
+                let data =
+                    try List.nth stack i
+                    with _ -> raise @@ Error (program.loc.(ip), "stack underflow")
+                in
+                Hashtbl.add storage addr data; stack, ip + 1
+        | TAKE addr ->
+                let data =
+                    try List.hd stack
+                    with _ -> raise @@ Error (program.loc.(ip), "stack underflow")
+                in
+                Hashtbl.add storage addr data; List.tl stack, ip + 1
+        | PUT addr -> Hashtbl.find storage addr :: stack, ip + 1
 
         | PUSH d -> d :: stack, ip + 1
 

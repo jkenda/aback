@@ -3,14 +3,17 @@ open Format
 type location = {
     filename : string;
     included_from : string list;
+    expanded_from : location list;
     row : int;
     col : int;
 }
 [@@deriving show { with_path = false }]
+let print_location loc = sprintf "'%s':%d:%d" loc.filename loc.row loc.col
 
 exception Error of location * string
 let print_error (loc, msg) =
-    printf "'%s':%d:%d:\n" loc.filename loc.row loc.col;
+    List.iter (fun loc      -> printf "expanded from %s\n" (print_location loc)) loc.expanded_from;
+    printf "%s:\n" (print_location loc);
     printf "\t%s\n\n" msg;
     List.iter (fun filename -> printf "included from '%s'\n" filename) loc.included_from;
 
@@ -194,7 +197,12 @@ let lex filename included_from text =
                     let next, next_loc = get_word i loc in
                     lex' ((loc, String.sub text i (next - i)) :: acc) (next, next_loc)
     in
-    lex' [] (0, { filename; included_from; row = 1; col = 1 })
+    lex' [] (0,
+    {
+        filename;
+        included_from;
+        expanded_from = [];
+        row = 1; col = 1 })
     |> List.rev_map instr_of_word
 
 let test actual expected =
@@ -205,11 +213,19 @@ let test actual expected =
         print_endline (Format.asprintf "%s\n!=\n%s" (show_words actual) (show_words expected));
     matches
 
+let loc = {
+    filename = "[test]";
+    included_from = [];
+    expanded_from = [];
+    row = 1;
+    col = 1
+}
+
 let%test _ = test (lex "[test]" [] "+ 12 13 'c' 'cc'")
 ([
-    { filename = "[test]"; included_from = []; row = 1; col = 1  }, Add;
-    { filename = "[test]"; included_from = []; row = 1; col = 3  }, Int 12;
-    { filename = "[test]"; included_from = []; row = 1; col = 6  }, Int 13;
-    { filename = "[test]"; included_from = []; row = 1; col = 9  }, Char 'c';
-    { filename = "[test]"; included_from = []; row = 1; col = 13 }, Word "cc"
+    { loc with col = 1  }, Add;
+    { loc with col = 3  }, Int 12;
+    { loc with col = 6  }, Int 13;
+    { loc with col = 9  }, Char 'c';
+    { loc with col = 13 }, Word "cc"
 ])

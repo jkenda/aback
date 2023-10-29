@@ -21,6 +21,7 @@ let _print_funcs funcs =
 
 let rec parse strings procs macros words =
     let nstrings = ref (List.length !strings) in
+
     let add_func loc id name words table =
         let rec extract_types input t_in t_out = function
             | (_, Type t) :: words ->
@@ -146,21 +147,30 @@ let rec parse strings procs macros words =
                 |> List.iter @@ Hashtbl.remove vars;
                 parse' ([], top :: rest) (List.tl names) tl
 
-        | (loc, Word name) :: tl ->
-                (match Hashtbl.find_opt vars name with
-                | Some var -> parse' ((loc, PUT var) :: top, rest) names tl
-                | None ->
-                let macro =
-                    try Hashtbl.find macros name with Not_found ->
-                    (* try Hashtbl.find procs name with Not_found -> *)
+        | (loc, Word name) :: tl when Hashtbl.mem vars name ->
+                let var = Hashtbl.find vars name in
+                parse' ((loc, PUT var) :: top, rest) names tl
+
+        | (_loc, Word name) :: tl when Hashtbl.mem macros name ->
+                let expand =
+                    List.map (fun (loc, ir) ->
+                        { loc with expanded_from = _loc :: loc.expanded_from }, ir)
+                in
+                let macro = Hashtbl.find macros name in
+                parse' (expand macro.seq @ top, rest) names tl
+
+        (*
+        | (_, Word name) :: tl when Hashtbl.mem procs name ->
+                let proc = Hashtbl.find procs name in ... *)
+
+        | (loc, Word name) :: _ ->
                         raise @@ Error (loc, 
                             sprintf "Unknown word: '%s'.\n\tavailable vars: %s\n\tavailable macros: %s\n\tavailable procs: %s"
                             name
                             (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) vars "")
                             (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) macros "")
                             (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) procs ""))
-                in
-                parse' (macro.seq @ top, rest) names tl)
+
         | (loc, word) :: tl -> parse' (ir_of_word loc word @ top, rest) names tl
     in
     parse' ([], []) [] words
