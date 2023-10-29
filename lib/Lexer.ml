@@ -123,9 +123,11 @@ let instr_of_word (loc, word) =
         | word ->
                 if String.ends_with ~suffix:{|"|} word then
                     if String.starts_with ~prefix:{|"|} word then
-                        String (String.sub word 1 (String.length word - 2))
+                        let string = String.sub word 1 (String.length word - 2) in
+                        String (Scanf.unescaped @@ string)
                     else if String.starts_with ~prefix:"c\"" word then
-                        CStr (String.sub word 2 (String.length word - 3))
+                        let string = String.sub word 2 (String.length word - 3) in
+                        CStr (Scanf.unescaped @@ string)
                     else
                         Word word
                 else

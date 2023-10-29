@@ -9,4 +9,4 @@ macro LIMIT is 1000 end
         + a b a
     end
 end drop drop |>
-putc '\n'
+puts "\n"
