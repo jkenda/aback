@@ -8,7 +8,7 @@ if exists("b:current_syntax")
     finish
 endif
 
-setlocal iskeyword=!,@,33-35,%,$,38-64,A-Z,91-96,a-z,123-126,128-255
+setlocal iskeyword=!,@,33-35,%,$,38-39,42-64,A-Z,91-96,a-z,123-126,128-255
 
 " Keywords
 syn keyword abackCond if then else
@@ -44,8 +44,9 @@ syn region abackWhileBlock  start='do'   end='end'  fold transparent
 syn region abackPeekBlock   start='in'   end='end'  fold transparent
 syn region abackFuncBlock   start='is'   end='end'  fold transparent
  
-syn region abackString start='"' end='"'
-syn region abackChar   start="'" end="'"
+syn region abackString  start='"' end='"'
+syn region abackChar    start="'" end="'"
+syn region abackComment start="(" end=")"
 
 let b:current_syntax = "aback"
 
@@ -58,4 +59,4 @@ hi def link abackCond     Conditional
 hi def link abackFunc     Function
 hi def link abackStack    Macro
 hi def link abackInclude  Include
-
+hi def link abackComment  Comment

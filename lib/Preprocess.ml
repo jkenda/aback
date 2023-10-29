@@ -51,6 +51,12 @@ let rec include_file included_from src =
     |> List.rev
 
 and preprocess words =
+    let rec remove_comment = function
+        | (_, (Word w : word)) :: tl when String.ends_with ~suffix:")" w -> tl
+        | _ :: tl -> remove_comment tl
+        | [] -> []
+    in
+
     let preprocess'' (acc, end_stack, next_id, words) =
         match words with
         | [] -> acc, end_stack, next_id, []
@@ -103,6 +109,9 @@ and preprocess words =
                             "end reqires matching begin: one of macro, func, if, while, peek, take")
                 in
                 (loc, ir) :: acc, end_stack, next_id, tl
+
+        | ((_, Word w) :: _) as words when String.starts_with ~prefix:"(" w ->
+                acc, end_stack, next_id, remove_comment words
 
         | (loc, word) :: tl ->
                 (loc, match word with
