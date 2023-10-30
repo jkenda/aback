@@ -5,7 +5,7 @@ open Format
 
 type func = {
     loc : location;
-    seq : (location * ir) list;
+    seq : (location * prep) list;
     types  : (loc_typ list * loc_typ list) option
 }
 [@@deriving show { with_path = false }]
@@ -18,6 +18,10 @@ let _print_ir ir =
 let _print_funcs funcs =
     print_string 
     @@ Hashtbl.fold (fun name macro acc -> acc ^ sprintf "%s: %s\n" name (show_func macro)) funcs ""
+
+let vars = Hashtbl.create 10
+let locs = Hashtbl.create 10
+let names = ref []
 
 let rec parse strings procs macros max_addr words =
     let nstrings = ref (List.length !strings) in
@@ -36,7 +40,7 @@ let rec parse strings procs macros max_addr words =
             | (loc, Word _name) :: _ when name = _name ->
                     raise @@ Error (loc, sprintf "%s: recursive macros not supported" name)
             | (_, End_func _id) :: words when _id = id ->
-                    parse strings procs macros max_addr @@ List.rev acc, words
+                    List.rev acc, words
             | word :: words -> add' (word :: acc) words
         in
         let types, words =
@@ -105,19 +109,17 @@ let rec parse strings procs macros max_addr words =
         |> List.map (fun ir -> loc, ir)
     in
 
-    let vars = Hashtbl.create 10
-    and locs = Hashtbl.create 10 in
-    let rec parse' (top, rest) names = function
+    let rec parse' (top, rest) = function
         | [] -> top :: rest
         | (_, (Macro id : prep)) :: (loc, Word name) :: tl ->
-                parse' ([], top :: rest) names
+                parse' ([], top :: rest)
                 @@ add_func loc id name tl macros
         | (loc, Macro _) :: _ -> raise @@ Error (loc, "macro: expected name")
         | (_, Proc id) :: (loc, Word name) :: tl ->
-                parse' ([], top :: rest) names
+                parse' ([], top :: rest)
                 @@ add_func loc id name tl procs
         | (loc, Proc _) :: _ -> raise @@ Error (loc, "proc: expected name")
-        | (_, Rev) :: tl -> parse' ([], top :: rest) names tl
+        | (_, Rev) :: tl -> parse' ([], top :: rest) tl
         
         | (loc,  ((If _ | Then _ | Else _ | End_if _ | While _ | Do _ | End_while _) as word)) :: tl ->
                 let instr =
@@ -131,7 +133,7 @@ let rec parse strings procs macros max_addr words =
                     | End_while id -> END_WHILE id
                     | _ -> raise (Unreachable "")
                 in
-                (parse' ([], [loc, instr] :: top :: rest) names tl)
+                (parse' ([], [loc, instr] :: top :: rest) tl)
 
         | (loc, ((Peek | Take) as word)) :: tl ->
                 let n, tl = parse_vars loc tl in
@@ -139,8 +141,8 @@ let rec parse strings procs macros max_addr words =
                 List.iter (fun (loc, name) ->
                     let addr = Hashtbl.length vars in
                     max_addr := max !max_addr addr;
-                    Hashtbl.replace vars name addr;
-                    Hashtbl.replace locs loc  addr) n;
+                    Hashtbl.add vars name addr;
+                    Hashtbl.add locs loc  addr) n;
                 let irs =
                     List.mapi (fun depth (loc, name) ->
                     if word = Peek
@@ -148,24 +150,27 @@ let rec parse strings procs macros max_addr words =
                     else loc, TAKE (Hashtbl.find vars name)) n
                 in
                 let _, n = List.split n in
-                parse' ([], irs :: top :: rest) (n :: names) tl
+                names := n :: !names;
+                parse' ([], irs :: top :: rest) tl
         | (loc, End_peek) :: tl ->
-                (try List.hd names with _ ->
+                (try List.hd !names with _ ->
                     raise @@ Error (loc, "cannot end peek/take"))
                 |> List.iter @@ Hashtbl.remove vars;
-                parse' ([], top :: rest) (List.tl names) tl
+                names := List.tl !names;
+                parse' ([], top :: rest) tl
 
         | (loc, Word name) :: tl when Hashtbl.mem vars name ->
                 let var = Hashtbl.find vars name in
-                parse' ((loc, PUT var) :: top, rest) names tl
+                parse' ((loc, PUT var) :: top, rest) tl
 
         | (loc, Word name) :: tl when Hashtbl.mem macros name ->
-                let expand =
-                    List.map (fun (l, ir) ->
-                        { l with expanded_from = (loc, name) :: l.expanded_from }, ir)
+                let expand prep =
+                    parse strings procs macros max_addr prep
+                    |> List.map (fun (l, prep) ->
+                        { l with expanded_from = (loc, name) :: l.expanded_from }, prep)
                 in
                 let macro = Hashtbl.find macros name in
-                parse' (expand macro.seq @ top, rest) names tl
+                parse' (expand macro.seq @ top, rest) tl
 
         (*
         | (_, Word name) :: tl when Hashtbl.mem procs name ->
@@ -179,9 +184,9 @@ let rec parse strings procs macros max_addr words =
                             (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) macros "")
                             (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) procs ""))
 
-        | (loc, word) :: tl -> parse' (ir_of_word loc word @ top, rest) names tl
+        | (loc, word) :: tl -> parse' (ir_of_word loc word @ top, rest) tl
     in
-    parse' ([], []) [] words
+    parse' ([], []) words
     |> List.rev
     |> List.flatten
 

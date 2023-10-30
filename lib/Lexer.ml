@@ -48,7 +48,7 @@ type typ = Int | Float | Char | Bool | Ptr | String | CStr
 [@@deriving show { with_path = false }]
 
 let print_typ_stack =
-    List.fold_left (fun acc typ -> acc ^ show_typ typ) ""
+    List.fold_left (fun acc typ -> acc ^ show_typ typ ^ " ") ""
 
 type loc_typ = location * typ
 [@@deriving show { with_path = false }]

@@ -15,9 +15,11 @@ peek i in
     putc ' ' |>
     + 1
 end end
+(10 --)
 
 puti swap 0 |>
 putc ' '
+(0 --)
 
 take a in
     puti a

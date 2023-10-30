@@ -39,8 +39,7 @@ let check procs macros program =
 
     and stack_sizes = Hashtbl.create 10
     and stack_tops = Hashtbl.create 10
-    and elseless = Hashtbl.create 10
-    and diffs = Hashtbl.create 10 in
+    and elseless = Hashtbl.create 10 in
     let check' (((stack : (location * typ) list), stack_size) as s) (loc, instr) =
         match instr with
         | IF id ->
@@ -68,16 +67,17 @@ let check procs macros program =
                 let diff = stack_size - (Hashtbl.find stack_sizes id) in
                 if diff < 0 then raise @@ Error (loc, "cannot shrink stack inside if clause")
                 else
-                    Hashtbl.replace elseless id false;
-                    Hashtbl.replace diffs id diff;
-                    Hashtbl.replace stack_tops id (list_top stack diff);
+                    Hashtbl.add elseless id false;
+                    Hashtbl.add stack_sizes id diff;
+                    Hashtbl.add stack_tops id (list_top stack diff);
                     remove_top stack diff, stack_size - diff
         | END_IF id when (try Hashtbl.find elseless id with Not_found -> true) ->
                 if stack_size = Hashtbl.find stack_sizes id then s 
                 else raise @@ Error (loc, "cannot grow or shrink stack inside elseless if")
         | END_IF id ->
-                let diff = stack_size - (Hashtbl.find stack_sizes id) in
-                if diff = Hashtbl.find diffs id then
+                let diff = Hashtbl.find stack_sizes id in
+                Hashtbl.remove stack_sizes id;
+                if diff = stack_size - (Hashtbl.find stack_sizes id) then
                     match stack_diff (Hashtbl.find stack_tops id, stack) with
                     | None -> s
                     | Some ((l1, a), (l2, b)) -> raise @@ Error (loc,
@@ -106,8 +106,14 @@ let check procs macros program =
                 else
                     raise @@ Error (loc, sprintf "expected stack to grow by 1, grew %d" diff)
         | END_WHILE id ->
-                if stack_size = Hashtbl.find stack_sizes id then s 
-                else raise @@ Error (loc, "cannot grow or shrink stack inside while loop")
+                let diff = stack_size - Hashtbl.find stack_sizes id in
+                if diff = 0 then s 
+                else if diff > 0 then
+                    let loc, top = List.split @@ list_top stack diff in
+                    raise @@ Error (List.hd loc,
+                        sprintf "cannot grow stack inside loop: %s" (print_typ_stack top))
+                else
+                    raise @@ Error (loc, "cannot shrink stack inside loop")
 
         | PEEK (depth, addr) ->
                 let _, data =
@@ -178,9 +184,14 @@ let check procs macros program =
         | None -> ()
         | Some (t_in, t_out) ->
             let stack, t_out =
-                let remove_loc = List.map (fun (_, typ) -> typ) in
+                let strings = ref []
+                and max_addr = ref 0 in
+                let parse =
+                    parse strings procs macros max_addr
+                and remove_loc = List.map (fun (_, typ) -> typ) in
                 let stack, _ =
-                    List.fold_left check' (t_in, List.length t_in) seq
+                    parse seq
+                    |> List.fold_left check' (t_in, List.length t_in)
                 in
                 remove_loc stack, remove_loc t_out
 
@@ -188,7 +199,7 @@ let check procs macros program =
             match stack with
             | stack when stack = t_out -> ()
             | stack -> raise @@ Error (loc,
-                sprintf "stacks at the end of %s don't match.\nexpected: %s\nactual: %s"
+                sprintf "'%s': unexpected return value.\nexpected: %s\nactual: %s"
                 name (print_typ_stack t_out) (print_typ_stack stack))
     in
 
