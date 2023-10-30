@@ -1,71 +1,71 @@
-macro drop is
+macro drop 1 -> 0 is
     take _ in
     end
 end
 
-macro nip is
+macro nip 2 -> 1 is
     take a b in
         a
     end
 end
 
-macro dup is
+macro dup 1 -> 2 is
     peek a in
         a
     end
 end
 
-macro over is
+macro over 2 -> 3 is
     peek a b in
         b
     end
 end
 
-macro tuck is
+macro tuck 2 -> 3 is
     take a b in
         a b a
     end
 end
 
-macro swap is
+macro swap 2 -> 2 is
     take a b in
         b a
     end
 end
 
-macro rot is
+macro rot 3 -> 3 is
     take a b c in
         b c a
     end
 end
 
-macro -rot is
+macro -rot 3 -> 3 is
     take a b c in
         c a b
     end
 end
 
-macro 2drop is
+macro 2drop 2 -> 0 is
     drop drop
 end
 
-macro 2nip is
+macro 2nip 4 -> 2 is
     take a b c d in
         c d
     end
 end
 
-macro 2dup is
+macro 2dup 2 -> 0 is
     over over
 end
 
-macro 2over is
+macro 2over 4 -> 6 is
     peek a b c d in
         a b
     end
 end
 
-macro 2tuck is
+macro 2tuck 4 -> 6 is
     take a b c d in
         c d a b c d
     end

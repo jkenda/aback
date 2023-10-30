@@ -41,15 +41,96 @@ let check procs macros program =
 
     let storage = Hashtbl.create 10
     and stack_sizes = Hashtbl.create 10
+    and elseless = Hashtbl.create 10 in
+
+    let check_numbered stack_size (loc, ir) =
+        if stack_size < 0 then
+            raise @@ Error (loc, "stack undeflow");
+
+        match ir with
+        | IF id ->
+                Hashtbl.replace stack_sizes id stack_size;
+                stack_size
+        | THEN id ->
+                let diff =
+                    let prev_size = Hashtbl.find stack_sizes id in
+                    stack_size - prev_size
+                in
+                if diff = 1 then (
+                    Hashtbl.replace stack_sizes id (stack_size - 1);
+                    stack_size - 1)
+                else
+                    raise @@ Error (loc, sprintf "expected stack to grow by 1, grew %d" diff)
+        | ELSE id ->
+                let diff = stack_size - (Hashtbl.find stack_sizes id) in
+                if diff < 0 then raise @@ Error (loc, "cannot shrink stack inside if clause")
+                else
+                    Hashtbl.add elseless id false;
+                    Hashtbl.add stack_sizes id diff;
+                    stack_size - diff
+        | END_IF id when (try Hashtbl.find elseless id with Not_found -> true) ->
+                if stack_size = Hashtbl.find stack_sizes id then stack_size
+                else raise @@ Error (loc, "cannot grow or shrink stack inside elseless if")
+        | END_IF id ->
+                let diff = Hashtbl.find stack_sizes id in
+                Hashtbl.remove stack_sizes id;
+                if diff = stack_size - (Hashtbl.find stack_sizes id) then stack_size
+                else raise @@ Error (loc, "branches have different stack sizes")
+
+        | WHILE id ->
+                Hashtbl.replace stack_sizes id stack_size; stack_size
+        | DO id -> 
+                let diff =
+                    let prev_size = Hashtbl.find stack_sizes id in
+                    stack_size - prev_size
+                in
+                if diff = 1 then (
+                    Hashtbl.replace stack_sizes id (stack_size - 1);
+                    stack_size - 1)
+                else raise @@ Error (loc, sprintf "expected stack to grow by 1, grew %d" diff)
+        | END_WHILE id ->
+                let diff = stack_size - Hashtbl.find stack_sizes id in
+                if diff = 0 then stack_size
+                else if diff > 0 then
+                    raise @@ Error (loc, "cannot grow stack inside loop")
+                else raise @@ Error (loc, "cannot shrink stack inside loop")
+
+        | PEEK (depth, addr) ->
+                Hashtbl.replace storage addr ();
+                if depth < stack_size then stack_size
+                else raise @@ Error (loc,
+                    sprintf "cannot peek %d deep into stack of length %d"
+                    (depth + 1) stack_size)
+        | TAKE addr ->
+                Hashtbl.replace storage addr ();
+                stack_size - 1
+        | PUT addr -> (
+                match Hashtbl.find_opt storage addr with
+                | Some () -> stack_size + 1
+                | None -> raise @@ Error (loc,
+                        sprintf "nothing storeed at this address"))
+
+        | PUSH _ -> stack_size + 1
+
+        | ADD | SUB | MUL | DIV | MOD
+        | FADD | FSUB | FMUL | FDIV | FMOD
+        | BAND | BOR | BXOR | LSL | LSR
+        | AND | OR
+        | EQ | NE | LT | LE | GT | GE -> stack_size - 1
+
+        | PUTS -> stack_size - 1
+        | PUTC | PUTI | PUTF | PUTB -> stack_size - 1
+    in
+
+    let storage = Hashtbl.create 10
+    and stack_sizes = Hashtbl.create 10
     and stack_tops = Hashtbl.create 10
     and elseless = Hashtbl.create 10 in
 
     (* simulate the program running on the stack to typecheck it *)
-    let check' (((stack : (location * typ) list), stack_size) as s) (loc, instr) =
+    let check_typed (((stack : (location * typ) list), stack_size) as s) (loc, instr) =
         match instr with
-        | IF id ->
-                Hashtbl.replace stack_sizes id stack_size;
-                s
+        | IF id -> Hashtbl.replace stack_sizes id stack_size; s
         | THEN id ->
                 let diff =
                     let prev_size = Hashtbl.find stack_sizes id in
@@ -186,8 +267,22 @@ let check procs macros program =
     (* typecheck typed procs and macros *)
     let check_func name { loc; types; seq } =
         match types with
-        | None -> ()
-        | Some (t_in, t_out) ->
+        | Untyped -> ()
+        | Numbered (n_in, n_out_expected) -> (
+            let n_out =
+                let strings = ref []
+                and max_addr = ref 0 in
+                let parse =
+                    parse strings procs macros max_addr
+                in
+                parse seq
+                |> List.fold_left check_numbered n_in
+            in
+            if n_out = n_out_expected then ()
+            else raise @@ Error (loc,
+                sprintf "'%s': unexpected number of return elements:\nexpected: %d\nactual: %d"
+                name n_out_expected n_out))
+        | Typed (t_in, t_out) ->
             let stack, t_out =
                 let strings = ref []
                 and max_addr = ref 0 in
@@ -196,10 +291,9 @@ let check procs macros program =
                 and remove_loc = List.map (fun (_, typ) -> typ) in
                 let stack, _ =
                     parse seq
-                    |> List.fold_left check' (t_in, List.length t_in)
+                    |> List.fold_left check_typed (t_in, List.length t_in)
                 in
                 remove_loc stack, remove_loc t_out
-
             in
             match stack with
             | stack when stack = t_out -> ()
@@ -214,7 +308,7 @@ let check procs macros program =
     Hashtbl.iter check_func macros;
 
     (* check the main program *)
-    let stack, _ = List.fold_left check' ([], 0) program in
+    let stack, _ = List.fold_left check_typed ([], 0) program in
     match stack with
     | [] -> program
     | (loc, _) :: _ as stack ->

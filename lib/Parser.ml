@@ -3,10 +3,16 @@ open Preprocess
 open Program
 open Format
 
+type func_format =
+    | Typed of loc_typ list * loc_typ list
+    | Numbered of int * int
+    | Untyped
+[@@deriving show { with_path = false }]
+
 type func = {
     loc : location;
     seq : (location * prep) list;
-    types  : (loc_typ list * loc_typ list) option
+    types  : func_format
 }
 [@@deriving show { with_path = false }]
 
@@ -28,7 +34,7 @@ let rec parse strings procs macros max_addr words =
                     if input then extract_types input ((loc, t) :: t_in) t_out words
                     else extract_types input t_in ((loc, t) :: t_out) words
             | (_, Return) :: words -> extract_types false t_in t_out words
-            | (_, Is) :: words -> (List.rev t_in, List.rev t_out), words
+            | (_, Is) :: words -> List.rev t_in, List.rev t_out, words
             | (loc, word) :: _ -> raise @@ Error (loc, sprintf "Expected 'is' or type, got %s" (show_prep word))
             | [] -> raise @@ Error (loc, "expected 'is' after function declaration")
         and add' acc = function
@@ -41,10 +47,12 @@ let rec parse strings procs macros max_addr words =
         in
         let types, words =
             match words with
-            | (_, Is) :: tl -> None, tl
+            | (_, Push Int n_in) :: (_, Return) :: (_, Push Int n_out) :: (_, Is) :: tl ->
+                    Numbered (n_in, n_out), tl
+            | (_, Is) :: tl -> Untyped, tl
             | _ ->
-                    let types, words = extract_types true [] [] words in
-                    Some types, words
+                    let t_in, t_out, words = extract_types true [] [] words in
+                    Typed (t_in, t_out), words
         in
         let seq, words = add' [] words in
         Hashtbl.replace table name { loc; types; seq };
