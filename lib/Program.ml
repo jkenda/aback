@@ -48,7 +48,7 @@ type program = {
 type stack = data list
 [@@deriving show { with_path = false }]
 
-let exec program =
+let interpret program =
     let storage = Array.make program.storage_size (Int 0) in
     let exec' stack ip instr =
         let int_op op = function
@@ -173,7 +173,17 @@ let exec program =
             let stack, ip = exec' stack ip program.ir.(ip) in
             exec'' stack ip
     in
-    try exec'' [] 0
-    with Error (loc, msg) -> raise @@ Error (loc, "runtime exception: " ^ msg)
+    let stack =
+        try exec'' [] 0
+        with Error (loc, msg) -> raise @@ Error (loc, "runtime exception: " ^ msg)
+    in
+
+    match stack with
+    | [] -> ()
+    | stack ->
+            let stack = List.map type_of_data stack in
+            raise @@ Error (program.loc.(Array.length program.loc - 1),
+                sprintf "%s left on the stack at the end of program"
+                (print_typ_stack stack))
 
 

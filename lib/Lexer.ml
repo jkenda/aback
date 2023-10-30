@@ -21,17 +21,19 @@ let print_error (loc, msg) =
 exception Not_implemented of location * string
 exception Unreachable of string
 
-let src_dirs = [
-    "./";
-    "~/.local/share/aback/"
-]
-
+(* read file from the current dir *)
 let read_src_file filename =
     let ch = open_in_bin filename in
     let s = really_input_string ch (in_channel_length ch) in
     close_in ch;
     s
 
+let lib_dirs = [
+    "./";
+    "~/.local/share/aback/"
+]
+
+(* read file from one of the dirs in lib_dirs *)
 let read_lib_file filename =
     let rec open_file = function
         | [] -> raise @@ Failure (sprintf "cannot find file \"%s\"" filename)
@@ -42,8 +44,7 @@ let read_lib_file filename =
                     close_in f; s
                 with _ -> open_file rest
     in
-    open_file src_dirs
-
+    open_file lib_dirs
 
 type typ = Int | Float | Char | Bool | Ptr | String | CStr
 [@@deriving show { with_path = false }]
@@ -54,6 +55,7 @@ let print_typ_stack =
 type loc_typ = location * typ
 [@@deriving show { with_path = false }]
 
+(* token types *)
 type word =
     | Include
 
@@ -93,6 +95,7 @@ type word =
 
 type words = (location * word) list [@@deriving show { with_path = false }]
 
+(* get token from word *)
 let instr_of_word (loc, word) =
     let word =
         match word with
@@ -127,6 +130,8 @@ let instr_of_word (loc, word) =
         | "puti" -> Puti | "putf" -> Putf | "putb" -> Putb
 
         | "true" -> True | "false" -> False
+
+        (* chars, strings, numbers and other words *)
         | word ->
                 if String.ends_with ~suffix:{|"|} word then
                     if String.starts_with ~prefix:{|"|} word then
@@ -160,6 +165,7 @@ let instr_of_word (loc, word) =
         in
         loc, word
 
+(* tokenize the input and keep track of locations *)
 let lex filename included_from text =
     let rec skip_whitespace i loc =
         if i >= String.length text then i, loc

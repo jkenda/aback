@@ -1,11 +1,8 @@
-include "core/stack.ab"
-macro LIMIT is 1000 end
-
 1 0
 (0:  PUSH Int 0)
 (1:  PUSH Int 1)
 while < over LIMIT do
-(2:  PUSH Int 1000)
+(LIMIT -> 2:  PUSH Int 1000)
 (over ->)
     (3:  PEEK 0, 0)
     (4:  PEEK 1, 1)
@@ -25,10 +22,14 @@ while < over LIMIT do
 (15: ADD)
     end
     putc ' '
-(16: PUSH (Char ' '))
+(16: PUSH (Char ' ')
 (17: PUTC)
 end drop drop |>
-(21: PUSH (Int 1))
-(22: PUSH (Ptr 0))
-(23: PUTS)
+(18: END_WHILE 2)
+(drop -> 19: TAKE 0)
+(drop -> 20: TAKE 0)
 puts "\n"
+(21: PUSH (Int 1)
+(22: PUSH (Ptr 0)
+(23: PUTS)
+

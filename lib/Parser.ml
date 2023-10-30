@@ -10,11 +10,6 @@ type func = {
 }
 [@@deriving show { with_path = false }]
 
-let _print_ir ir =
-    let open Format in
-    let str, _ = List.fold_left (fun (acc, i) ir -> acc ^ sprintf "%d: %s\n" i (show_ir ir), i + 1) ("", 0) ir in
-    print_string str
-
 let _print_funcs funcs =
     print_string 
     @@ Hashtbl.fold (fun name macro acc -> acc ^ sprintf "%s: %s\n" name (show_func macro)) funcs ""
@@ -23,6 +18,7 @@ let vars = Hashtbl.create 10
 let locs = Hashtbl.create 10
 let names = ref []
 
+(* parse the preprocessed words into intermediate representation *)
 let rec parse strings procs macros max_addr words =
     let nstrings = ref (List.length !strings) in
 

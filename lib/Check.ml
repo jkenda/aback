@@ -11,18 +11,22 @@ let loc_id = {
 }
 
 let check procs macros program =
-    let rec list_top list = function
+    (* get top n elements of the stack *)
+    let rec get_top list = function
         | 0 -> []
-        | n -> List.hd list :: list_top (List.tl list) (n - 1)
+        | n -> List.hd list :: get_top (List.tl list) (n - 1)
+    (* remove top n elements from the stack *)
     and remove_top list = function
         | 0 -> list
         | n -> remove_top (List.tl list) (n - 1)
+    (* find the first element on the stack that differs *)
     and stack_diff = function
         | ([], [])
         | ([], _ :: _)
         | (_ :: _, []) -> None
         | ((_, t1 as h1) :: _, (_, t2 as h2) :: _) when t1 <> t2 -> Some (h1, h2)
         | (_ :: t1, _ :: t2) -> stack_diff (t1, t2)
+    (* return the state after console output *)
     and put t loc = function
         | (_, Int : location * typ) :: rest when t = PUTI -> rest
         | (_, Bool) :: rest when t = PUTB -> rest
@@ -36,10 +40,11 @@ let check procs macros program =
     in
 
     let storage = Hashtbl.create 10
-
     and stack_sizes = Hashtbl.create 10
     and stack_tops = Hashtbl.create 10
     and elseless = Hashtbl.create 10 in
+
+    (* simulate the program running on the stack to typecheck it *)
     let check' (((stack : (location * typ) list), stack_size) as s) (loc, instr) =
         match instr with
         | IF id ->
@@ -69,7 +74,7 @@ let check procs macros program =
                 else
                     Hashtbl.add elseless id false;
                     Hashtbl.add stack_sizes id diff;
-                    Hashtbl.add stack_tops id (list_top stack diff);
+                    Hashtbl.add stack_tops id (get_top stack diff);
                     remove_top stack diff, stack_size - diff
         | END_IF id when (try Hashtbl.find elseless id with Not_found -> true) ->
                 if stack_size = Hashtbl.find stack_sizes id then s 
@@ -109,7 +114,7 @@ let check procs macros program =
                 let diff = stack_size - Hashtbl.find stack_sizes id in
                 if diff = 0 then s 
                 else if diff > 0 then
-                    let loc, top = List.split @@ list_top stack diff in
+                    let loc, top = List.split @@ get_top stack diff in
                     raise @@ Error (List.hd loc,
                         sprintf "cannot grow stack inside loop: %s" (print_typ_stack top))
                 else
@@ -203,12 +208,19 @@ let check procs macros program =
                 name (print_typ_stack t_out) (print_typ_stack stack))
     in
 
+    (* check procs and macros *)
     (* TODO: check that untyped procs don't overflow *)
     Hashtbl.iter check_func procs;
     Hashtbl.iter check_func macros;
 
+    (* check the main program *)
     let stack, _ = List.fold_left check' ([], 0) program in
     match stack with
     | [] -> program
-    | (loc, typ) :: _ -> raise @@ Error (loc,
-        sprintf "%s left on the stack at the end of program" (show_typ typ))
+    | (loc, _) :: _ as stack ->
+            let stack =
+                List.map (fun (_, typ) -> typ) stack
+            in
+            raise @@ Error (loc,
+                sprintf "%s left on the stack at the end of program"
+                (print_typ_stack stack))
