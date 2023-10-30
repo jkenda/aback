@@ -31,7 +31,7 @@ let interpret filename =
             |> postprocess
         with Error (loc, msg) ->
             print_error (loc, msg);
-            exit 1
+            exit 2
     and strings =
         !strings
         |> List.rev
@@ -75,7 +75,7 @@ let print filename =
             |> postprocess
         with Error (loc, msg) ->
             print_error (loc, msg);
-            exit 1
+            exit 3
     and strings =
         !strings
         |> List.rev
@@ -113,7 +113,7 @@ let check filename =
             |> ignore
         with Error (loc, msg) ->
             print_error (loc, msg);
-            exit 1
+            exit 4
     in
 
     print_endline "OK."

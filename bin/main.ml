@@ -1,8 +1,9 @@
 open Format
 
-let print_usage () =
+let print_usage msg =
+    printf "%s\n" msg;
     printf "usage: %s [mode] <path>\n" Sys.argv.(0);
-    printf "mode:  int com print check";
+    printf "mode: int com print check";
     exit 1
 
 type mode =
@@ -19,12 +20,13 @@ let () =
         | "com" -> Compile
         | "check" -> Check
         | "print" -> Print
-        | _ | exception _ -> print_usage ()
+        | word -> print_usage @@ sprintf "unknown mode: '%s'" word
+        | exception _ -> print_usage "not enough arguments"
     in
 
     let path =
         try Sys.argv.(2)
-        with _ -> print_usage ()
+        with _ -> print_usage "not enough arguments"
     in
 
     (* TODO: implement compilation mode (x86_64) *)
