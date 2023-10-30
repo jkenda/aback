@@ -14,7 +14,8 @@ exception Error of location * string
 let print_error (loc, msg) =
     List.iter (fun (loc, name) -> printf "expanded from %s (%s)\n" (print_location loc) name) loc.expanded_from;
     printf "%s:\n" (print_location loc);
-    printf "\t%s\n\n" msg;
+    printf "\t%s\n" msg;
+    if List.length loc.included_from > 0 then printf "\n";
     List.iter (fun filename -> printf "included from '%s'\n" filename) loc.included_from;
 
 exception Not_implemented of location * string
