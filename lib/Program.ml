@@ -41,15 +41,14 @@ type ir =
 type program = {
     ir : ir array;
     loc : location array;
-    strings : string array
+    strings : string array;
+    storage : data array
 }
 
 type stack = data list
 [@@deriving show { with_path = false }]
 
 let exec program =
-    let storage = Hashtbl.create 10 in
-
     let exec' stack ip instr =
         let int_op op = function
             | Int i :: Int j :: rest -> Int (op i j) :: rest
@@ -89,7 +88,7 @@ let exec program =
             | Char c  :: rest when t = PUTC -> print_char c; rest
             | Float f :: rest when t = PUTF -> print_float f; rest
             | Ptr p :: Int len :: rest when t = PUTS ->
-                    if len != String.length program.strings.(p) then
+                    if len <> String.length program.strings.(p) then
                         raise @@ Error (program.loc.(ip),
                         "string length does not match")
                     else print_string (program.strings.(p)); rest
@@ -125,20 +124,20 @@ let exec program =
                     try List.nth stack depth
                     with _ -> raise @@ Error (program.loc.(ip), "stack underflow")
                 in
-                Hashtbl.add storage addr data; stack, ip + 1
+                program.storage.(addr) <- data; stack, ip + 1
         | TAKE addr ->
                 let data, stack =
                     match stack with
                     | hd :: tl -> hd, tl
                     | _ -> raise @@ Error (loc, "stack underflow")
                 in
-                Hashtbl.add storage addr data; stack, ip + 1
-        | PUT addr -> Hashtbl.find storage addr :: stack, ip + 1
+                program.storage.(addr) <- data; stack, ip + 1
+        | PUT addr -> program.storage.(addr) :: stack, ip + 1
 
         | PUSH d -> d :: stack, ip + 1
 
         | EQ -> int_cmp ( =  ) stack, ip + 1
-        | NE -> int_cmp ( != ) stack, ip + 1
+        | NE -> int_cmp ( <> ) stack, ip + 1
         | LT -> int_cmp ( <  ) stack, ip + 1
         | LE -> int_cmp ( <= ) stack, ip + 1
         | GT -> int_cmp ( >  ) stack, ip + 1

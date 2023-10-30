@@ -140,11 +140,8 @@ let instr_of_word (loc, word) =
                     && String.starts_with ~prefix:"'\\" word
                     && String.ends_with   ~suffix:"'" word then
                         Char (match word.[2] with
-                        | 'n' -> '\n'
-                        | 'r' -> '\r'
-                        | 't' -> '\t'
-                        | 'b' -> '\b'
-                        | '\\' -> '\\'
+                        | 'n' -> '\n' | 'r' -> '\r' | 't' -> '\t'
+                        | 'b' -> '\b' | '\\' -> '\\'
                         | _ -> raise @@ Error (loc, "invalid escape character"))
                 else
                     match int_of_string_opt word with

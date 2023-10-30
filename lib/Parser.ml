@@ -19,7 +19,7 @@ let _print_funcs funcs =
     print_string 
     @@ Hashtbl.fold (fun name macro acc -> acc ^ sprintf "%s: %s\n" name (show_func macro)) funcs ""
 
-let rec parse strings procs macros words =
+let rec parse strings procs macros max_addr words =
     let nstrings = ref (List.length !strings) in
 
     let add_func loc id name words table =
@@ -36,7 +36,7 @@ let rec parse strings procs macros words =
             | (loc, Word _name) :: _ when name = _name ->
                     raise @@ Error (loc, sprintf "%s: recursive macros not supported" name)
             | (_, End_func _id) :: words when _id = id ->
-                    parse strings procs macros @@ List.rev acc, words
+                    parse strings procs macros max_addr @@ List.rev acc, words
             | word :: words -> add' (word :: acc) words
         in
         let t_in, t_out, words = extract_types true [] [] words in
@@ -131,8 +131,10 @@ let rec parse strings procs macros words =
                 let n, tl = parse_vars loc tl in
                 (* TODO: check if variable exists (shadowing?) *)
                 List.iter (fun (loc, name) ->
-                    Hashtbl.add vars name @@ Hashtbl.length vars;
-                    Hashtbl.add locs loc  @@ Hashtbl.length vars) n;
+                    let addr = Hashtbl.length vars in
+                    max_addr := max !max_addr addr;
+                    Hashtbl.add vars name addr;
+                    Hashtbl.add locs loc  addr) n;
                 let irs =
                     List.mapi (fun depth (loc, name) ->
                     if word = Peek

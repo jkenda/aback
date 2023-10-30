@@ -46,8 +46,7 @@ macro -rot is
 end
 
 macro 2drop is
-    take a b in
-    end
+    drop drop
 end
 
 macro 2nip is
@@ -57,9 +56,7 @@ macro 2nip is
 end
 
 macro 2dup is
-    peek a b in
-        a b
-    end
+    over over
 end
 
 macro 2over is
