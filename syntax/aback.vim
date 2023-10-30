@@ -27,6 +27,7 @@ syn keyword abackFunc puts putc puti putf putb
 
 syn keyword abackOperator + - * / %
 syn keyword abackOperator = != < > <= >=
+syn keyword abackOperator ->
 syn match abackOperator '|>'
 
 " Matches

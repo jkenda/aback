@@ -1,0 +1,44 @@
+include "core/stack.ab"
+
+(is the number a prime number?)
+macro is_prime?
+    int -> bool
+is
+take candidate in
+    2 true while < over candidate do
+        take num prime in
+        if = 0 % candidate num then
+            + num 1 false
+        else
+            + num 1 prime
+        end end
+    end
+drop
+end end
+
+macro put int -> is
+    puti |> putc ' '
+end
+
+(number of primes from 1 to limit)
+macro nprimes
+    int -> int
+is
+take limit in
+    put 2 |> put 3 |>
+    2 5 while < over limit do
+        take n cand in
+            + 2 cand
+            if is_prime? cand then
+                put cand |>
+                + 1 n
+            else n end
+        end
+    end nip
+    (return n)
+end end
+
+(output the first 13 primes)
+drop nprimes 13 |>
+putc '\n'
+
