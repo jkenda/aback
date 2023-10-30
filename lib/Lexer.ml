@@ -47,6 +47,12 @@ let read_lib_file filename =
 type typ = Int | Float | Char | Bool | Ptr | String | CStr
 [@@deriving show { with_path = false }]
 
+let print_typ_stack =
+    List.fold_left (fun acc typ -> acc ^ show_typ typ) ""
+
+type loc_typ = location * typ
+[@@deriving show { with_path = false }]
+
 type word =
     | Include
 
@@ -214,19 +220,20 @@ let test actual expected =
         print_endline (Format.asprintf "%s\n!=\n%s" (show_words actual) (show_words expected));
     matches
 
-let loc = {
-    filename = "[test]";
-    included_from = [];
-    expanded_from = [];
-    row = 1;
-    col = 1
-}
 
-let%test _ = test (lex "[test]" [] "+ 12 13 'c' 'cc'")
-([
-    { loc with col = 1  }, Add;
-    { loc with col = 3  }, Int 12;
-    { loc with col = 6  }, Int 13;
-    { loc with col = 9  }, Char 'c';
-    { loc with col = 13 }, Word "cc"
-])
+let%test _ =
+    let loc = {
+        filename = "[test]";
+        included_from = [];
+        expanded_from = [];
+        row = 1;
+        col = 1
+    } in
+    test (lex "[test]" [] "+ 12 13 'c' 'cc'")
+    ([
+        { loc with col = 1  }, Add;
+        { loc with col = 3  }, Int 12;
+        { loc with col = 6  }, Int 13;
+        { loc with col = 9  }, Char 'c';
+        { loc with col = 13 }, Word "cc"
+    ])

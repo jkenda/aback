@@ -84,6 +84,7 @@ and preprocess words =
                 next :: acc, next :: end_stack, next_id, tl
         | (loc, Then) :: tl -> (loc, Then next_id) :: acc, end_stack, next_id, tl
         | (loc, Else) :: tl -> (loc, Else next_id) :: acc, end_stack, next_id, tl
+        (* TODO: Else :: If -> Elif *)
 
         | (loc, While) :: tl ->
                 let next_id = next_id + 1 in

@@ -7,11 +7,13 @@ open Program
 
 let compile filename =
     let strings = ref [] in
-    let funcs = Hashtbl.create 10
+    let procs = Hashtbl.create 10
     and macros = Hashtbl.create 10
     and max_addr = ref 0 in
     let parse =
-        parse strings funcs macros max_addr
+        parse strings procs macros max_addr
+    and check =
+        check procs macros
     in
     let loc, ir =
         try
@@ -28,9 +30,10 @@ let compile filename =
         !strings
         |> List.rev
         |> Array.of_list
+    and storage_size = !max_addr + 1
     in
 
-    { ir; loc; strings; storage = Array.make (!max_addr + 1) (Int 0) }
+    { ir; loc; strings; storage_size }
 
 let simulate program =
     try Program.exec program

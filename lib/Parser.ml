@@ -4,9 +4,9 @@ open Program
 open Format
 
 type func = {
-    t_in  : typ list;
-    t_out : typ list;
-    seq : (location * ir) list
+    loc : location;
+    seq : (location * ir) list;
+    types  : (loc_typ list * loc_typ list) option
 }
 [@@deriving show { with_path = false }]
 
@@ -24,11 +24,11 @@ let rec parse strings procs macros max_addr words =
 
     let add_func loc id name words table =
         let rec extract_types input t_in t_out = function
-            | (_, Type t) :: words ->
-                    if input then extract_types input (t :: t_in) t_out words
-                    else extract_types input t_in (t :: t_out) words
+            | (loc, Type t) :: words ->
+                    if input then extract_types input ((loc, t) :: t_in) t_out words
+                    else extract_types input t_in ((loc, t) :: t_out) words
             | (_, Return) :: words -> extract_types false t_in t_out words
-            | (_, Is) :: words -> List.rev t_in, List.rev t_out, words
+            | (_, Is) :: words -> (List.rev t_in, List.rev t_out), words
             | (loc, word) :: _ -> raise @@ Error (loc, sprintf "Expected 'is' or type, got %s" (show_prep word))
             | [] -> raise @@ Error (loc, "expected 'is' after function declaration")
         and add' acc = function
@@ -39,9 +39,15 @@ let rec parse strings procs macros max_addr words =
                     parse strings procs macros max_addr @@ List.rev acc, words
             | word :: words -> add' (word :: acc) words
         in
-        let t_in, t_out, words = extract_types true [] [] words in
+        let types, words =
+            match words with
+            | (_, Is) :: tl -> None, tl
+            | _ ->
+                    let types, words = extract_types true [] [] words in
+                    Some types, words
+        in
         let seq, words = add' [] words in
-        Hashtbl.add table name { t_in; t_out; seq };
+        Hashtbl.replace table name { loc; types; seq };
         words
     and add_string str =
         let addr = !nstrings in
@@ -133,8 +139,8 @@ let rec parse strings procs macros max_addr words =
                 List.iter (fun (loc, name) ->
                     let addr = Hashtbl.length vars in
                     max_addr := max !max_addr addr;
-                    Hashtbl.add vars name addr;
-                    Hashtbl.add locs loc  addr) n;
+                    Hashtbl.replace vars name addr;
+                    Hashtbl.replace locs loc  addr) n;
                 let irs =
                     List.mapi (fun depth (loc, name) ->
                     if word = Peek

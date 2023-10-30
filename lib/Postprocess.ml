@@ -7,12 +7,12 @@ let postprocess program =
     let end_addr = Hashtbl.create 10 in
     let collect_jumps (acc, addr) = function
         | _, IF _ -> acc, addr
-        | _, ELSE id as ir -> Hashtbl.add else_addr id addr; ir :: acc, addr + 1
-        | _, END_IF id -> Hashtbl.add end_addr id addr; acc, addr
+        | _, ELSE id as ir -> Hashtbl.replace else_addr id addr; ir :: acc, addr + 1
+        | _, END_IF id -> Hashtbl.replace end_addr id addr; acc, addr
         
-        | _, WHILE id -> Hashtbl.add while_addr id addr; acc, addr
+        | _, WHILE id -> Hashtbl.replace while_addr id addr; acc, addr
         | _, DO _ as ir -> ir :: acc, addr + 1
-        | _, END_WHILE id as ir -> Hashtbl.add end_addr id addr; ir :: acc, addr + 1
+        | _, END_WHILE id as ir -> Hashtbl.replace end_addr id addr; ir :: acc, addr + 1
 
         | ir -> ir :: acc, addr + 1
     and postprocess' acc = function

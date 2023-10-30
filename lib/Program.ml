@@ -42,13 +42,14 @@ type program = {
     ir : ir array;
     loc : location array;
     strings : string array;
-    storage : data array
+    storage_size : int
 }
 
 type stack = data list
 [@@deriving show { with_path = false }]
 
 let exec program =
+    let storage = Array.make program.storage_size (Int 0) in
     let exec' stack ip instr =
         let int_op op = function
             | Int i :: Int j :: rest -> Int (op i j) :: rest
@@ -92,21 +93,17 @@ let exec program =
                         raise @@ Error (program.loc.(ip),
                         "string length does not match")
                     else print_string (program.strings.(p)); rest
-            | [] -> raise @@ Error (
-                program.loc.(ip),
+            | [] -> raise @@ Error ( program.loc.(ip),
                 sprintf "%s: not enough data on stack" (show_ir t))
-            | stack -> raise @@ Error (
-                program.loc.(ip),
+            | stack -> raise @@ Error ( program.loc.(ip),
                 sprintf "Expected %s, got %s" (show_ir t) (show_data (List.hd stack)))
         and cond_jmp stack t f =
             match stack with
             | Bool true :: tl -> tl, t
             | Bool false :: tl -> tl, f
-            | _ :: _ -> raise @@ Error (
-                program.loc.(ip),
+            | _ :: _ -> raise @@ Error ( program.loc.(ip),
                 sprintf "expected bool, got %s" (show_data (List.hd stack)))
-            | [] -> raise @@ Error (
-                program.loc.(ip),
+            | [] -> raise @@ Error ( program.loc.(ip),
                 "not enough data on stack")
         in
 
@@ -124,15 +121,15 @@ let exec program =
                     try List.nth stack depth
                     with _ -> raise @@ Error (program.loc.(ip), "stack underflow")
                 in
-                program.storage.(addr) <- data; stack, ip + 1
+                storage.(addr) <- data; stack, ip + 1
         | TAKE addr ->
                 let data, stack =
                     match stack with
                     | hd :: tl -> hd, tl
-                    | _ -> raise @@ Error (loc, "stack underflow")
+                    | _ -> raise @@ Error (program.loc.(ip), "stack underflow")
                 in
-                program.storage.(addr) <- data; stack, ip + 1
-        | PUT addr -> program.storage.(addr) :: stack, ip + 1
+                storage.(addr) <- data; stack, ip + 1
+        | PUT addr -> storage.(addr) :: stack, ip + 1
 
         | PUSH d -> d :: stack, ip + 1
 
@@ -176,6 +173,7 @@ let exec program =
             let stack, ip = exec' stack ip program.ir.(ip) in
             exec'' stack ip
     in
-    exec'' [] 0
+    try exec'' [] 0
+    with Error (loc, msg) -> raise @@ Error (loc, "runtime exception: " ^ msg)
 
 

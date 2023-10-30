@@ -5,8 +5,8 @@ macro LIMIT is 1000 end
 1 0 while < over LIMIT do
     take a b in
         puti a |>
-        putc ' ' |>
         + a b a
     end
+    putc ' '
 end drop drop |>
 puts "\n"
