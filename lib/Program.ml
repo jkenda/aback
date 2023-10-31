@@ -1,5 +1,6 @@
 open Format
 open Lexer
+open Preprocess
 
 type data =
     | Int of int
@@ -9,12 +10,19 @@ type data =
     | Ptr of int
 [@@deriving show { with_path = false }]
 
-let type_of_data = function
+let typ_of_data = function
     | Int _   -> (Int : typ)
     | Bool _  -> Bool
     | Char _  -> Char
     | Float _ -> Float
     | Ptr _   -> Ptr
+
+let prep_of_data = function
+    | Int _   -> Type Int
+    | Bool _  -> Type Bool
+    | Char _  -> Type Char
+    | Float _ -> Type Float
+    | Ptr _   -> Type Ptr
 
 type ir =
     | PUSH of data
@@ -181,7 +189,7 @@ let interpret program =
     match stack with
     | [] -> ()
     | stack ->
-            let stack = List.map type_of_data stack in
+            let stack = List.map typ_of_data stack in
             raise @@ Error (program.loc.(Array.length program.loc - 1),
                 sprintf "%s left on the stack at the end of program"
                 (print_typ_stack stack))

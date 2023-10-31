@@ -1,3 +1,6 @@
+include "core/stack.ab"
+macro LIMIT is 1000 end
+
 1 0
 (0:  PUSH Int 0)
 (1:  PUSH Int 1)

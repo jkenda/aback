@@ -1,4 +1,3 @@
-open Format
 open Lexer
 
 type data =
@@ -39,9 +38,36 @@ type prep =
     | Word of string
 [@@deriving show { with_path = false }]
 
-let _print_prep prep =
-    List.iter (fun x -> print_endline (show_prep x)) prep;
-    print_newline ()
+let print_prep = function
+    | Push a -> show_data a
+    | Type t -> print_typ t
+
+    | Rev -> "|>"
+
+    | Macro _ -> "macro" | Proc _ -> "proc" | Is -> "is" | End_func _ -> "end"
+    | If _ -> "if" | Then _ -> "then" | Else _ -> "else" | End_if _ -> "end"
+    | While _ -> "while" | Do _ -> "do" | End_while _ -> "end"
+    | Peek -> "peek" | Take -> "take" | In -> "in" | End_peek -> "end"
+    | Let -> "let" | Assign -> ":=" | Return -> "->"
+
+    | Eq -> "=" | NEq -> "!=" | Lt -> "<" | LEq -> "<=" | Gt -> ">" | GEq -> ">="
+
+    | Add -> "+" | FAdd -> "+."
+    | Sub -> "-" | FSub -> "-."
+    | Mul -> "*" | FMul -> "*."
+    | Div -> "/" | FDiv -> "/."
+    | Mod -> "%" | FMod -> "%."
+
+    | BAnd -> "&" | BOr -> "|" | BXor -> "^" | Lsl -> "<<" | Lsr -> ">>"
+    | And  -> "&&" | Or -> "||"
+    | Ref -> "@" | Deref -> "."
+
+    | Putc -> "putc" | Puts -> "puts" | Puti -> "puti" | Putf -> "putf" | Putb -> "putb"
+
+    | Word w -> w
+
+let print_prep_stack =
+    List.fold_left (fun acc typ -> acc ^ print_prep typ ^ " ") ""
 
 let rec include_file included_from src =
     let text = read_lib_file src in

@@ -4,42 +4,42 @@ macro drop 1 -> 0 is
 end
 
 macro nip 2 -> 1 is
-    take a b in
+    take a _ in
         a
     end
 end
 
-macro dup 1 -> 2 is
+macro dup a -> a a is
     peek a in
         a
     end
 end
 
-macro over 2 -> 3 is
-    peek a b in
+macro over a b -> b a b is
+    peek _ b in
         b
     end
 end
 
-macro tuck 2 -> 3 is
+macro tuck a b -> a b a is
     take a b in
         a b a
     end
 end
 
-macro swap 2 -> 2 is
+macro swap a b -> b a is
     take a b in
         b a
     end
 end
 
-macro rot 3 -> 3 is
+macro rot a b c -> b c a is
     take a b c in
         b c a
     end
 end
 
-macro -rot 3 -> 3 is
+macro -rot a b c -> c a b is
     take a b c in
         c a b
     end
@@ -49,13 +49,13 @@ macro 2drop 2 -> 0 is
     drop drop
 end
 
-macro 2nip 4 -> 2 is
-    take a b c d in
+macro 2nip a b c d -> c d is
+    take _ _ c d in
         c d
     end
 end
 
-macro 2dup 2 -> 0 is
+macro 2dup a b -> a b a b is
     over over
 end
 

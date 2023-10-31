@@ -13,13 +13,9 @@ let interpret filename =
     and macros = Hashtbl.create 10
     and max_addr = ref (-1) in
     (* specialize functions *)
-    let lex =
-        lex filename []
-    and parse =
-        parse strings procs macros max_addr
-    and check =
-        check procs macros
-    in
+    let lex = lex filename []
+    and parse = parse strings procs macros max_addr
+    and check = check procs macros in
     (* compile the program *)
     let loc, ir =
         try
@@ -57,13 +53,9 @@ let print filename =
     and macros = Hashtbl.create 10
     and max_addr = ref (-1) in
     (* specialize functions *)
-    let lex =
-        lex filename []
-    and parse =
-        parse strings procs macros max_addr
-    and check =
-        check procs macros
-    in
+    let lex = lex filename []
+    and parse = parse strings procs macros max_addr
+    and check = check procs macros in
     (* compile the program *)
     let _, ir =
         try
@@ -95,13 +87,9 @@ let check filename =
     and macros = Hashtbl.create 10
     and max_addr = ref (-1) in
     (* specialize functions *)
-    let lex =
-        lex filename []
-    and parse =
-        parse strings procs macros max_addr
-    and check =
-        check procs macros
-    in
+    let lex = lex filename []
+    and parse = parse strings procs macros max_addr
+    and check = check procs macros in
     (* compile the program *)
     let () =
         try

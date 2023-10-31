@@ -4,7 +4,7 @@ open Program
 open Format
 
 type func_format =
-    | Typed of loc_typ list * loc_typ list
+    | Typed of (location * prep) list * (location * prep) list
     | Numbered of int * int
     | Untyped
 [@@deriving show { with_path = false }]
@@ -30,12 +30,12 @@ let rec parse strings procs macros max_addr words =
 
     let add_func loc id name words table =
         let rec extract_types input t_in t_out = function
-            | (loc, Type t) :: words ->
+            | (loc, (Type _ | Word _ as t)) :: words ->
                     if input then extract_types input ((loc, t) :: t_in) t_out words
                     else extract_types input t_in ((loc, t) :: t_out) words
             | (_, Return) :: words -> extract_types false t_in t_out words
             | (_, Is) :: words -> List.rev t_in, List.rev t_out, words
-            | (loc, word) :: _ -> raise @@ Error (loc, sprintf "Expected 'is' or type, got %s" (show_prep word))
+            | (loc, word) :: _ -> raise @@ Error (loc, sprintf "Expected 'is' or type, got %s" (print_prep word))
             | [] -> raise @@ Error (loc, "expected 'is' after function declaration")
         and add' acc = function
             | [] -> raise @@ Error (loc, "'end' expected")
@@ -66,7 +66,7 @@ let rec parse strings procs macros max_addr words =
         let rec parse' vars = function
             | (_, In) :: words -> List.rev vars, words
             | (loc, Word name) :: words -> parse' ((loc, name) :: vars) words
-            | (loc, word) :: _ -> raise @@ Error (loc, sprintf "Expected name or In, got %s" (show_prep word))
+            | (loc, word) :: _ -> raise @@ Error (loc, sprintf "Expected name or In, got %s" (print_prep word))
             | [] -> raise @@ Error (loc, "expected 'is' after variable list")
         in
         parse' [] words
@@ -107,7 +107,7 @@ let rec parse strings procs macros max_addr words =
             | Putc -> [PUTC] | Puts -> [PUTS]
             | Putb -> [PUTB]
 
-            | prep -> raise @@ Not_implemented (loc, show_prep prep)
+            | prep -> raise @@ Not_implemented (loc, print_prep prep)
         in
         ir_of_word' word
         |> List.map (fun ir -> loc, ir)
