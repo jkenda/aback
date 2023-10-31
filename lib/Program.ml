@@ -67,11 +67,8 @@ let interpret program =
             | _ -> raise @@ Error (
                 program.loc.(ip),
                 "not enough data on stack")
-        and int_cmp op = function
-            | Int i :: Int j :: rest -> Bool (op i j) :: rest
-            | a :: b :: _ -> raise @@ Error (
-                program.loc.(ip),
-                sprintf "expected Int Int, got %s %s" (show_data a) (show_data b))
+        and cmp op = function
+            | a :: b :: rest -> Bool (op a b) :: rest
             | stack -> raise @@ Error (
                 program.loc.(ip),
                 sprintf "not enough data on stack : %s" @@ show_stack stack)
@@ -141,12 +138,12 @@ let interpret program =
 
         | PUSH d -> d :: stack, ip + 1
 
-        | EQ -> int_cmp ( =  ) stack, ip + 1
-        | NE -> int_cmp ( <> ) stack, ip + 1
-        | LT -> int_cmp ( <  ) stack, ip + 1
-        | LE -> int_cmp ( <= ) stack, ip + 1
-        | GT -> int_cmp ( >  ) stack, ip + 1
-        | GE -> int_cmp ( >= ) stack, ip + 1
+        | EQ -> cmp ( =  ) stack, ip + 1
+        | NE -> cmp ( <> ) stack, ip + 1
+        | LT -> cmp ( <  ) stack, ip + 1
+        | LE -> cmp ( <= ) stack, ip + 1
+        | GT -> cmp ( >  ) stack, ip + 1
+        | GE -> cmp ( >= ) stack, ip + 1
 
         | ADD -> int_op ( + ) stack, ip + 1
         | SUB -> int_op ( - ) stack, ip + 1
@@ -193,5 +190,3 @@ let interpret program =
             raise @@ Error (program.loc.(Array.length program.loc - 1),
                 sprintf "%s left on the stack at the end of program"
                 (print_typ_stack stack))
-
-

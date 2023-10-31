@@ -1,0 +1,15 @@
+macro min
+    a a -> a
+is
+take a b in
+    if <= a b then a
+    else b end
+end end
+
+macro max
+    a a -> a
+is
+take a b in
+    if >= a b then a
+    else b end
+end end

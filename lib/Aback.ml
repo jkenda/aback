@@ -35,8 +35,12 @@ let interpret filename =
     and storage_size = !max_addr + 1
     in
 
-    Program.interpret
-    @@ { ir; loc; strings; storage_size }
+    try
+        Program.interpret
+        @@ { ir; loc; strings; storage_size }
+    with Error (loc, msg) ->
+        print_error (loc, msg);
+        exit 3
 
 let print filename =
     let print_ir =
@@ -67,7 +71,7 @@ let print filename =
             |> postprocess
         with Error (loc, msg) ->
             print_error (loc, msg);
-            exit 3
+            exit 4
     and strings =
         !strings
         |> List.rev
@@ -101,7 +105,7 @@ let check filename =
             |> ignore
         with Error (loc, msg) ->
             print_error (loc, msg);
-            exit 4
+            exit 5
     in
 
     print_endline "OK."

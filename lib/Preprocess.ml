@@ -15,9 +15,9 @@ type prep =
 
     | Rev
 
-    | Macro of int | Proc of int | Is | End_func of int
-    | If of int | Then of int | Else of int | End_if of int
-    | While of int | Do of int | End_while of int
+    | Macro | Proc | Is | End_func
+    | If | Then | Else | End_if
+    | While | Do | End_while
     | Peek | Take | In | End_peek
     | Let | Assign | Return
 
@@ -44,9 +44,9 @@ let print_prep = function
 
     | Rev -> "|>"
 
-    | Macro _ -> "macro" | Proc _ -> "proc" | Is -> "is" | End_func _ -> "end"
-    | If _ -> "if" | Then _ -> "then" | Else _ -> "else" | End_if _ -> "end"
-    | While _ -> "while" | Do _ -> "do" | End_while _ -> "end"
+    | Macro -> "macro" | Proc -> "proc" | Is -> "is" | End_func -> "end"
+    | If -> "if" | Then -> "then" | Else -> "else" | End_if -> "end"
+    | While -> "while" | Do -> "do" | End_while -> "end"
     | Peek -> "peek" | Take -> "take" | In -> "in" | End_peek -> "end"
     | Let -> "let" | Assign -> ":=" | Return -> "->"
 
@@ -83,62 +83,50 @@ and preprocess words =
         | [] -> []
     in
 
-    let preprocess'' (acc, end_stack, next_id, words) =
+    let preprocess'' (acc, end_stack, words) =
         match words with
-        | [] -> acc, end_stack, next_id, []
+        | [] -> acc, end_stack, []
         | (loc, Include) :: (_, String src) :: tl ->
                 let included_from = loc.filename :: loc.included_from in
-                include_file included_from src @ acc, end_stack, next_id, tl
+                include_file included_from src @ acc, end_stack, tl
         | (_, Include) :: (loc, _) :: _
         | (loc, Include) :: _ -> raise @@ Error (loc, "expected string after include")
 
-        | (loc, Rev) :: tl -> (loc, Rev) :: acc, end_stack, next_id, tl
+        | (loc, Rev) :: tl -> (loc, Rev) :: acc, end_stack, tl
 
-        | (loc, Macro) :: tl ->
-                let next_id = next_id + 1 in
-                let next = loc, Macro next_id in
-                next :: acc, next :: end_stack, next_id, tl
-        | (loc, Proc) :: tl ->
-                let next_id = next_id + 1 in
-                let next = loc, Proc next_id in
-                next :: acc, next :: end_stack, next_id, tl
-        | (loc, Is) :: tl -> (loc, Is) :: acc, end_stack, next_id, tl
+        | (loc, Macro) :: tl -> (loc, Macro) :: acc, (loc, Macro) :: end_stack, tl
+        | (loc, Proc)  :: tl -> (loc, Proc)  :: acc, (loc, Proc) :: end_stack, tl
+        | (loc, Is)    :: tl -> (loc, Is)    :: acc, end_stack, tl
 
-        | (loc, If) :: tl ->
-                let next_id = next_id + 1 in
-                let next = loc, If next_id in
-                next :: acc, next :: end_stack, next_id, tl
-        | (loc, Then) :: tl -> (loc, Then next_id) :: acc, end_stack, next_id, tl
-        | (loc, Else) :: tl -> (loc, Else next_id) :: acc, end_stack, next_id, tl
+        | (loc, If)   :: tl -> (loc, If)   :: acc, (loc, If)   :: end_stack, tl
+        | (loc, Then) :: tl -> (loc, Then) :: acc, end_stack, tl
+        | (loc, Else) :: tl -> (loc, Else) :: acc, end_stack, tl
         (* TODO: Else :: If -> Elif *)
 
-        | (loc, While) :: tl ->
-                let next_id = next_id + 1 in
-                let next = loc, While next_id in
-                next :: acc, next :: end_stack, next_id, tl
-        | (loc, Do) :: tl -> (loc, Do next_id) :: acc, end_stack, next_id, tl
+        | (loc, While) :: tl -> (loc, While) :: acc, (loc, While) :: end_stack, tl
+        | (loc, Do)    :: tl -> (loc, Do)    :: acc, end_stack, tl
 
-        | (loc, Peek) :: tl -> (loc, Peek) :: acc, (loc, Peek) :: end_stack, next_id, tl
-        | (loc, Take) :: tl -> (loc, Take) :: acc, (loc, Take) :: end_stack, next_id, tl
-        | (loc, In) :: tl -> (loc, In) :: acc, end_stack, next_id, tl
+        | (loc, Peek) :: tl -> (loc, Peek) :: acc, (loc, Peek) :: end_stack, tl
+        | (loc, Take) :: tl -> (loc, Take) :: acc, (loc, Take) :: end_stack, tl
+        | (loc, In)   :: tl -> (loc, In) :: acc, end_stack, tl
 
         | (loc, End) :: tl ->
                 let ir, end_stack =
                     match end_stack with
-                    | (_, Proc id)  :: e
-                    | (_, Macro id) :: e -> End_func id, e
-                    | (_, If id)    :: e -> End_if id, e
-                    | (_, While id) :: e -> End_while id, e
+                    | (_, Proc)  :: e
+                    | (_, Macro) :: e -> End_func, e
+                    | (_, If)    :: e -> End_if, e
+                    | (_, While) :: e -> End_while, e
                     | (_, Peek)     :: e
                     | (_, Take)     :: e -> End_peek, e
                     | _ | exception _ ->
                             raise @@ Error (loc,
                             "end reqires matching begin: one of macro, func, if, while, peek, take")
                 in
-                (loc, ir) :: acc, end_stack, next_id, tl
+                (loc, ir) :: acc, end_stack, tl
 
         | ((_, Word w) :: _) as words when String.starts_with ~prefix:"(" w ->
-                acc, end_stack, next_id, remove_comment words
+                acc, end_stack, remove_comment words
 
         | (loc, word) :: tl ->
                 (loc, match word with
@@ -167,16 +155,16 @@ and preprocess words =
                 | Putc -> Putc | Puts -> Puts | Puti -> Puti | Putf -> Putf | Putb -> Putb
 
                 | Word w -> Word w
-                | _ -> raise @@ Not_implemented (loc, show_word word)) :: acc, end_stack, next_id, tl
+                | _ -> raise @@ Not_implemented (loc, show_word word)) :: acc, end_stack, tl
 
 
     in
-    let rec preprocess' ((acc, end_stack, _, words) as data) =
+    let rec preprocess' ((acc, end_stack, words) as data) =
         match words with
         | [] -> List.rev acc, end_stack
         | _ -> preprocess' @@ preprocess'' data
     in
-    let acc, end_stack = preprocess' ([], [], 0, words) in
+    let acc, end_stack = preprocess' ([], [], words) in
     if end_stack = [] then acc
     else
         let loc, _ = List.hd end_stack in

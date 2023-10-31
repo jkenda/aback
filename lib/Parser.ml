@@ -28,7 +28,7 @@ let names = ref []
 let rec parse strings procs macros max_addr words =
     let nstrings = ref (List.length !strings) in
 
-    let add_func loc id name words table =
+    let add_func loc name words table =
         let rec extract_types input t_in t_out = function
             | (loc, (Type _ | Word _ as t)) :: words ->
                     if input then extract_types input ((loc, t) :: t_in) t_out words
@@ -41,7 +41,7 @@ let rec parse strings procs macros max_addr words =
             | [] -> raise @@ Error (loc, "'end' expected")
             | (loc, Word _name) :: _ when name = _name ->
                     raise @@ Error (loc, sprintf "%s: recursive macros not supported" name)
-            | (_, End_func _id) :: words when _id = id ->
+            | (_, End_func) :: words ->
                     List.rev acc, words
             | word :: words -> add' (word :: acc) words
         in
@@ -115,26 +115,26 @@ let rec parse strings procs macros max_addr words =
 
     let rec parse' (top, rest) = function
         | [] -> top :: rest
-        | (_, (Macro id : prep)) :: (loc, Word name) :: tl ->
+        | (_, (Macro : prep)) :: (loc, Word name) :: tl ->
                 parse' ([], top :: rest)
-                @@ add_func loc id name tl macros
-        | (loc, Macro _) :: _ -> raise @@ Error (loc, "macro: expected name")
-        | (_, Proc id) :: (loc, Word name) :: tl ->
+                @@ add_func loc name tl macros
+        | (loc, Macro) :: _ -> raise @@ Error (loc, "macro: expected name")
+        | (_, Proc ) :: (loc, Word name) :: tl ->
                 parse' ([], top :: rest)
-                @@ add_func loc id name tl procs
-        | (loc, Proc _) :: _ -> raise @@ Error (loc, "proc: expected name")
+                @@ add_func loc name tl procs
+        | (loc, Proc) :: _ -> raise @@ Error (loc, "proc: expected name")
         | (_, Rev) :: tl -> parse' ([], top :: rest) tl
         
-        | (loc,  ((If _ | Then _ | Else _ | End_if _ | While _ | Do _ | End_while _) as word)) :: tl ->
+        | (loc,  ((If | Then | Else | End_if | While | Do | End_while) as word)) :: tl ->
                 let instr =
                     match word with
-                    | If id        -> IF id
-                    | Then id      -> THEN id
-                    | Else id      -> ELSE id
-                    | End_if id    -> END_IF id
-                    | While id     -> WHILE id
-                    | Do id        -> DO id
-                    | End_while id -> END_WHILE id
+                    | If        -> IF 0
+                    | Then      -> THEN 0
+                    | Else      -> ELSE 0
+                    | End_if    -> END_IF 0
+                    | While     -> WHILE 0
+                    | Do        -> DO 0
+                    | End_while -> END_WHILE 0
                     | _ -> raise (Unreachable "")
                 in
                 (parse' ([], [loc, instr] :: top :: rest) tl)
@@ -189,8 +189,32 @@ let rec parse strings procs macros max_addr words =
                             (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) procs ""))
 
         | (loc, word) :: tl -> parse' (ir_of_word loc word @ top, rest) tl
+
+    and set_ids instrs =
+        let set' (acc, end_stack, next_id) (loc, inst) =
+            let instr, end_stack, next_id =
+                match inst, end_stack with
+                | IF        _, _ -> IF    next_id, IF    next_id :: end_stack, next_id + 1
+                | WHILE     _, _ -> WHILE next_id, WHILE next_id :: end_stack, next_id + 1
+                | THEN      _, IF    id :: _ -> THEN id, end_stack, next_id
+                | ELSE      _, IF    id :: _ -> ELSE id, end_stack, next_id
+                | DO        _, WHILE id :: _ -> DO   id, end_stack, next_id
+                | END_IF    _, IF    id :: tl -> END_IF id,    tl, next_id
+                | END_WHILE _, WHILE id :: tl -> END_WHILE id, tl, next_id
+                | THEN      _, _ -> raise @@ Error (loc, "unmatched 'then'")
+                | ELSE      _, _ -> raise @@ Error (loc, "unmatched 'else'")
+                | DO        _, _ -> raise @@ Error (loc, "unmatched 'do'")
+                | END_IF    _, _
+                | END_WHILE _, _ -> raise @@ Error (loc, "unmatched 'end'")
+                | _ -> inst, end_stack, next_id
+            in (loc, instr) :: acc, end_stack, next_id
+        in
+        let acc, _, _ = List.fold_left set' ([], [], 0) instrs in
+        List.rev acc
     in
+
     parse' ([], []) words
     |> List.rev
     |> List.flatten
+    |> set_ids
 
