@@ -83,50 +83,53 @@ and preprocess words =
         | [] -> []
     in
 
-    let preprocess'' (acc, end_stack, words) =
+    let end_stack = Stack.create () in
+    let push_end data = Stack.push data end_stack in
+
+    let preprocess'' (acc, words) =
         match words with
-        | [] -> acc, end_stack, []
+        | [] -> acc, []
         | (loc, Include) :: (_, String src) :: tl ->
                 let included_from = loc.filename :: loc.included_from in
-                include_file included_from src @ acc, end_stack, tl
+                include_file included_from src @ acc, tl
         | (_, Include) :: (loc, _) :: _
         | (loc, Include) :: _ -> raise @@ Error (loc, "expected string after include")
 
-        | (loc, Rev) :: tl -> (loc, Rev) :: acc, end_stack, tl
+        | (loc, Rev) :: tl -> (loc, Rev) :: acc, tl
 
-        | (loc, Macro) :: tl -> (loc, Macro) :: acc, (loc, Macro) :: end_stack, tl
-        | (loc, Proc)  :: tl -> (loc, Proc)  :: acc, (loc, Proc) :: end_stack, tl
-        | (loc, Is)    :: tl -> (loc, Is)    :: acc, end_stack, tl
+        | (loc, Macro) :: tl -> push_end (loc, Macro); (loc, Macro) :: acc, tl
+        | (loc, Proc)  :: tl -> push_end (loc, Proc) ; (loc, Proc)  :: acc, tl
+        | (loc, Is)    :: tl -> (loc, Is) :: acc, tl
 
-        | (loc, If)   :: tl -> (loc, If)   :: acc, (loc, If)   :: end_stack, tl
-        | (loc, Then) :: tl -> (loc, Then) :: acc, end_stack, tl
-        | (loc, Else) :: tl -> (loc, Else) :: acc, end_stack, tl
+        | (loc, If)   :: tl -> push_end (loc, If); (loc, If) :: acc, tl
+        | (loc, Then) :: tl -> (loc, Then) :: acc, tl
+        | (loc, Else) :: tl -> (loc, Else) :: acc, tl
         (* TODO: Else :: If -> Elif *)
 
-        | (loc, While) :: tl -> (loc, While) :: acc, (loc, While) :: end_stack, tl
-        | (loc, Do)    :: tl -> (loc, Do)    :: acc, end_stack, tl
+        | (loc, While) :: tl -> push_end (loc, While); (loc, While) :: acc, tl
+        | (loc, Do)    :: tl -> (loc, Do) :: acc, tl
 
-        | (loc, Peek) :: tl -> (loc, Peek) :: acc, (loc, Peek) :: end_stack, tl
-        | (loc, Take) :: tl -> (loc, Take) :: acc, (loc, Take) :: end_stack, tl
-        | (loc, In)   :: tl -> (loc, In) :: acc, end_stack, tl
+        | (loc, Peek) :: tl -> push_end (loc, Peek); (loc, Peek) :: acc, tl
+        | (loc, Take) :: tl -> push_end (loc, Take); (loc, Take) :: acc, tl
+        | (loc, In)   :: tl -> (loc, In) :: acc, tl
 
         | (loc, End) :: tl ->
-                let ir, end_stack =
-                    match end_stack with
-                    | (_, Proc)  :: e
-                    | (_, Macro) :: e -> End_func, e
-                    | (_, If)    :: e -> End_if, e
-                    | (_, While) :: e -> End_while, e
-                    | (_, Peek)     :: e
-                    | (_, Take)     :: e -> End_peek, e
+                let ir =
+                    match Stack.pop end_stack with
+                    | (_, Proc)
+                    | (_, Macro) -> End_func
+                    | (_, If)    -> End_if
+                    | (_, While) -> End_while
+                    | (_, Peek)
+                    | (_, Take) -> End_peek
                     | _ | exception _ ->
                             raise @@ Error (loc,
                             "end reqires matching begin: one of macro, func, if, while, peek, take")
                 in
-                (loc, ir) :: acc, end_stack, tl
+                (loc, ir) :: acc, tl
 
         | ((_, Word w) :: _) as words when String.starts_with ~prefix:"(" w ->
-                acc, end_stack, remove_comment words
+                acc, remove_comment words
 
         | (loc, word) :: tl ->
                 (loc, match word with
@@ -155,19 +158,19 @@ and preprocess words =
                 | Putc -> Putc | Puts -> Puts | Puti -> Puti | Putf -> Putf | Putb -> Putb
 
                 | Word w -> Word w
-                | _ -> raise @@ Not_implemented (loc, show_word word)) :: acc, end_stack, tl
+                | _ -> raise @@ Not_implemented (loc, show_word word)) :: acc, tl
 
 
     in
-    let rec preprocess' ((acc, end_stack, words) as data) =
+    let rec preprocess' ((acc, words) as data) =
         match words with
         | [] -> List.rev acc, end_stack
         | _ -> preprocess' @@ preprocess'' data
     in
-    let acc, end_stack = preprocess' ([], [], words) in
-    if end_stack = [] then acc
+    let acc, end_stack = preprocess' ([], words) in
+    if Stack.is_empty end_stack then acc
     else
-        let loc, _ = List.hd end_stack in
+        let loc, _ = Stack.pop end_stack in
         raise @@ Error (loc, "no matching 'end'")
 
 

@@ -191,25 +191,27 @@ let rec parse strings procs macros max_addr words =
         | (loc, word) :: tl -> parse' (ir_of_word loc word @ top, rest) tl
 
     and set_ids instrs =
-        let set' (acc, end_stack, next_id) (loc, inst) =
-            let instr, end_stack, next_id =
-                match inst, end_stack with
-                | IF        _, _ -> IF    next_id, IF    next_id :: end_stack, next_id + 1
-                | WHILE     _, _ -> WHILE next_id, WHILE next_id :: end_stack, next_id + 1
-                | THEN      _, IF    id :: _ -> THEN id, end_stack, next_id
-                | ELSE      _, IF    id :: _ -> ELSE id, end_stack, next_id
-                | DO        _, WHILE id :: _ -> DO   id, end_stack, next_id
-                | END_IF    _, IF    id :: tl -> END_IF id,    tl, next_id
-                | END_WHILE _, WHILE id :: tl -> END_WHILE id, tl, next_id
-                | THEN      _, _ -> raise @@ Error (loc, "unmatched 'then'")
-                | ELSE      _, _ -> raise @@ Error (loc, "unmatched 'else'")
-                | DO        _, _ -> raise @@ Error (loc, "unmatched 'do'")
-                | END_IF    _, _
-                | END_WHILE _, _ -> raise @@ Error (loc, "unmatched 'end'")
-                | _ -> inst, end_stack, next_id
-            in (loc, instr) :: acc, end_stack, next_id
+        let end_stack = Stack.create () in
+        let push_end data = Stack.push data end_stack in
+        let set' (acc, next_id) (loc, inst) =
+            let instr, next_id =
+                match inst, Stack.top_opt end_stack with
+                | IF        _, _ -> push_end @@ IF    next_id; IF    next_id, next_id + 1
+                | WHILE     _, _ -> push_end @@ WHILE next_id; WHILE next_id, next_id + 1
+                | THEN      _, Some IF    id -> THEN id, next_id
+                | ELSE      _, Some IF    id -> ELSE id, next_id
+                | DO        _, Some WHILE id -> DO   id, next_id
+                | END_IF    _, Some IF    id -> ignore @@ Stack.pop end_stack; END_IF    id, next_id
+                | END_WHILE _, Some WHILE id -> ignore @@ Stack.pop end_stack; END_WHILE id, next_id
+                | THEN      _, None -> raise @@ Error (loc, "unmatched 'then'")
+                | ELSE      _, None -> raise @@ Error (loc, "unmatched 'else'")
+                | DO        _, None -> raise @@ Error (loc, "unmatched 'do'")
+                | END_IF    _, None
+                | END_WHILE _, None -> raise @@ Error (loc, "unmatched 'end'")
+                | _ -> inst, next_id
+            in (loc, instr) :: acc, next_id
         in
-        let acc, _, _ = List.fold_left set' ([], [], 0) instrs in
+        let acc, _ = List.fold_left set' ([], 0) instrs in
         List.rev acc
     in
 
