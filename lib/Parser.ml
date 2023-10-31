@@ -189,10 +189,11 @@ let rec parse strings procs macros max_addr words =
                             (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) procs ""))
 
         | (loc, word) :: tl -> parse' (ir_of_word loc word @ top, rest) tl
-
-    and set_ids instrs =
+    in
+    let set_ids instrs =
         let end_stack = Stack.create () in
-        let push_end data = Stack.push data end_stack in
+        let push_end data = Stack.push data end_stack
+        and pop_end () = ignore @@ Stack.pop end_stack in
         let set' (acc, next_id) (loc, inst) =
             let instr, next_id =
                 match inst, Stack.top_opt end_stack with
@@ -201,8 +202,8 @@ let rec parse strings procs macros max_addr words =
                 | THEN      _, Some IF    id -> THEN id, next_id
                 | ELSE      _, Some IF    id -> ELSE id, next_id
                 | DO        _, Some WHILE id -> DO   id, next_id
-                | END_IF    _, Some IF    id -> ignore @@ Stack.pop end_stack; END_IF    id, next_id
-                | END_WHILE _, Some WHILE id -> ignore @@ Stack.pop end_stack; END_WHILE id, next_id
+                | END_IF    _, Some IF    id -> pop_end (); END_IF    id, next_id
+                | END_WHILE _, Some WHILE id -> pop_end (); END_WHILE id, next_id
                 | THEN      _, None -> raise @@ Error (loc, "unmatched 'then'")
                 | ELSE      _, None -> raise @@ Error (loc, "unmatched 'else'")
                 | DO        _, None -> raise @@ Error (loc, "unmatched 'do'")
@@ -211,12 +212,11 @@ let rec parse strings procs macros max_addr words =
                 | _ -> inst, next_id
             in (loc, instr) :: acc, next_id
         in
-        let acc, _ = List.fold_left set' ([], 0) instrs in
-        List.rev acc
+        fst @@ List.fold_left set' ([], 0) instrs
+        |> List.rev
     in
 
     parse' ([], []) words
     |> List.rev
     |> List.flatten
     |> set_ids
-

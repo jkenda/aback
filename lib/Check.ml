@@ -305,13 +305,11 @@ let check procs macros program =
     in
 
     (* check procs and macros *)
-    (* TODO: check that untyped procs don't overflow *)
     Hashtbl.iter check_func procs;
     Hashtbl.iter check_func macros;
 
     (* check the main program *)
-    let stack, _ = List.fold_left check_typed ([], 0) program in
-    match stack with
+    match fst @@ List.fold_left check_typed ([], 0) program with
     | [] -> program
     | (loc, _) :: _ as stack ->
             let stack =

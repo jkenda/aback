@@ -223,6 +223,7 @@ let lex filename included_from text =
         row = 1; col = 1 })
     |> List.rev_map instr_of_word
 
+
 let test actual expected =
     let matches = actual = expected in
     if matches then
@@ -230,7 +231,6 @@ let test actual expected =
     else
         print_endline (Format.asprintf "%s\n!=\n%s" (show_words actual) (show_words expected));
     matches
-
 
 let%test _ =
     let loc = {

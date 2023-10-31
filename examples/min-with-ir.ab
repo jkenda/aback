@@ -1,0 +1,44 @@
+macro min
+    a' a' -> a'
+is
+take a b in
+    if <= a b then a
+    else b end
+end end
+
+puti min 7 13 |>
+(0: PUSH Int 13)
+(1: PUSH Int 7)
+(min ->)
+    (2: TAKE 0)
+    (3: TAKE 1)
+    (4: PUT 1)
+    (5: PUT 0)
+    (6: LE)
+    (7: THEN 10)
+    (8: PUT 0)
+    (9: ELSE 11)
+    (10: PUT 1)
+(11: PUTI)
+puts " " |>
+(12: PUSH Int 1)
+(13: PUSH Ptr 0)
+(14: PUT)
+putf min 7. 3.14 |>
+(15: PUSH Float 3.14)
+(16: PUSH Float 7.)
+(min ->)
+    (17: TAKE 0)
+    (18: TAKE 1)
+    (19: PUT 1)
+    (20: PUT 0)
+    (21: LE)
+    (22: THEN 25)
+    (23: PUT 0)
+    (24: ELSE 26)
+    (25: PUT 1)
+(26: PUTF)
+puts " " |>
+(27: PUSH Int 1)
+(28: PUSH Ptr 1)
+(29: PUTS)

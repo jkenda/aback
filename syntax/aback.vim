@@ -36,6 +36,7 @@ syn match abackNumber '\d\+'
 syn match abackNumber '[-+]\d\+'
 " Floating point number with decimal no E or e 
 syn match abackNumber '[-+]\d\+\.\d*'
+syn match abackChar   "'.'"
 
 " Regions
 syn region abackIfBlock     start='then' end='end'  fold transparent
@@ -46,7 +47,6 @@ syn region abackPeekBlock   start='in'   end='end'  fold transparent
 syn region abackFuncBlock   start='is'   end='end'  fold transparent
  
 syn region abackString  start='"' end='"'
-syn region abackChar    start="'" end="'"
 syn region abackComment start="(" end=")"
 
 let b:current_syntax = "aback"
