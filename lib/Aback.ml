@@ -40,9 +40,25 @@ let interpret filename =
         exit 3
 
 let print filename =
-    let print_ir =
+    let print_ir ir =
+        let len =
+            Array.length ir - 1
+            |> Int.to_float
+            |> Float.log10
+            |> Float.ceil
+            |> Float.to_int
+        in
         Array.iteri
-        (fun i ir -> printf "%3d: %s\n" i (show_ir ir))
+        (fun i ir ->
+            let l = 
+                if i = 0 then 1 else
+                Int.to_float (i + 1)
+                |> Float.log10
+                |> Float.ceil
+                |> Float.to_int
+            in
+            for _ = 1 to len - l do printf " " done;
+            printf "%d| %s\n" i (show_ir ir)) ir
     in
 
     (* define "global" variables *)

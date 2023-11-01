@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>~/git/aback/examples/fib.ab.html</title>
+<meta name="Generator" content="Vim/8.1">
+<meta name="plugin-version" content="vim9.0_v1">
+<meta name="syntax" content="aback">
+<meta name="settings" content="number_lines,use_css,no_foldcolumn,expand_tabs,line_ids,pre_wrap,prevent_copy=,use_input_for_pc=fallback">
+<meta name="colorscheme" content="rose-pine">
+<style>
+<!--
+pre { white-space: pre-wrap; font-family: monospace; color: #e0def4; background-color: #000000; }
+body { font-family: monospace; color: #e0def4; background-color: #000000; }
+* { font-size: 1em; }
+.Number { color: #f6c177; }
+.Macro { color: #c4a7e7; }
+.Operator { color: #908caa; }
+.LineNr { color: #6e6a86; }
+.Character { color: #f6c177; }
+.String { color: #f6c177; }
+.Function { color: #ebbcba; }
+.Comment { color: #6e6a86; font-style: italic; }
+.Conditional { color: #31748f; }
+.Include { color: #31748f; }
+-->
+</style>
+
+<script>
+<!--
+
+/* function to open any folds containing a jumped-to line before jumping to it */
+function JumpToLine()
+{
+  var lineNum;
+  lineNum = window.location.hash;
+  lineNum = lineNum.substr(1); /* strip off '#' */
+
+  if (lineNum.indexOf('L') == -1) {
+    lineNum = 'L'+lineNum;
+  }
+  var lineElem = document.getElementById(lineNum);
+  /* Always jump to new location even if the line was hidden inside a fold, or
+   * we corrected the raw number to a line ID.
+   */
+  if (lineElem) {
+    lineElem.scrollIntoView(true);
+  }
+  return true;
+}
+if ('onhashchange' in window) {
+  window.onhashchange = JumpToLine;
+}
+
+-->
+</script>
+</head>
+<body onload='JumpToLine();'>
+<pre id='vimCodeElement'>
+<span id="L1" class="LineNr"> 1 </span><span class="Include">include</span> <span class="String">&quot;core/stack.ab&quot;</span>
+<span id="L2" class="LineNr"> 2 </span><span class="Conditional">macro</span> LIMIT <span class="Conditional">is</span> <span class="Number">100</span> <span class="Conditional">end</span>
+<span id="L3" class="LineNr"> 3 </span>
+<span id="L4" class="LineNr"> 4 </span><span class="Comment">(output a Fibonacci sequence up to LIMIT)</span>
+<span id="L5" class="LineNr"> 5 </span><span class="Number">1</span> <span class="Number">0</span> <span class="Conditional">while</span> <span class="Operator">&lt;</span> <span class="Macro">over</span> LIMIT <span class="Conditional">do</span>
+<span id="L6" class="LineNr"> 6 </span>    <span class="Conditional">take</span> a b <span class="Conditional">in</span>
+<span id="L7" class="LineNr"> 7 </span>        <span class="Function">puti</span> a <span class="Operator">|&gt;</span>
+<span id="L8" class="LineNr"> 8 </span>        <span class="Operator">+</span> a b a
+<span id="L9" class="LineNr"> 9 </span>    <span class="Conditional">end</span>
+<span id="L10" class="LineNr">10 </span>    <span class="Function">putc</span> <span class="Character">' '</span>
+<span id="L11" class="LineNr">11 </span><span class="Conditional">end</span> <span class="Macro">drop</span> <span class="Macro">drop</span> <span class="Operator">|&gt;</span>
+<span id="L12" class="LineNr">12 </span><span class="Function">puts</span> <span class="String">&quot;\n&quot;</span>
+</pre>
+</body>
+</html>
+<!-- vim: set foldmethod=manual : -->

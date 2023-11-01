@@ -5,7 +5,7 @@ macro is_prime?
     int -> bool
 is
 take candidate in
-    2 true while < * dup over candidate do
+    2 true while <= * dup over candidate do
         take num prime in
         if = 0 % candidate num then
             + num 1 false

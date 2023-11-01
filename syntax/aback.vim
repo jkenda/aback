@@ -32,10 +32,9 @@ syn match abackOperator '|>'
 
 " Matches
 " Integer with - + or nothing in front
-syn match abackNumber '\d\+'
-syn match abackNumber '[-+]\d\+'
+syn match abackNumber '[-+]\?\d\+'
 " Floating point number with decimal no E or e 
-syn match abackNumber '[-+]\d\+\.\d*'
+syn match abackNumber '[-+]\?\d\+\.\d*'
 syn match abackChar   "'.'"
 
 " Regions
