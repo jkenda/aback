@@ -8,5 +8,5 @@ macro LIMIT is 100 end
         + a b a
     end
     putc ' '
-end drop drop |>
+end 2drop |>
 puts "\n"
