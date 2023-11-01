@@ -35,7 +35,7 @@ syn match abackOperator '|>'
 syn match abackNumber '[-+]\?\d\+'
 " Floating point number with decimal no E or e 
 syn match abackNumber '[-+]\?\d\+\.\d*'
-syn match abackChar   "'.'"
+syn match abackChar   "'\\\?.'"
 
 " Regions
 syn region abackIfBlock     start='then' end='end'  fold transparent
