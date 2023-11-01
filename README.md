@@ -60,7 +60,7 @@ Example:
 	1 1 2 3 5 8 13 21 34 55 89
 
 ## `check`
-Aback always type checks the program before running it it. With the `check` subcommand, we can *skip the running step*. Just type `aback check examples/fib.ab`. The program will output `OK.`
+Aback always type checks the program before running it. With the `check` subcommand, we can *skip the running step*. Just type `aback check examples/fib.ab`. The program will output `OK.`
 
 If we remove one `drop` word from the program, the type checker will *detect an error* and output
 
