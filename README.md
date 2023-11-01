@@ -1,6 +1,6 @@
 
 # Aback
-Aback is a language that uses Polish notation. It is named after the [abacus](https://en.wikipedia.org/wiki/Abacus) and because it is the opposite of [Forth](https://en.wikipedia.org/wiki/Forth_%28programming_language%29), a *stack based* programming language that uses *reverse Polish notation*. In reality it's not really the opposite, the syntax is actually very similar.
+Aback is a stack-oriented programming language that uses *Polish notation*. It is named after the [abacus](https://en.wikipedia.org/wiki/Abacus), an ancient calculating tool, and [Forth](https://en.wikipedia.org/wiki/Forth_%28programming_language%29), a *stack based* programming language that uses *reverse Polish notation*. The word *aback* is the opposite of *forth*, but in reality the languages are very similar.
 With the `|>` operator, we can achieve the most human-readable form, a combination of *Polish* and *reverse Polish* notation.
 
 # Getting started
@@ -11,6 +11,10 @@ With the `|>` operator, we can achieve the most human-readable form, a combinati
 `$ dune build`
 - Install the program<br>
 `$ dune install`
+
+or
+- Download aback.js from [Releases](https://github.com/jkenda/aback/releases)
+- Run it with Node.js
 
 ## Syntax highlighting
 Syntax highlighting for Aback is only available for Vim.
