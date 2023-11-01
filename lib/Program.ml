@@ -49,7 +49,7 @@ type ir =
 type program = {
     ir : ir array;
     loc : location array;
-    strings : string array;
+    strings : string;
     storage_size : int
 }
 
@@ -94,10 +94,9 @@ let interpret program =
             | Char c  :: rest when t = PUTC -> print_char c; rest
             | Float f :: rest when t = PUTF -> print_float f; rest
             | Ptr p :: Int len :: rest when t = PUTS ->
-                    if len <> String.length program.strings.(p) then
-                        raise @@ Error (program.loc.(ip),
-                        "string length does not match")
-                    else print_string (program.strings.(p)); rest
+                    print_string
+                    @@ String.sub program.strings p len;
+                    rest
             | [] -> raise @@ Error ( program.loc.(ip),
                 sprintf "%s: not enough data on stack" (show_ir t))
             | stack -> raise @@ Error ( program.loc.(ip),

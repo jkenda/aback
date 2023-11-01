@@ -26,8 +26,6 @@ let names = ref []
 
 (* parse the preprocessed words into intermediate representation *)
 let rec parse strings procs macros max_addr words =
-    let nstrings = ref (List.length !strings) in
-
     let add_func loc name words table =
         let rec extract_types input t_in t_out = function
             | (loc, (Type _ | Word _ as t)) :: words ->
@@ -58,9 +56,8 @@ let rec parse strings procs macros max_addr words =
         Hashtbl.replace table name { loc; types; seq };
         words
     and add_string str =
-        let addr = !nstrings in
-        strings := str :: !strings;
-        nstrings := !nstrings + 1;
+        let addr = String.length !strings in
+        strings := !strings ^ str ^ "\x00";
         addr, String.length str
     and parse_vars loc words =
         let rec parse' vars = function

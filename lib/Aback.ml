@@ -8,7 +8,7 @@ open Program
 
 let interpret filename =
     (* define "global" variables *)
-    let strings = ref []
+    let strings = ref ""
     and procs = Hashtbl.create 10
     and macros = Hashtbl.create 10
     and max_addr = ref (-1) in
@@ -28,10 +28,7 @@ let interpret filename =
         with Error (loc, msg) ->
             print_error (loc, msg);
             exit 2
-    and strings =
-        !strings
-        |> List.rev
-        |> Array.of_list
+    and strings = !strings
     and storage_size = !max_addr + 1
     in
 
@@ -46,13 +43,10 @@ let print filename =
     let print_ir =
         Array.iteri
         (fun i ir -> printf "%3d: %s\n" i (show_ir ir))
-    and print_strings =
-        Array.iteri
-        (fun i str -> printf "%2d: \"%s\"\n" i (String.escaped str))
     in
 
     (* define "global" variables *)
-    let strings = ref []
+    let strings = ref ""
     and procs = Hashtbl.create 10
     and macros = Hashtbl.create 10
     and max_addr = ref (-1) in
@@ -72,21 +66,17 @@ let print filename =
         with Error (loc, msg) ->
             print_error (loc, msg);
             exit 4
-    and strings =
-        !strings
-        |> List.rev
-        |> Array.of_list
+    and strings = !strings
     and storage_size = !max_addr + 1 in
 
     printf "program:\n";
     print_ir ir;
-    printf "\nstrings:\n";
-    print_strings strings;
-    printf "\nstorage size: %d\n" storage_size
+    printf "\nstrings: %s|" @@ String.escaped strings;
+    printf "|\nstorage size: %d\n" storage_size
 
 let check filename =
     (* define "global" variables *)
-    let strings = ref []
+    let strings = ref ""
     and procs = Hashtbl.create 10
     and macros = Hashtbl.create 10
     and max_addr = ref (-1) in

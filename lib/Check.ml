@@ -272,7 +272,7 @@ let check procs macros program =
         | Untyped -> ()
         | Numbered (n_in, n_out_expected) -> (
             let n_out =
-                let strings = ref []
+                let strings = ref ""
                 and max_addr = ref 0 in
                 let parse =
                     parse strings procs macros max_addr
@@ -286,7 +286,7 @@ let check procs macros program =
                 name n_out_expected n_out))
         | Typed (t_in, t_out) ->
             let stack, t_out =
-                let strings = ref []
+                let strings = ref ""
                 and max_addr = ref 0 in
                 let parse =
                     parse strings procs macros max_addr
