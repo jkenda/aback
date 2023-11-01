@@ -87,7 +87,7 @@ let print filename =
 
     printf "program:\n";
     print_ir ir;
-    printf "\nstrings: %s|" @@ String.escaped strings;
+    printf "\nstrings: |%s" @@ String.escaped strings;
     printf "|\nstorage size: %d\n" storage_size
 
 let check filename =
