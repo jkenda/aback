@@ -4,11 +4,11 @@ With the `|>` operator, we can achieve the most human-readable form, a combinati
 
 # Getting started
 ## Installation
-- Clone this repository
+- Clone this repository<br>
 `$ git clone git@github.com:jkenda/aback.git`
-- Build the project
+- Build the project<br>
 `$ dune build`
-- Install the program
+- Install the program<br>
 `$ dune install`
 
 ## Syntax highlighting
