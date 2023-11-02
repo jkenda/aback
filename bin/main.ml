@@ -30,12 +30,12 @@ let () =
     in
 
     (* TODO: implement compilation mode (x86_64) *)
-    path |>
+    Aback.read path |>
     match mode with
-    | Interpret -> Aback.interpret
+    | Interpret -> Aback.interpret path
     | Compile -> raise @@ Failure (sprintf "%s not implemented" (show_mode mode))
-    | Check -> Aback.check
-    | Print -> Aback.print
+    | Check -> Aback.check path
+    | Print -> Aback.print path
 
 
 
