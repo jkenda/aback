@@ -44,6 +44,7 @@ type ir =
     | WHILE of int | DO of int | END_WHILE of int
     | PEEK of int * int | TAKE of int
     | PUT of int
+    | FN of string | FN_END
 [@@deriving show { with_path = false }]
 
 type program = {
@@ -112,7 +113,8 @@ let interpret program =
         in
 
         match instr with
-        | (IF _ | WHILE _ as ir) -> raise @@ Unreachable (sprintf "%s: please run postprocess" (show_ir ir))
+        | (FN _ | FN_END) -> raise @@ Unreachable (sprintf "%s: please run postprocess" (show_ir instr))
+        | IF _ | WHILE _ -> raise @@ Unreachable (sprintf "%s: please run postprocess" (show_ir instr))
         | THEN addr -> cond_jmp stack (ip + 1) addr
         | ELSE addr -> stack, addr
         | END_IF _ -> raise @@ Unreachable "END_IF: please run postprocess"

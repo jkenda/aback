@@ -8,6 +8,7 @@ let postprocess program =
     let collect_jumps instrs =
         let collect' (acc, addr) (_, inst as ir) =
             match inst with
+            | FN _ | FN_END
             | IF _ -> acc, addr
             | ELSE id -> Hashtbl.replace else_addr id addr; ir :: acc, addr + 1
             | END_IF id -> Hashtbl.replace end_addr id addr; acc, addr

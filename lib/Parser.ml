@@ -171,7 +171,7 @@ let rec parse strings procs macros max_addr words =
                         { l with expanded_from = (loc, name) :: l.expanded_from }, prep)
                 in
                 let macro = Hashtbl.find macros name in
-                parse' (expand macro.seq @ top, rest) tl
+                parse' ((loc, FN name) :: expand macro.seq @ (loc, FN_END) :: top, rest) tl
 
         | (loc, Word name) :: _tl when Hashtbl.mem procs name ->
                  let _proc = Hashtbl.find procs name in
