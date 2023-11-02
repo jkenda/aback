@@ -33,7 +33,8 @@ let rec parse strings procs macros max_addr words =
                     else extract_types input t_in ((loc, t) :: t_out) words
             | (_, Return) :: words -> extract_types false t_in t_out words
             | (_, Is) :: words -> List.rev t_in, List.rev t_out, words
-            | (loc, word) :: _ -> raise @@ Error (loc, sprintf "Expected 'is' or type, got %s" (print_prep word))
+            | (loc, word) :: _ -> raise @@ Error (loc,
+                sprintf "Expected 'is' or type, got %s" (print_prep word))
             | [] -> raise @@ Error (loc, "expected 'is' after function declaration")
         and add' acc = function
             | [] -> raise @@ Error (loc, "'end' expected")
@@ -63,7 +64,8 @@ let rec parse strings procs macros max_addr words =
         let rec parse' vars = function
             | (_, In) :: words -> List.rev vars, words
             | (loc, Word name) :: words -> parse' ((loc, name) :: vars) words
-            | (loc, word) :: _ -> raise @@ Error (loc, sprintf "Expected name or In, got %s" (print_prep word))
+            | (loc, word) :: _ -> raise @@ Error (loc,
+                sprintf "Expected name or In, got %s" (print_prep word))
             | [] -> raise @@ Error (loc, "expected 'is' after variable list")
         in
         parse' [] words
@@ -178,12 +180,14 @@ let rec parse strings procs macros max_addr words =
                 raise @@ Not_implemented (loc, "Procs aren't implemented yet!")
 
         | (loc, Word name) :: _ ->
-                        raise @@ Error (loc, 
-                            sprintf "Unknown word: '%s'.\n\tavailable vars: %s\n\tavailable macros: %s\n\tavailable procs: %s"
-                            name
-                            (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) vars "")
-                            (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) macros "")
-                            (Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) procs ""))
+                let vars = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) vars ""
+                and procs = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) procs ""
+                and macros = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) macros "" in
+                raise @@ Error (loc, 
+                    sprintf "Unknown word: '%s'.\n" name ^
+                    sprintf "\tavailable vars: %s\n" vars ^
+                    sprintf "\tavailable macros: %s\n" macros ^
+                    sprintf "\tavailable procs: %s" procs)
 
         | (loc, word) :: tl -> parse' (ir_of_word loc word @ top, rest) tl
     in

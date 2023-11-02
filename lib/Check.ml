@@ -277,7 +277,8 @@ let check procs macros program =
                     let _, data =
                         try List.nth stack depth
                         with _ -> raise @@ Error (loc,
-                            sprintf "cannot peek with depth %d into stack with size %d" depth (List.length stack))
+                            sprintf "cannot peek with depth %d into stack with size %d" depth
+                            (List.length stack))
                     in
                     Hashtbl.replace storage addr data; stack, stack_size
             | TAKE addr ->

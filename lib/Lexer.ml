@@ -206,10 +206,10 @@ let lex filename included_from text =
             | ' ' | '\n' | '\r' | '\t' ->
                     lex' acc (skip_whitespace i loc)
             | '"' ->
-                    let next, next_loc = get_string (i + 1) { loc with col = loc.col + 1 } in
+                    let next, next_loc = get_string (i + 1) { loc with col = loc.col + 2 } in
                     lex' ((loc, String.sub text i (next - i + 1)) :: acc) (next + 1, next_loc)
             | '\'' ->
-                    let next, next_loc = get_char (i + 1) { loc with col = loc.col + 1 } in
+                    let next, next_loc = get_char (i + 1) { loc with col = loc.col + 2 } in
                     lex' ((loc, String.sub text i (next - i + 1)) :: acc) (next + 1, next_loc)
             | _ ->
                     let next, next_loc = get_word i loc in
@@ -237,14 +237,14 @@ let%test _ =
         filename = "[test]";
         included_from = [];
         expanded_from = [];
-        row = 1;
-        col = 1
+        row = 1; col = 1
     } in
-    test (lex "[test]" [] "+ 12 13 'c' 'cc'")
+    test (lex "[test]" [] "+ 12 13 'c' 'cc' drop")
     ([
         { loc with col = 1  }, Add;
         { loc with col = 3  }, Int 12;
         { loc with col = 6  }, Int 13;
         { loc with col = 9  }, Char 'c';
-        { loc with col = 13 }, Word "cc"
+        { loc with col = 13 }, Word "'cc'";
+        { loc with col = 18 }, Word "drop"
     ])
