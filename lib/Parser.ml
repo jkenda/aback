@@ -215,17 +215,19 @@ let rec parse strings procs macros max_addr words =
 
         | (loc, ((Peek | Take) as word)) :: tl ->
                 let n, tl = parse_vars loc tl in
-                (* TODO: check if variable exists (shadowing?) *)
-                List.iter (fun (loc, name) ->
-                    let addr = Hashtbl.length vars in
-                    max_addr := max !max_addr addr;
-                    Hashtbl.add vars name addr;
-                    Hashtbl.add locs loc  addr) n;
                 let irs =
                     List.mapi (fun depth (loc, name) ->
+                    if Hashtbl.mem vars name then
+                        raise @@ Error (loc, sprintf "variable %s already defined" name)
+                    else
+                        let addr = Hashtbl.length vars in
+                        if not @@ String.starts_with ~prefix:"_" name then
+                            (max_addr := max !max_addr addr;
+                            Hashtbl.add vars name addr;
+                            Hashtbl.add locs name loc);
                     if word = Peek
-                    then loc, PEEK (depth, (Hashtbl.find vars name))
-                    else loc, TAKE (Hashtbl.find vars name)) n
+                    then loc, PEEK (depth, addr)
+                    else loc, TAKE addr) n
                 in
                 let _, n = List.split n in
                 names := n :: !names;
