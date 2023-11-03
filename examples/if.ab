@@ -1,12 +1,11 @@
 if = + 7 6 13 then
-    puts "EQ!"
-    if = + 3 4 7 then
+    puts "EQ!" |>
+    puts if = + 3 4 7 then
         "eq!"
     else
         "neq!"
-    end puts
-end
-putc '\n'
+    end
+end |>
+putc '\n' |>
 
-if > 10 0 then "gt!" else "lt!" end
-puts 
+puts if > 10 0 then "gt!" else "lt!" end

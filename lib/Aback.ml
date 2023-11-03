@@ -70,8 +70,7 @@ let print filename src =
     and max_addr = ref (-1) in
     (* specialize functions *)
     let lex = lex filename []
-    and parse = parse strings procs macros max_addr
-    and check = check procs macros in
+    and parse = parse strings procs macros max_addr in
     (* compile the program *)
     let _, ir =
         try
@@ -79,7 +78,6 @@ let print filename src =
             |> lex
             |> preprocess
             |> parse
-            |> check
             |> postprocess
         with Error (loc, msg) ->
             print_error (loc, msg);
@@ -170,13 +168,13 @@ let%expect_test _ =
         macro LIMIT is 20 end
 
         (output a Fibonacci sequence up to LIMIT)
-        1 0 while < over LIMIT do
+        1 0 |> while < over LIMIT do
             take a b in
                 puti a |>
                 + a b a
             end
             putc ' '
-        end 2drop |>
+        end |> 2drop |>
         puts "\n"
     |};
     [%expect {| 1 1 2 3 5 8 13 |}]

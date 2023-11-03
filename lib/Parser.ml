@@ -112,7 +112,88 @@ let rec parse strings procs macros max_addr words =
         |> List.map (fun ir -> loc, ir)
     in
 
-    let rec parse' (top, rest) = function
+    let rec add_if if_loc words =
+        let end_stack = ref 0 in
+        let rec to_then acc = function
+            | (loc, Then) :: tl when !end_stack = 0 -> List.rev acc, loc, tl
+            | _, If as lw :: tl ->
+                    end_stack := !end_stack + 1; to_then (lw :: acc) tl
+            | _, End_if as lw :: tl ->
+                    end_stack := !end_stack - 1; to_then (lw :: acc) tl
+            | lw :: tl -> to_then (lw :: acc) tl
+            | [] -> raise @@ Unreachable "already checked for end mismatch"
+        and to_else acc = function
+            | (loc, Else)   :: tl when !end_stack = 0 -> List.rev acc, loc, to_end [] tl
+            | (loc, End_if) :: tl when !end_stack = 0 -> [], loc, (List.rev acc, loc, tl)
+            | _, If as lw :: tl ->
+                    end_stack := !end_stack + 1; to_else (lw :: acc) tl
+            | _, End_if as lw :: tl ->
+                    end_stack := !end_stack - 1; to_else (lw :: acc) tl
+            | lw :: tl -> to_else (lw :: acc) tl
+            | [] -> raise @@ Unreachable "already checked for end mismatch"
+        and to_end acc = function
+            | (loc, End_if) :: tl when !end_stack = 0 -> List.rev acc, loc, tl
+            | _, If as lw :: tl ->
+                    end_stack := !end_stack + 1; to_end (lw :: acc) tl
+            | _, End_if as lw :: tl ->
+                    end_stack := !end_stack - 1; to_end (lw :: acc) tl
+            | lw :: tl -> to_end (lw :: acc) tl
+            | [] -> raise @@ Unreachable "already checked for end mismatch"
+        in
+        let if_then, then_loc, words = to_then [] words in
+        let then_else, else_loc, (else_end, end_loc, words) = to_else [] words in
+        let parse' = parse' ([], []) in
+        let seq =
+            match then_else with
+            | [] ->
+                [if_loc, IF 0] ::
+                    List.rev (parse' if_then) @
+                [then_loc, THEN 0] ::
+                    List.rev (parse' else_end) @
+                [end_loc, END_IF 0] :: []
+            | _ ->
+                [if_loc, IF 0] ::
+                    List.rev (parse' if_then) @
+                [then_loc, THEN 0] ::
+                    List.rev (parse' then_else) @
+                [else_loc, ELSE 0] ::
+                    List.rev (parse' else_end) @
+                [end_loc, END_IF 0] :: []
+        in
+        seq |> List.flatten, words
+
+    and add_while while_loc words =
+        let end_stack = ref 0 in
+        let rec to_do acc = function
+            | (loc, Do) :: tl when !end_stack = 0 -> List.rev acc, loc, tl
+            | _, While as lw :: tl ->
+                    end_stack := !end_stack + 1; to_do (lw :: acc) tl
+            | _, End_while as lw :: tl ->
+                    end_stack := !end_stack - 1; to_do (lw :: acc) tl
+            | lw :: tl -> to_do (lw :: acc) tl
+            | [] -> raise @@ Unreachable "already checked for end mismatch"
+        and to_end acc = function
+            | (loc, End_while) :: tl when !end_stack = 0 -> List.rev acc, loc, tl
+            | _, While as lw :: tl ->
+                    end_stack := !end_stack + 1; to_end (lw :: acc) tl
+            | _, End_while as lw :: tl ->
+                    end_stack := !end_stack - 1; to_end (lw :: acc) tl
+            | lw :: tl -> to_end (lw :: acc) tl
+            | [] -> raise @@ Unreachable "already checked for end mismatch"
+        in
+        let while_do, do_loc, words = to_do [] words in
+        let do_end, end_loc, words = to_end [] words in
+        let parse' = parse' ([], []) in
+        let seq =
+                [while_loc, WHILE 0] ::
+                    List.rev (parse' while_do) @
+                [do_loc, DO 0] ::
+                    List.rev (parse' do_end) @
+                [end_loc, END_WHILE 0] :: []
+        in
+        seq |> List.flatten, words
+
+    and parse' (top, rest) = function
         | [] -> top :: rest
         | (_, (Macro : prep)) :: (loc, Word name) :: tl ->
                 parse' ([], top :: rest)
@@ -124,19 +205,13 @@ let rec parse strings procs macros max_addr words =
         | (loc, Proc) :: _ -> raise @@ Error (loc, "proc: expected name")
         | (_, Rev) :: tl -> parse' ([], top :: rest) tl
         
-        | (loc,  ((If | Then | Else | End_if | While | Do | End_while) as word)) :: tl ->
-                let instr =
-                    match word with
-                    | If        -> IF 0
-                    | Then      -> THEN 0
-                    | Else      -> ELSE 0
-                    | End_if    -> END_IF 0
-                    | While     -> WHILE 0
-                    | Do        -> DO 0
-                    | End_while -> END_WHILE 0
-                    | _ -> raise (Unreachable "")
-                in
-                (parse' ([], [loc, instr] :: top :: rest) tl)
+        | (loc, If) :: tl ->
+                let parsed, tl = add_if loc tl in
+                (parse' (parsed @ top, rest) tl)
+
+        | (loc, While) :: tl ->
+                let parsed, tl = add_while loc tl in
+                (parse' (parsed @ top, rest) tl)
 
         | (loc, ((Peek | Take) as word)) :: tl ->
                 let n, tl = parse_vars loc tl in
