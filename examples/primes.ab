@@ -5,15 +5,14 @@ macro is_prime?
     int -> bool
 is
 take candidate in
-    2 true |>
-    while <= * dup over candidate do
+    2 true while <= * dup over candidate do
         take num prime in
         if = 0 % candidate num then
             + num 1 false
         else
             + num 1 prime
         end end
-    end |> drop
+    end drop
 end end
 
 macro put int -> is
@@ -26,8 +25,7 @@ macro nprimes
 is
 take limit in
     put 2 |>
-    1 3 |>
-    while < over limit do
+    1 3 while < over limit do
         take n cand in
             if is_prime? cand then
                 put cand |>
@@ -35,7 +33,7 @@ take limit in
             else n end
             + 2 cand
         end
-    end |> nip
+    end nip
     (return n)
 end end
 

@@ -61,16 +61,14 @@ if ('onhashchange' in window) {
 <span id="L2" class="LineNr"> 2 </span><span class="Conditional">macro</span> LIMIT <span class="Conditional">is</span> <span class="Number">100</span> <span class="Conditional">end</span>
 <span id="L3" class="LineNr"> 3 </span>
 <span id="L4" class="LineNr"> 4 </span><span class="Comment">(output a Fibonacci sequence up to LIMIT)</span>
-<span id="L5" class="LineNr"> 5 </span><span class="Number">1</span> <span class="Number">0</span> <span class="Operator">|&gt;</span>
-<span id="L6" class="LineNr"> 6 </span><span class="Conditional">while</span> <span class="Operator">&lt;</span> <span class="Macro">over</span> LIMIT <span class="Conditional">do</span>
-<span id="L7" class="LineNr"> 7 </span>    <span class="Conditional">take</span> a b <span class="Conditional">in</span>
-<span id="L8" class="LineNr"> 8 </span>        <span class="Function">puti</span> a <span class="Operator">|&gt;</span>
-<span id="L9" class="LineNr"> 9 </span>        <span class="Operator">+</span> a b a
-<span id="L10" class="LineNr">10 </span>    <span class="Conditional">end</span>
-<span id="L11" class="LineNr">11 </span>    <span class="Function">putc</span> <span class="Character">' '</span>
-<span id="L12" class="LineNr">12 </span><span class="Conditional">end</span> <span class="Operator">|&gt;</span>
-<span id="L13" class="LineNr">13 </span><span class="Macro">2drop</span> <span class="Operator">|&gt;</span>
-<span id="L14" class="LineNr">14 </span><span class="Function">puts</span> <span class="String">&quot;\n&quot;</span>
+<span id="L5" class="LineNr"> 5 </span><span class="Number">1</span> <span class="Number">0</span> <span class="Conditional">while</span> <span class="Operator">&lt;</span> <span class="Macro">over</span> LIMIT <span class="Conditional">do</span>
+<span id="L6" class="LineNr"> 6 </span>    <span class="Conditional">take</span> a b <span class="Conditional">in</span>
+<span id="L7" class="LineNr"> 7 </span>        <span class="Function">puti</span> a <span class="Operator">|&gt;</span>
+<span id="L8" class="LineNr"> 8 </span>        <span class="Operator">+</span> a b a
+<span id="L9" class="LineNr"> 9 </span>    <span class="Conditional">end</span>
+<span id="L10" class="LineNr">10 </span>    <span class="Function">putc</span> <span class="Character">' '</span>
+<span id="L11" class="LineNr">11 </span><span class="Conditional">end</span> <span class="Macro">2drop</span> <span class="Operator">|&gt;</span>
+<span id="L12" class="LineNr">12 </span><span class="Function">puts</span> <span class="String">&quot;\n&quot;</span>
 </pre>
 </body>
 </html>

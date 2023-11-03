@@ -211,7 +211,7 @@ let rec parse strings procs macros max_addr words =
 
         | (loc, While) :: tl ->
                 let parsed, tl = add_while loc tl in
-                (parse' (parsed @ top, rest) tl)
+                (parse' ([], parsed :: top :: rest) tl)
 
         | (loc, ((Peek | Take) as word)) :: tl ->
                 let n, tl = parse_vars loc tl in
