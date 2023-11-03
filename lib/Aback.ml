@@ -126,6 +126,27 @@ let%expect_test _ =
     [%expect {| 3 |}]
 
 let%expect_test _ =
+    interpret "[test]" {|
+        macro put is
+            puti |> putc ' '
+        end
+        put + 1  2 |> put - 7 13 |>
+        put * 7  3 |> put / 7  3 |>
+        put % 7  3
+    |};
+    [%expect {| 3 -6 21 2 1 |}]
+
+let%expect_test _ =
+    interpret "[test]" {|
+        macro put. is
+            putf |> putc ' '
+        end
+        put. +. 1.  2. |> put. -. 7. 13. |>
+        put. *. 7.  3. |> put. /. 7.  3.
+    |};
+    [%expect {| 3. -6. 21. 2.33333333333 |}]
+
+let%expect_test _ =
     interpret "[test]" {| puts "Hello," |> puts " world!\n" |};
     [%expect {| Hello, world! |}]
 

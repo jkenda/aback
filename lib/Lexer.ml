@@ -86,7 +86,7 @@ type word =
     | Sub | FSub
     | Mul | FMul
     | Div | FDiv
-    | Mod | FMod
+    | Mod
 
     | BAnd | BOr | BXor | Lsl | Lsr
     | And  | Or
@@ -123,7 +123,7 @@ let instr_of_word (loc, word) =
         | "-" -> Sub | "-." -> FSub
         | "*" -> Mul | "*." -> FMul
         | "/" -> Div | "/." -> FDiv
-        | "%" -> Mod | "%." -> FMod
+        | "%" -> Mod
 
         | "&"  -> BAnd | "|"  -> BOr | "^" -> BXor
         | "<<" -> Lsl  | ">>" -> Lsr

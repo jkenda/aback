@@ -96,7 +96,7 @@ let rec parse strings procs macros max_addr words =
             | Sub -> [SUB] | FSub -> [FSUB]
             | Mul -> [MUL] | FMul -> [FMUL]
             | Div -> [DIV] | FDiv -> [FDIV]
-            | Mod -> [MOD] | FMod -> [FMOD]
+            | Mod -> [MOD]
 
             | And -> [AND] | Or -> [OR]
             | BAnd -> [BAND] | BOr -> [BOR] | BXor -> [BXOR]

@@ -149,7 +149,7 @@ and preprocess words =
                 | Sub -> Sub | FSub -> FSub
                 | Mul -> Mul | FMul -> FMul
                 | Div -> Div | FDiv -> FDiv
-                | Mod -> Mod | FMod -> FMod
+                | Mod -> Mod
 
                 | BAnd -> BAnd | BOr -> BOr | BXor -> BXor | Lsl -> Lsl | Lsr -> Lsr
                 | And -> And | Or -> Or

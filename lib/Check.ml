@@ -131,7 +131,7 @@ let check procs macros program =
         | PUSH _ -> stack_size + 1
 
         | ADD | SUB | MUL | DIV | MOD
-        | FADD | FSUB | FMUL | FDIV | FMOD
+        | FADD | FSUB | FMUL | FDIV
         | BAND | BOR | BXOR | LSL | LSR
         | AND | OR
         | EQ | NE | LT | LE | GT | GE -> stack_size - 1
@@ -329,7 +329,7 @@ let check procs macros program =
                     | _ -> raise @@ Error (loc, "not enough elements on the stack"))
             | (PUTC | PUTI | PUTF | PUTB) as t -> put t loc stack, stack_size - 1
 
-            | FADD | FSUB | FMUL | FDIV | FMOD ->
+            | FADD | FSUB | FMUL | FDIV ->
                     (match stack with
                     | (_, Type Float) :: (_, Type Float) :: tl -> (loc, Type Float) :: tl, stack_size - 1
                     | (_, a) :: (_, b) :: _ -> raise @@ Error (loc,

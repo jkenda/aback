@@ -33,7 +33,7 @@ type ir =
     | SUB | FSUB
     | MUL | FMUL
     | DIV | FDIV
-    | MOD | FMOD
+    | MOD
 
     | BAND | BOR | BXOR | LSL | LSR
     | AND  | OR
@@ -156,10 +156,6 @@ let interpret program =
         | FSUB -> float_op ( -. ) stack, ip + 1
         | FMUL -> float_op ( *. ) stack, ip + 1
         | FDIV -> float_op ( /. ) stack, ip + 1
-        | FMOD -> float_op (fun a b ->
-                let _, c = modf a in
-                let _, d = modf b in
-                c /. d) stack, ip + 1
 
         | AND -> bool_op ( && ) stack, ip + 1
         | OR  -> bool_op ( || ) stack, ip + 1
