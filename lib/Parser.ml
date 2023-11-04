@@ -105,7 +105,6 @@ let rec parse strings procs macros max_addr words =
 
             | Puti -> [PUTI] | Putf -> [PUTF]
             | Putc -> [PUTC] | Puts -> [PUTS]
-            | Putb -> [PUTB]
 
             | prep -> raise @@ Not_implemented (loc, print_prep prep)
         in

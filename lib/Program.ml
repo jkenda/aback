@@ -38,7 +38,7 @@ type ir =
     | BAND | BOR | BXOR | LSL | LSR
     | AND  | OR
 
-    | PUTC | PUTS | PUTI | PUTF | PUTB
+    | PUTC | PUTS | PUTI | PUTF
 
     | IF of int | THEN of int | ELSE of int | END_IF of int
     | WHILE of int | DO of int | END_WHILE of int
@@ -91,7 +91,6 @@ let interpret program =
             "not enough data on stack")
         and put t = function
             | Int i   :: rest when t = PUTI -> print_int i; rest
-            | Bool b  :: rest when t = PUTB -> print_bool b; rest
             | Char c  :: rest when t = PUTC -> print_char c; rest
             | Float f :: rest when t = PUTF -> print_float f; rest
             | Str_ptr p :: Int len :: rest when t = PUTS ->
@@ -166,7 +165,7 @@ let interpret program =
         | LSL  -> int_op ( lsl  ) stack, ip + 1
         | LSR  -> int_op ( lsr  ) stack, ip + 1
 
-        | (PUTC | PUTS | PUTI | PUTF | PUTB) as t -> put t stack, ip + 1
+        | (PUTC | PUTS | PUTI | PUTF) as t -> put t stack, ip + 1
     in
 
     let rec exec'' stack ip =

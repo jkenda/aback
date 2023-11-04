@@ -1,0 +1,8 @@
+macro putb
+    bool ->
+is
+take b in
+    puts
+    if = true b then "true"
+    else "false" end
+end end

@@ -30,7 +30,6 @@ let check procs macros program =
     (* return the state after console output *)
     and put t loc = function
         | (_, Type Int : location * prep) :: rest when t = PUTI -> rest
-        | (_, Type Bool) :: rest when t = PUTB -> rest
         | (_, Type Char) :: rest when t = PUTC -> rest
         | (_, Type Float) :: rest when t = PUTF -> rest
         | (_, Type Ptr) :: (_, Type Int) :: rest when t = PUTS -> rest
@@ -137,7 +136,7 @@ let check procs macros program =
         | EQ | NE | LT | LE | GT | GE -> stack_size - 1
 
         | PUTS -> stack_size - 1
-        | PUTC | PUTI | PUTF | PUTB -> stack_size - 1
+        | PUTC | PUTI | PUTF -> stack_size - 1
         in
         List.fold_left check'
     in
@@ -327,7 +326,7 @@ let check procs macros program =
                     | (_, a) :: (_, b) :: _ -> raise @@ Error (loc,
                             sprintf "expected Ptr Int, got %s %s" (print_prep a) (print_prep b))
                     | _ -> raise @@ Error (loc, "not enough elements on the stack"))
-            | (PUTC | PUTI | PUTF | PUTB) as t -> put t loc stack, stack_size - 1
+            | (PUTC | PUTI | PUTF) as t -> put t loc stack, stack_size - 1
 
             | FADD | FSUB | FMUL | FDIV ->
                     (match stack with
@@ -356,7 +355,7 @@ let check procs macros program =
             in
             if n_out = n_out_expected then ()
             else raise @@ Error (loc,
-                sprintf "'%s': unexpected number of return elements: expected: %d actual: %d"
+                sprintf "'%s': unexpected number of return elements: expected: %d, actual: %d"
                 name n_out_expected n_out))
         | Typed (t_in, t_out) ->
             let stack, t_out =
@@ -374,7 +373,7 @@ let check procs macros program =
             match stack with
             | stack when stack = t_out -> ()
             | stack -> raise @@ Error (loc,
-                sprintf "'%s': unexpected return value. expected : %s actual   : %s"
+                sprintf "'%s': unexpected return value. expected: %s, actual: %s"
                 name (print_prep_stack t_out) (print_prep_stack stack))
     in
 

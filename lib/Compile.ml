@@ -152,10 +152,10 @@ let to_fasm_x64_linux program =
             (match op with
             | ADD -> "\tadd  rax, rbx\n"
             | SUB -> "\tsub  rax, rbx\n"
-            | MUL -> "\tmul  rax, rbx\n"
+            | MUL -> "\timul  rax, rbx\n"
             | DIV | MOD ->
                     "\tcdq\n" ^
-                    "\tdiv  rbx\n"
+                    "\tidiv  rbx\n"
             | _ -> raise @@ Unreachable (show_ir op)) ^
             match op with
             | MOD -> "\tpush  rdx\n"
@@ -178,7 +178,6 @@ let to_fasm_x64_linux program =
                     "\tpop  rdi\n" ^
                     "\tcall puti\n"
 
-            | PUTB -> raise @@ Not_implemented (loc, "PUTB")
             | PUTF -> raise @@ Not_implemented (loc, "PUTF")
             | _ -> raise @@ Unreachable (show_ir op)
         and cond_jmp cond label =
@@ -247,7 +246,7 @@ let to_fasm_x64_linux program =
         | BAND | BOR | BXOR | LSL | LSR as op -> int_op op
         | FADD | FSUB | FMUL | FDIV as op -> float_op op
         | AND | OR as op -> bool_op op
-        | (PUTC | PUTS | PUTI | PUTF | PUTB) as op -> put op
+        | (PUTC | PUTS | PUTI | PUTF) as op -> put op
     in
     Array.iter compile' @@ Array.combine program.loc program.ir;
     Buffer.add_string buffer footer;

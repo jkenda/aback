@@ -100,7 +100,7 @@ type word =
     | And  | Or
     | Ref | Deref
 
-    | Putc | Puts | Puti | Putf | Putb
+    | Putc | Puts | Puti | Putf
 
     | Word of string
 [@@deriving show { with_path = false }]
@@ -139,7 +139,7 @@ let instr_of_word (loc, word) =
         | "@"  -> Ref  | "."  -> Deref
 
         | "putc" -> Putc | "puts" -> Puts
-        | "puti" -> Puti | "putf" -> Putf | "putb" -> Putb
+        | "puti" -> Puti | "putf" -> Putf
 
         | "true" -> True | "false" -> False
 

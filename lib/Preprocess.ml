@@ -33,7 +33,7 @@ type prep =
     | And  | Or
     | Ref | Deref
 
-    | Putc | Puts | Puti | Putf | Putb
+    | Putc | Puts | Puti | Putf
 
     | Word of string
 [@@deriving show { with_path = false }]
@@ -62,7 +62,7 @@ let print_prep = function
     | And  -> "&&" | Or -> "||"
     | Ref -> "@" | Deref -> "."
 
-    | Putc -> "putc" | Puts -> "puts" | Puti -> "puti" | Putf -> "putf" | Putb -> "putb"
+    | Putc -> "putc" | Puts -> "puts" | Puti -> "puti" | Putf -> "putf"
 
     | Word w -> w
 
@@ -155,7 +155,7 @@ and preprocess words =
                 | And -> And | Or -> Or
                 | Ref -> Ref | Deref -> Deref
 
-                | Putc -> Putc | Puts -> Puts | Puti -> Puti | Putf -> Putf | Putb -> Putb
+                | Putc -> Putc | Puts -> Puts | Puti -> Puti | Putf -> Putf
 
                 | Word w -> Word w
                 | _ -> raise @@ Not_implemented (loc, show_word word)) :: acc, tl
