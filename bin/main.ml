@@ -26,13 +26,18 @@ let () =
     let path =
         try Sys.argv.(2)
         with _ -> print_usage "not enough arguments"
+    and run =
+        match Sys.argv.(3) with
+        | "-r" -> true
+        | _ | exception _ -> false
     in
+
 
     (* TODO: implement compilation mode (x86_64) *)
     Aback.read path |>
     match mode with
     | Interpret -> Aback.interpret path
-    | Compile -> Aback.compile path
+    | Compile -> Aback.compile run path
     | Check -> Aback.check path
     | Print -> Aback.print path
 

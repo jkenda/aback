@@ -7,7 +7,12 @@ open Postprocess
 open Program
 open Compile
 
-let read = read_src_file
+let read path =
+    try
+        read_src_file path
+    with Error (loc, msg) ->
+        print_error (loc, msg);
+        exit 2
 
 let interpret path src =
     (* define "global" variables *)
@@ -30,7 +35,7 @@ let interpret path src =
             |> postprocess
         with Error (loc, msg) ->
             print_error (loc, msg);
-            exit 2
+            exit 3
     and strings = !strings
     and storage_size = !max_addr + 1
     in
@@ -40,9 +45,24 @@ let interpret path src =
         @@ { ir; loc; strings; storage_size }
     with Error (loc, msg) ->
         print_error (loc, msg);
-        exit 3
+        exit 4
 
-let compile path src =
+let compile run path src =
+    let write_whole_file path bytes =
+        let ch = open_out_bin path in
+        output_bytes ch bytes;
+        close_out ch
+    and filename =
+        let rec last = function
+            | [el; _] -> el
+            | _ :: t -> last t
+            | _ -> raise @@ Unreachable "empty path"
+        in
+        path
+        |> Str.split (Str.regexp "[/.]")
+        |> last
+    in
+
     (* define "global" variables *)
     let strings = ref ""
     and procs = Hashtbl.create 10
@@ -69,9 +89,17 @@ let compile path src =
     and storage_size = !max_addr + 1
     in
 
-    print_bytes
+    write_whole_file (filename ^ ".asm")
     @@ to_fasm_x64_linux
-    @@ { ir; loc; strings; storage_size }
+    @@ { ir; loc; strings; storage_size };
+    let exit_code = Sys.command ("fasm " ^ filename ^ ".asm") in
+    if run then
+        if exit_code <> 0 then exit exit_code
+        else
+            exit
+            @@ Sys.command ("./" ^ filename)
+    else
+        exit exit_code
 
 let print path src =
     let print_ir ir =
@@ -113,7 +141,7 @@ let print path src =
             |> postprocess
         with Error (loc, msg) ->
             print_error (loc, msg);
-            exit 4
+            exit 6
     and strings = !strings
     and storage_size = !max_addr + 1 in
 
@@ -143,7 +171,7 @@ let check path src =
             |> ignore
         with Error (loc, msg) ->
             print_error (loc, msg);
-            exit 5
+            exit 7
     in
 
     print_endline "OK."

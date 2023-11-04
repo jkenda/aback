@@ -23,6 +23,10 @@ exception Unreachable of string
 
 (* read file from the current dir *)
 let read_src_file filename =
+    if not (String.ends_with ~suffix:".ab" filename) then
+        (let loc = { filename; included_from = []; expanded_from = []; row = 0; col = 0 } in
+        raise @@ Error (loc, "Aback source files should have '.ab' extension"));
+
     let ch = open_in_bin filename in
     let s = really_input_string ch (in_channel_length ch) in
     close_in ch;
@@ -34,7 +38,11 @@ let lib_dirs = [
 ]
 
 (* read file from one of the dirs in lib_dirs *)
-let read_lib_file filename =
+let read_lib_file included_from filename =
+    if not (String.ends_with ~suffix:".ab" filename) then
+        (let loc = { filename; included_from; expanded_from = []; row = 0; col = 0 } in
+        raise @@ Error (loc, "Aback source files should have '.ab' extension"));
+
     let rec open_file = function
         | [] -> raise @@ Failure (sprintf "cannot find file \"%s\"" filename)
         | dir :: rest -> 

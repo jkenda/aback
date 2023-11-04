@@ -70,7 +70,7 @@ let print_prep_stack =
     List.fold_left (fun acc typ -> acc ^ print_prep typ ^ " ") ""
 
 let rec include_file included_from src =
-    let text = read_lib_file src in
+    let text = read_lib_file included_from src in
     text
     |> lex src included_from
     |> preprocess
