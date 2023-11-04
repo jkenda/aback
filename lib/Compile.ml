@@ -56,6 +56,12 @@ let footer = "
 	jne _fatal_error
 	exit 0
 
+; puts(rsi, rdx)
+puts:
+    write STDOUT
+    ret
+
+; putc(rdi)
 putc:
     mov [rsp - 8], rdi
     lea rsi, [rsp - 8]
@@ -63,6 +69,7 @@ putc:
     write STDOUT
     ret
 
+; puti(rdi)
 puti:
 	push    rbx
 	mov     rbx, rdi
@@ -99,7 +106,7 @@ segment readable writable
 "
 
 let add_strings buffer strings =
-    Buffer.add_string buffer "strings db \"";
+    Buffer.add_string buffer "strs db \"";
     String.iter (function
         | '\000' | '\n' | '\r' | '\t' | '"' as c ->
                 Buffer.add_string buffer @@ sprintf "\", %d, \"" @@ Char.code c
@@ -111,6 +118,13 @@ let to_fasm_x64_linux program =
         Buffer.of_seq
         @@ String.to_seq header
     in
+
+    let has_else = Hashtbl.create 10 in
+    let collect' = function
+        | ELSE id -> Hashtbl.replace has_else id ()
+        | _ -> ()
+    in
+    Array.iter collect' program.ir;
 
     let compile' (loc, instr) =
         let cmp op =
@@ -156,7 +170,7 @@ let to_fasm_x64_linux program =
             | PUTS ->
                     "\tpop  rsi\n" ^
                     "\tpop  rdx\n" ^
-                    "\twrite STDOUT\n"
+                    "\tcall puts\n"
             | PUTC ->
                     "\tpop rdi\n" ^
                     "\tcall putc\n"
@@ -181,11 +195,15 @@ let to_fasm_x64_linux program =
                 sprintf "if_%d:\n" id
         | THEN id ->
                 "\t; " ^ show_ir instr ^ "\n" ^
-                cond_jmp 0 @@ sprintf "else_%d" id
+                cond_jmp 0
+                @@ sprintf (
+                    if Hashtbl.mem has_else id
+                    then "else_%d"
+                    else "end_if_%d") id
         | ELSE id ->
                 "\t; " ^ show_ir instr ^ "\n" ^
-                sprintf "\telse_%d:\n" id ^
-                sprintf "\tjmp  if_%d\n" id
+                sprintf "\tjmp end_if_%d\n" id ^
+                sprintf "else_%d:\n" id
         | END_IF id ->
                 "\t; " ^ show_ir instr ^ "\n" ^
                 sprintf "end_if_%d:\n" id
@@ -221,7 +239,7 @@ let to_fasm_x64_linux program =
                 | Bool false -> "\tpush 0\n"
                 | Char c -> sprintf "\tpush %d\n" (int_of_char c)
                 | Float f -> sprintf "\tpush %d\n" @@ Obj.magic @@ Obj.repr f
-                | Str_ptr n -> sprintf "\tlea  rax, [strings + %d]\n\tpush rax\n" n)
+                | Str_ptr n -> sprintf "\tlea  rax, [strs + %d]\n\tpush rax\n" n)
 
         | EQ | NE | LT | LE | GT | GE as op -> cmp op
 
