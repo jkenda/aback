@@ -52,15 +52,21 @@ entry $
 "
 
 let footer = "
-	lea rax, [rsp - 8]
-	cmp rax, r8
-	jne _fatal_error
 	exit 0
 
 ; puts(rsi, rdx)
 puts:
-    call flush
-    write STDOUT
+    mov rcx, 0
+puts_loop:
+    cmp rcx, rdx
+    jge puts_ret
+
+    mov dil, [rsi]
+    call putc
+    inc rsi
+    inc rcx
+    jmp puts_loop
+puts_ret:
     ret
 
 ; putc(rdi)
@@ -70,7 +76,7 @@ putc:
     inc [wblen]
 
     ; flush on newline
-    cmp rdi, 10
+    cmp dil, 10
     je flush
 
     ; flush if full
