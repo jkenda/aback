@@ -36,6 +36,7 @@ macro read fd
 
 macro exit code
 {
+    call flush
 	mov rdi, code
 	mov rax, 60
 	syscall
@@ -58,14 +59,30 @@ let footer = "
 
 ; puts(rsi, rdx)
 puts:
+    call flush
     write STDOUT
     ret
 
 ; putc(rdi)
 putc:
-    mov [rsp - 8], rdi
-    lea rsi, [rsp - 8]
-    mov rdx, 1
+    mov rax, [wblen]
+    mov [writebuf + rax], dil
+    inc [wblen]
+
+    ; flush on newline
+    cmp rdi, 10
+    je flush
+
+    ; flush if full
+    cmp [wblen], wbsiz
+    jge flush
+
+    ret
+
+flush:
+    mov rsi, writebuf
+    mov rdx, [wblen]
+    mov [wblen], 0
     write STDOUT
     ret
 
@@ -252,5 +269,8 @@ let to_fasm_x64_linux program =
     Buffer.add_string buffer footer;
     add_strings buffer program.strings;
     Buffer.add_string buffer @@ sprintf "vars rq %d\n" program.storage_size;
+    Buffer.add_string buffer @@ sprintf "writebuf rb %d\n" 265;
+    Buffer.add_string buffer @@ sprintf "wbsiz = $ - writebuf\n";
+    Buffer.add_string buffer @@ sprintf "wblen dq 0\n";
 
     Buffer.to_bytes buffer
