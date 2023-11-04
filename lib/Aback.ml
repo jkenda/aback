@@ -89,15 +89,18 @@ let compile run path src =
     and storage_size = !max_addr + 1
     in
 
-    write_whole_file (filename ^ ".asm")
-    @@ to_fasm_x64_linux
-    @@ { ir; loc; strings; storage_size };
+    { ir; loc; strings; storage_size };
+    |> to_fasm_x64_linux
+    |> write_whole_file (filename ^ ".asm");
+
     let exit_code = Sys.command ("fasm " ^ filename ^ ".asm") in
     if run then
         if exit_code <> 0 then exit exit_code
         else
-            exit
-            @@ Sys.command ("./" ^ filename)
+            let exit_code =  Sys.command ("./" ^ filename) in
+            if exit_code <> 0 then
+                printf "\nexit code: %d\n" exit_code;
+                exit exit_code
     else
         exit exit_code
 
