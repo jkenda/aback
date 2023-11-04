@@ -4,11 +4,11 @@ include "core/stack.ab"
 macro is_prime?
     int -> bool
 is
-take candidate in
-    2 true while <= * dup over candidate do
+take cand in
+    2 true while <= * dup over cand do
         take num prime in
             + 1 num
-            if = 0 % candidate num then
+            if = 0 % cand num then
                 false
             else prime end
         end

@@ -23,6 +23,7 @@ let _print_funcs funcs =
 let vars = Hashtbl.create 10
 let locs = Hashtbl.create 10
 let names = ref []
+let next_addr = ref 0
 
 (* parse the preprocessed words into intermediate representation *)
 let rec parse strings procs macros max_addr words =
@@ -214,28 +215,31 @@ let rec parse strings procs macros max_addr words =
                 (parse' ([], parsed :: top :: rest) tl)
 
         | (loc, ((Peek | Take) as word)) :: tl ->
-                let n, tl = parse_vars loc tl in
+                let n, tl = parse_vars loc tl
+                and top_vars = ref [] in
                 let irs =
+                    n |>
                     List.mapi (fun depth (loc, name) ->
-                    if Hashtbl.mem vars name then
-                        raise @@ Error (loc, sprintf "variable %s already defined" name)
-                    else
-                        let addr = Hashtbl.length vars in
+                        let addr = !next_addr in
                         if not @@ String.starts_with ~prefix:"_" name then
                             (max_addr := max !max_addr addr;
+                            next_addr := !next_addr + 1;
+                            top_vars := name :: !top_vars;
                             Hashtbl.add vars name addr;
                             Hashtbl.add locs name loc);
-                    if word = Peek
-                    then loc, PEEK (depth, addr)
-                    else loc, TAKE addr) n
+                        if word = Peek
+                        then loc, PEEK (depth, addr)
+                        else loc, TAKE addr)
                 in
-                let _, n = List.split n in
-                names := n :: !names;
+                names := !top_vars :: !names;
                 parse' ([], irs :: top :: rest) tl
         | (loc, End_peek) :: tl ->
-                (try List.hd !names with _ ->
-                    raise @@ Error (loc, "cannot end peek/take"))
-                |> List.iter @@ Hashtbl.remove vars;
+                let top_vars =
+                    try List.hd !names
+                    with _ -> raise @@ Error (loc, "cannot end peek/take")
+                in
+                next_addr := !next_addr - List.length top_vars;
+                List.iter (Hashtbl.remove vars) top_vars;
                 names := List.tl !names;
                 parse' ([], top :: rest) tl
 
