@@ -244,14 +244,30 @@ let to_fasm_x64_linux program =
         (* TODO: if addr below 6, use only registers *)
         | PEEK (depth, addr) ->
                 "\t; " ^ show_ir instr ^ "\n" ^
-                sprintf "\tmov  rax, [rsp + 8 * %d]\n" depth ^
-                sprintf "\tmov  [vars + 8 * %d], rax\n" addr
+                let addr = program.storage_size - addr - 1 in
+                let reg =
+                    if addr < 6 then sprintf "r1%d" addr
+                    else "rax" 
+                in
+                sprintf "\tmov %s, [rsp + 8 * %d]\n" reg depth ^
+                if addr >= 6 then sprintf "\tmov  [vars + 8 * %d], rax\n" (addr - 6)
+                else ""
         | TAKE addr ->
                 "\t; " ^ show_ir instr ^ "\n" ^
-                sprintf "\tpop  [vars + 8 * %d]\n" addr
+                let addr = program.storage_size - addr - 1 in
+                let loc =
+                    if addr < 6 then sprintf "r1%d" addr
+                    else sprintf "[vars + 8 * %d]" (addr - 6)
+                in
+                sprintf "\tpop  %s\n" loc
         | PUT  addr ->
                 "\t; " ^ show_ir instr ^ "\n" ^
-                sprintf "\tpush [vars + 8 * %d]\n" addr
+                let addr = program.storage_size - addr - 1 in
+                let loc =
+                    if addr < 6 then sprintf "r1%d" addr
+                    else sprintf "[vars + 8 * %d]" (addr - 6)
+                in
+                sprintf "\tpush %s\n" loc
 
         | PUSH d ->
                 "\t; " ^ show_ir instr ^ "\n" ^
@@ -274,7 +290,7 @@ let to_fasm_x64_linux program =
     Array.iter compile' @@ Array.combine program.loc program.ir;
     Buffer.add_string buffer footer;
     add_strings buffer program.strings;
-    Buffer.add_string buffer @@ sprintf "vars rq %d\n" program.storage_size;
+    Buffer.add_string buffer @@ sprintf "vars rq %d\n" (program.storage_size - 6);
     Buffer.add_string buffer @@ sprintf "writebuf rb %d\n" 265;
     Buffer.add_string buffer @@ sprintf "wbsiz = $ - writebuf\n";
     Buffer.add_string buffer @@ sprintf "wblen dq 0\n";
