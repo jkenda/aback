@@ -11,7 +11,6 @@ type mode =
     | Compile
     | Check
     | Print
-[@@deriving show { with_path = false }]
 
 let () =
     let mode =
@@ -33,7 +32,7 @@ let () =
     Aback.read path |>
     match mode with
     | Interpret -> Aback.interpret path
-    | Compile -> raise @@ Failure (sprintf "%s not implemented" (show_mode mode))
+    | Compile -> Aback.compile path
     | Check -> Aback.check path
     | Print -> Aback.print path
 

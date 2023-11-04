@@ -7,7 +7,7 @@ type data =
     | Bool of bool
     | Char of char
     | Float of float
-    | Ptr of int
+    | Str_ptr of int
 [@@deriving show { with_path = false }]
 
 let typ_of_data = function
@@ -15,14 +15,14 @@ let typ_of_data = function
     | Bool _  -> Bool
     | Char _  -> Char
     | Float _ -> Float
-    | Ptr _   -> Ptr
+    | Str_ptr _   -> Ptr
 
 let prep_of_data = function
     | Int _   -> Type Int
     | Bool _  -> Type Bool
     | Char _  -> Type Char
     | Float _ -> Type Float
-    | Ptr _   -> Type Ptr
+    | Str_ptr _   -> Type Ptr
 
 type ir =
     | PUSH of data
@@ -94,7 +94,7 @@ let interpret program =
             | Bool b  :: rest when t = PUTB -> print_bool b; rest
             | Char c  :: rest when t = PUTC -> print_char c; rest
             | Float f :: rest when t = PUTF -> print_float f; rest
-            | Ptr p :: Int len :: rest when t = PUTS ->
+            | Str_ptr p :: Int len :: rest when t = PUTS ->
                     print_string
                     @@ String.sub program.strings p len;
                     rest

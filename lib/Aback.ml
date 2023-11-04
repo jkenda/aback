@@ -5,17 +5,18 @@ open Parser
 open Check
 open Postprocess
 open Program
+open Compile
 
 let read = read_src_file
 
-let interpret filename src =
+let interpret path src =
     (* define "global" variables *)
     let strings = ref ""
     and procs = Hashtbl.create 10
     and macros = Hashtbl.create 10
     and max_addr = ref (-1) in
     (* specialize functions *)
-    let lex = lex filename []
+    let lex = lex path []
     and parse = parse strings procs macros max_addr
     and check = check procs macros in
     (* compile the program *)
@@ -41,7 +42,38 @@ let interpret filename src =
         print_error (loc, msg);
         exit 3
 
-let print filename src =
+let compile path src =
+    (* define "global" variables *)
+    let strings = ref ""
+    and procs = Hashtbl.create 10
+    and macros = Hashtbl.create 10
+    and max_addr = ref (-1) in
+    (* specialize functions *)
+    let lex = lex path []
+    and parse = parse strings procs macros max_addr
+    and check = check procs macros in
+    (* compile the program *)
+    let loc, ir =
+        try
+            src
+            |> lex
+            |> preprocess
+            |> parse
+            |> check
+            |> Array.of_list
+            |> Array.split
+        with Error (loc, msg) ->
+            print_error (loc, msg);
+            exit 5
+    and strings = !strings
+    and storage_size = !max_addr + 1
+    in
+
+    print_bytes
+    @@ to_fasm_x64_linux
+    @@ { ir; loc; strings; storage_size }
+
+let print path src =
     let print_ir ir =
         let len =
             Array.length ir - 1
@@ -69,7 +101,7 @@ let print filename src =
     and macros = Hashtbl.create 10
     and max_addr = ref (-1) in
     (* specialize functions *)
-    let lex = lex filename []
+    let lex = lex path []
     and parse = parse strings procs macros max_addr in
     (* compile the program *)
     let _, ir =
@@ -90,14 +122,14 @@ let print filename src =
     printf "\nstrings: |%s" @@ String.escaped strings;
     printf "|\nstorage size: %d\n" storage_size
 
-let check filename src =
+let check path src =
     (* define "global" variables *)
     let strings = ref ""
     and procs = Hashtbl.create 10
     and macros = Hashtbl.create 10
     and max_addr = ref (-1) in
     (* specialize functions *)
-    let lex = lex filename []
+    let lex = lex path []
     and parse = parse strings procs macros max_addr
     and check = check procs macros in
     (* compile the program *)

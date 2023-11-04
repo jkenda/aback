@@ -84,10 +84,10 @@ let rec parse strings procs macros max_addr words =
                     (match push with
                     | String str ->
                             let addr, len = add_string str in
-                            [PUSH (Int len); PUSH (Ptr addr)]
+                            [PUSH (Int len); PUSH (Str_ptr addr)]
                     | CStr str ->
                             let addr, _ = add_string str in
-                            [PUSH (Ptr addr)]
+                            [PUSH (Str_ptr addr)]
                     | _  as push ->
                             [PUSH (data_of_operation loc push)])
 
