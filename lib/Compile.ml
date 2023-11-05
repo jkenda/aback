@@ -171,17 +171,19 @@ let to_fasm_x64_linux program =
         and int_op op =
             "\t; " ^ show_ir op ^ "\n" ^
             "\tpop  rax\n" ^
-            "\tpop  rbx\n" ^
+            "\tpop  rcx\n" ^
             (match op with
-            | ADD -> "\tadd  rax, rbx\n"
-            | SUB -> "\tsub  rax, rbx\n"
-            | MUL -> "\timul  rax, rbx\n"
+            | ADD -> "\tadd  rax, rcx\n"
+            | SUB -> "\tsub  rax, rcx\n"
+            | MUL -> "\timul rax, rcx\n"
             | DIV | MOD ->
                     "\tcdq\n" ^
-                    "\tidiv  rbx\n"
-            | BAND -> "\tand  rax, rbx\n"
-            | BXOR -> "\tor   rax, rbx\n"
-            | BOR  -> "\txor  rax, rbx\n"
+                    "\tidiv  rcx\n"
+            | BAND -> "\tand  rax, rcx\n"
+            | BXOR -> "\tor   rax, rcx\n"
+            | BOR  -> "\txor  rax, rcx\n"
+            | LSL  -> "\tshl  rax, cl\n"
+            | LSR  -> "\tshr  rax, cl\n"
             | _ -> raise @@ Unreachable (show_ir op)) ^
             match op with
             | MOD -> "\tpush  rdx\n"
