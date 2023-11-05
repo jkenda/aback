@@ -179,6 +179,9 @@ let to_fasm_x64_linux program =
             | DIV | MOD ->
                     "\tcdq\n" ^
                     "\tidiv  rbx\n"
+            | BAND -> "\tand  rax, rbx\n"
+            | BXOR -> "\tor   rax, rbx\n"
+            | BOR  -> "\txor  rax, rbx\n"
             | _ -> raise @@ Unreachable (show_ir op)) ^
             match op with
             | MOD -> "\tpush  rdx\n"

@@ -1,6 +1,7 @@
 include "core/stack.ab"
 include "core/math.ab"
 
+(print boolean values in string representation)
 macro putb
     bool ->
 is
@@ -10,8 +11,22 @@ take b in
     else "false" end
 end end
 
+(print int in binary representation)
+macro putib
+    int ->
+is
+    while > over 0 do
+        take n in
+        puti % n 2 |>
+        / n 2
+        end
+    end
+    drop
+end
+
 macro $FLOAT_PREC$ is 6 end
 
+(print float)
 macro putf
     float ->
 is
