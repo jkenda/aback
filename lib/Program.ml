@@ -42,6 +42,8 @@ type ir =
 
     | PUTC | PUTS | PUTI
 
+    | SYSCALL of int
+
     | IF of int | THEN of int | ELSE of int | END_IF of int
     | WHILE of int | DO of int | END_WHILE of int
     | PEEK of int * int | TAKE of int
@@ -178,6 +180,10 @@ let interpret program =
         | BXOR -> int_op ( lxor ) stack, ip + 1
         | LSL  -> int_op ( lsl  ) stack, ip + 1
         | LSR  -> int_op ( lsr  ) stack, ip + 1
+
+        | SYSCALL n ->
+                raise @@ Error (program.loc.(ip),
+                    sprintf "syscall %d not implemented" n)
 
         | (PUTC | PUTS | PUTI) as t -> put t stack, ip + 1
     in

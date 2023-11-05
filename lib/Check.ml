@@ -128,6 +128,8 @@ let check procs macros program =
 
         | PUSH _ -> stack_size + 1
 
+        | SYSCALL n -> stack_size - n
+
         | ADD | SUB | MUL | DIV | MOD
         | FADD | FSUB | FMUL | FDIV
         | BAND | BOR | BXOR | LSL | LSR
@@ -291,6 +293,15 @@ let check procs macros program =
             | PUT addr -> (loc, Hashtbl.find storage addr) :: stack, stack_size + 1
 
             | PUSH d -> (loc, prep_of_data d) :: stack, stack_size + 1
+
+            | SYSCALL n ->
+                    if n < 0 then raise @@ Error (loc, "syscall nargs out of range");
+                    let rec remove_n = function
+                        | 0, l -> l
+                        | _, [] -> raise @@ Error (loc, "not enough elements on the stack")
+                        | n, _ :: tl -> remove_n (n - 1, tl)
+                    in
+                    (loc, Type Int) :: remove_n (n + 1, stack), stack_size - n
 
             | ADD | SUB | MUL | DIV | MOD
             | BAND | BOR | BXOR | LSL | LSR ->

@@ -37,6 +37,8 @@ type prep =
 
     | Putc | Puts | Puti
 
+    | Syscall
+
     | Word of string
 [@@deriving show { with_path = false }]
 
@@ -67,6 +69,8 @@ let print_prep = function
     | Ref -> "@" | Deref -> "."
 
     | Putc -> "putc" | Puts -> "puts" | Puti -> "puti"
+
+    | Syscall -> "syscall"
 
     | Word w -> w
 
@@ -162,6 +166,8 @@ and preprocess words =
                 | Ref -> Ref | Deref -> Deref
 
                 | Putc -> Putc | Puts -> Puts | Puti -> Puti
+
+                | Syscall -> Syscall
 
                 | Word w -> Word w
                 | _ -> raise @@ Not_implemented (loc, show_word word)) :: acc, tl

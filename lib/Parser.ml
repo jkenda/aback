@@ -243,6 +243,10 @@ let rec parse strings procs macros max_addr words =
                 names := List.tl !names;
                 parse' ([], top :: rest) tl
 
+        | (loc, Syscall) :: (_, Push Int i) :: tl ->
+            parse' ((loc, SYSCALL i) :: top, rest) tl
+        | (loc, Syscall) :: _ -> raise @@ Error (loc, "syscall: expected int")
+
         | (loc, Word name) :: tl when Hashtbl.mem vars name ->
                 let var = Hashtbl.find vars name in
                 parse' ((loc, PUT var) :: top, rest) tl

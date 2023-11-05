@@ -128,6 +128,16 @@ _fatal_error:
 segment readable writable
 "
 
+let arg_regs = ["rdi"; "rsi"; "rdx"; "r10"; "r8"; "r9"]
+let pop_syscall_regs loc n =
+    let rec get' acc = function
+        | n, _ when n < 0 -> raise @@ Error (loc, "syscall number must be > 0")
+        | _, [] -> raise @@ Error (loc, "syscall number too large")
+        | 0, _ -> acc
+        | n, r :: tl -> get' (acc ^ sprintf "\tpop %s\n" r) (n - 1, tl)
+    in
+    get' "" (n, arg_regs)
+
 let add_strings buffer strings =
     Buffer.add_string buffer "strs db \"";
     String.iter (function
@@ -149,7 +159,7 @@ let to_fasm_x64_linux program =
     in
     Array.iter collect' program.ir;
 
-    let compile' (_, instr) =
+    let compile' i (_, instr) =
         let cmp op =
             "\t; " ^ show_ir op ^ "\n" ^
             let op =
@@ -264,7 +274,7 @@ let to_fasm_x64_linux program =
         (* TODO: if addr below 6, use only registers *)
         | PEEK (depth, addr) ->
                 "\t; " ^ show_ir instr ^ "\n" ^
-                let addr = program.storage_size - addr - 1 in
+                let addr = program.storage_size - addr in
                 let reg =
                     if addr < 6 then sprintf "r1%d" addr
                     else "rax" 
@@ -274,7 +284,7 @@ let to_fasm_x64_linux program =
                 else ""
         | TAKE addr ->
                 "\t; " ^ show_ir instr ^ "\n" ^
-                let addr = program.storage_size - addr - 1 in
+                let addr = program.storage_size - addr in
                 let loc =
                     if addr < 6 then sprintf "r1%d" addr
                     else sprintf "[vars + 8 * %d]" (addr - 6)
@@ -282,7 +292,7 @@ let to_fasm_x64_linux program =
                 sprintf "\tpop  %s\n" loc
         | PUT  addr ->
                 "\t; " ^ show_ir instr ^ "\n" ^
-                let addr = program.storage_size - addr - 1 in
+                let addr = program.storage_size - addr in
                 let loc =
                     if addr < 6 then sprintf "r1%d" addr
                     else sprintf "[vars + 8 * %d]" (addr - 6)
@@ -310,6 +320,14 @@ let to_fasm_x64_linux program =
                 | Char c -> sprintf "\tpush %d\n" (int_of_char c)
                 | Str_ptr n -> sprintf "\tlea rax, [strs + %d]\n\tpush rax\n" n)
 
+        | SYSCALL nargs ->
+                "\t; " ^ show_ir instr ^ "\n" ^
+                let loc = program.loc.(i) in
+                "\tpop rax\n" ^
+                pop_syscall_regs loc nargs ^
+                "\tsyscall\n" ^
+                "\tpush rax\n"
+
         | ITOF ->
                 "\t; " ^ show_ir instr ^ "\n" ^
                 "\tcvtsi2sd xmm0, [rsp]\n" ^
@@ -327,7 +345,7 @@ let to_fasm_x64_linux program =
         | AND | OR as op -> bool_op op
         | (PUTC | PUTS | PUTI) as op -> put op
     in
-    Array.iter compile' @@ Array.combine program.loc program.ir;
+    Array.iteri compile' @@ Array.combine program.loc program.ir;
     Buffer.add_string buffer footer;
     add_strings buffer program.strings;
     Buffer.add_string buffer @@ sprintf "vars rq %d\n" program.storage_size;

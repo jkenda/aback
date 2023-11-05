@@ -104,6 +104,8 @@ type word =
 
     | Putc | Puts | Puti
 
+    | Syscall
+
     | Word of string
 [@@deriving show { with_path = false }]
 
@@ -145,6 +147,8 @@ let instr_of_word (loc, word) =
         | "putc" -> Putc | "puts" -> Puts | "puti" -> Puti
 
         | "true" -> True | "false" -> False
+
+        | "syscall" -> Syscall
 
         (* chars, strings, numbers and other words *)
         | word ->
