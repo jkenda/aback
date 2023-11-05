@@ -1,13 +1,14 @@
 include "core/stack.ab"
 include "core/math.ab"
 
-(print boolean values in string representation)
+(print boolean values
+ as "true" or "false")
 macro putb
     bool ->
 is
 take b in
     puts
-    if = true b then "true"
+    if b then "true"
     else "false" end
 end end
 
