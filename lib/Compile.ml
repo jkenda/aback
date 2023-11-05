@@ -184,7 +184,16 @@ let to_fasm_x64_linux program =
             | MOD -> "\tpush  rdx\n"
             | _ -> "\tpush rax\n"
         and float_op op =
-            raise @@ Not_implemented (loc, show_ir op)
+            "\t; " ^ show_ir op ^ "\n" ^
+            "\tmovsd xmm0, [rsp]\n" ^
+            (match op with
+            | FADD -> "\taddsd xmm0, [rsp + 8]\n"
+            | FSUB -> "\tsubsd xmm0, [rsp + 8]\n"
+            | FMUL -> "\tmulsd xmm0, [rsp + 8]\n"
+            | FDIV -> "\tdivsd xmm0, [rsp + 8]\n"
+            | _ -> raise @@ Unreachable (show_ir op)) ^
+            "\tpop qword [rsp - 8]\n" ^
+            "\tmovsd [rsp], xmm0\n"
         and bool_op op =
             raise @@ Not_implemented (loc, show_ir op)
         and put op =
@@ -201,7 +210,6 @@ let to_fasm_x64_linux program =
                     "\tpop  rdi\n" ^
                     "\tcall puti\n"
 
-            | PUTF -> raise @@ Not_implemented (loc, "PUTF")
             | _ -> raise @@ Unreachable (show_ir op)
         and cond_jmp cond label =
             "\tpop  rax\n" ^
@@ -272,12 +280,32 @@ let to_fasm_x64_linux program =
         | PUSH d ->
                 "\t; " ^ show_ir instr ^ "\n" ^
                 (match d with
-                | Int n -> sprintf "\tpush %d\n" n
+                | Int i ->
+                        if i > 0xFF then
+                            sprintf "\tmov rax, %d\n" i ^
+                            sprintf "\tpush rax\n"
+                        else
+                            sprintf "\tpush %d\n" i
+                | Float f ->
+                        let i = Int64.of_nativeint @@ Obj.raw_field (Obj.repr f) 0 in
+                        if i > (Int64.of_int 0xFF) then
+                            sprintf "\tmov rax, %s\n" (Int64.to_string i) ^
+                            sprintf "\tpush rax\n"
+                        else
+                            sprintf "\tpush %s\n" (Int64.to_string i)
                 | Bool true -> "\tpush 1\n"
                 | Bool false -> "\tpush 0\n"
                 | Char c -> sprintf "\tpush %d\n" (int_of_char c)
-                | Float f -> sprintf "\tpush %d\n" @@ Obj.magic @@ Obj.repr f
-                | Str_ptr n -> sprintf "\tlea  rax, [strs + %d]\n\tpush rax\n" n)
+                | Str_ptr n -> sprintf "\tlea rax, [strs + %d]\n\tpush rax\n" n)
+
+        | ITOF ->
+                "\t; " ^ show_ir instr ^ "\n" ^
+                "\tcvtsi2sd xmm0, [rsp]\n" ^
+                "\tmovsd [rsp], xmm0\n"
+        | FTOI ->
+                "\t; " ^ show_ir instr ^ "\n" ^
+                "\tcvttsd2si rax, [rsp]\n" ^
+                "\tmov [rsp], rax\n"
 
         | EQ | NE | LT | LE | GT | GE as op -> cmp op
 
@@ -285,7 +313,7 @@ let to_fasm_x64_linux program =
         | BAND | BOR | BXOR | LSL | LSR as op -> int_op op
         | FADD | FSUB | FMUL | FDIV as op -> float_op op
         | AND | OR as op -> bool_op op
-        | (PUTC | PUTS | PUTI | PUTF) as op -> put op
+        | (PUTC | PUTS | PUTI) as op -> put op
     in
     Array.iter compile' @@ Array.combine program.loc program.ir;
     Buffer.add_string buffer footer;

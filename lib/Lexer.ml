@@ -96,11 +96,13 @@ type word =
     | Div | FDiv
     | Mod
 
+    | Itof | Ftoi
+
     | BAnd | BOr | BXor | Lsl | Lsr
     | And  | Or
     | Ref | Deref
 
-    | Putc | Puts | Puti | Putf
+    | Putc | Puts | Puti
 
     | Word of string
 [@@deriving show { with_path = false }]
@@ -133,13 +135,14 @@ let instr_of_word (loc, word) =
         | "/" -> Div | "/." -> FDiv
         | "%" -> Mod
 
+        | "itof" -> Itof | "ftoi" -> Ftoi
+
         | "&"  -> BAnd | "|"  -> BOr | "^" -> BXor
         | "<<" -> Lsl  | ">>" -> Lsr
         | "&&" -> And  | "||" -> Or
         | "@"  -> Ref  | "."  -> Deref
 
-        | "putc" -> Putc | "puts" -> Puts
-        | "puti" -> Puti | "putf" -> Putf
+        | "putc" -> Putc | "puts" -> Puts | "puti" -> Puti
 
         | "true" -> True | "false" -> False
 

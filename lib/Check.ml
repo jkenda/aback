@@ -31,7 +31,6 @@ let check procs macros program =
     and put t loc = function
         | (_, Type Int : location * prep) :: rest when t = PUTI -> rest
         | (_, Type Char) :: rest when t = PUTC -> rest
-        | (_, Type Float) :: rest when t = PUTF -> rest
         | (_, Type Ptr) :: (_, Type Int) :: rest when t = PUTS -> rest
         | (_, hd) :: _ -> raise @@ Error (loc,
             sprintf "invalid argument for %s: %s" (show_ir t) (print_prep hd))
@@ -135,8 +134,10 @@ let check procs macros program =
         | AND | OR
         | EQ | NE | LT | LE | GT | GE -> stack_size - 1
 
+        | ITOF | FTOI -> stack_size
+
         | PUTS -> stack_size - 1
-        | PUTC | PUTI | PUTF -> stack_size - 1
+        | PUTC | PUTI -> stack_size - 1
         in
         List.fold_left check'
     in
@@ -302,6 +303,19 @@ let check procs macros program =
                             sprintf "expected Int Int, got %s" (print_prep a))
                     | _ -> raise @@ Error (loc, "not enough elements on the stack"))
 
+            | ITOF ->
+                    (match stack with
+                    | (_, Type Int) :: rest -> (loc, Type Float) :: rest, stack_size
+                    | (_, a) :: _ -> raise @@ Error (loc,
+                        sprintf "expected int, got %s" (print_prep a))
+                    | _ -> raise @@ Error (loc, "not enough data on stack"))
+            | FTOI ->
+                    (match stack with
+                    | (_, Type Float) :: rest -> (loc, Type Int) :: rest, stack_size
+                    | (_, a) :: _ -> raise @@ Error (loc,
+                        sprintf "expected float, got %s" (print_prep a))
+                    | _ -> raise @@ Error (loc, "not enough data on stack"))
+
             | AND | OR ->
                     (match stack with
                     | (_, Type Bool) :: (_, Type Bool) :: tl -> (loc, Type Bool) :: tl, stack_size - 1
@@ -326,7 +340,7 @@ let check procs macros program =
                     | (_, a) :: (_, b) :: _ -> raise @@ Error (loc,
                             sprintf "expected Ptr Int, got %s %s" (print_prep a) (print_prep b))
                     | _ -> raise @@ Error (loc, "not enough elements on the stack"))
-            | (PUTC | PUTI | PUTF) as t -> put t loc stack, stack_size - 1
+            | (PUTC | PUTI) as t -> put t loc stack, stack_size - 1
 
             | FADD | FSUB | FMUL | FDIV ->
                     (match stack with

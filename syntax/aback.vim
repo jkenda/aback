@@ -23,10 +23,11 @@ syn keyword abackStack 3dup 4dup 5dup 3drop 4drop 5drop
 syn keyword abackInclude include
 
 syn keyword abackBool true false
-syn keyword abackFunc puts putc puti putf putb
+syn keyword abackFunc puts putc puti putf putb itof ftoi
 
-syn keyword abackOperator + - * / %
-syn keyword abackOperator = != < > <= >=
+syn keyword abackOperator +  -  *  /  %
+syn keyword abackOperator +. -. *. /.
+syn keyword abackOperator = /= < > <= >=
 syn keyword abackOperator ->
 syn match abackOperator '|>'
 

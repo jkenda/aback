@@ -1,0 +1,10 @@
+include "core/io.ab"
+
+putf itof 7 |> putc '\n' |>
+puti ftoi 7. |> putc '\n' |>
+putf 13. |> putc '\n' |>
+putf +. 1.5 0.5 |> putc '\n' |>
+putf -. 1.5 0.5 |> putc '\n' |>
+putf *. 1.5 0.5 |> putc '\n' |>
+putf /. 1.5 0.5 |> putc '\n' |>
+putf 12.3456789 |> putc '\n'

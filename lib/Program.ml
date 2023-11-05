@@ -35,10 +35,12 @@ type ir =
     | DIV | FDIV
     | MOD
 
+    | ITOF | FTOI
+
     | BAND | BOR | BXOR | LSL | LSR
     | AND  | OR
 
-    | PUTC | PUTS | PUTI | PUTF
+    | PUTC | PUTS | PUTI
 
     | IF of int | THEN of int | ELSE of int | END_IF of int
     | WHILE of int | DO of int | END_WHILE of int
@@ -92,7 +94,6 @@ let interpret program =
         and put t = function
             | Int i   :: rest when t = PUTI -> print_int i; rest
             | Char c  :: rest when t = PUTC -> print_char c; rest
-            | Float f :: rest when t = PUTF -> print_float f; rest
             | Str_ptr p :: Int len :: rest when t = PUTS ->
                     print_string
                     @@ String.sub program.strings p len;
@@ -156,6 +157,19 @@ let interpret program =
         | FMUL -> float_op ( *. ) stack, ip + 1
         | FDIV -> float_op ( /. ) stack, ip + 1
 
+        | ITOF ->
+                (match stack with
+                | Int a :: rest -> Float (float_of_int a) :: rest, ip + 1
+                | a :: _ -> raise @@ Error (program.loc.(ip),
+                    sprintf "expected int, got %s" (show_data a))
+                | _ -> raise @@ Error (program.loc.(ip), "not enough data on stack"))
+        | FTOI ->
+                (match stack with
+                | Float a :: rest -> Int (int_of_float a) :: rest, ip + 1
+                | a :: _ -> raise @@ Error (program.loc.(ip),
+                    sprintf "expected float, got %s" (show_data a))
+                | _ -> raise @@ Error (program.loc.(ip), "not enough data on stack"))
+
         | AND -> bool_op ( && ) stack, ip + 1
         | OR  -> bool_op ( || ) stack, ip + 1
 
@@ -165,7 +179,7 @@ let interpret program =
         | LSL  -> int_op ( lsl  ) stack, ip + 1
         | LSR  -> int_op ( lsr  ) stack, ip + 1
 
-        | (PUTC | PUTS | PUTI | PUTF) as t -> put t stack, ip + 1
+        | (PUTC | PUTS | PUTI) as t -> put t stack, ip + 1
     in
 
     let rec exec'' stack ip =

@@ -1,3 +1,6 @@
+include "core/stack.ab"
+include "core/math.ab"
+
 macro putb
     bool ->
 is
@@ -6,3 +9,37 @@ take b in
     if = true b then "true"
     else "false" end
 end end
+
+macro $FLOAT_PREC$ is 6 end
+
+macro putf
+    float ->
+is
+    (if negative then print 0 and negate)
+    if < over 0. then
+        putc '-'
+        -. 0.
+    end |>
+
+    (get the whole and the decimal part)
+    ftoi dup |>                 (whole float)
+    -. swap itof over over |>   (dec whole float)
+    drop -rot |>                (dec whole)
+    take dec whole in
+        puti whole |>
+        putc '.' |>
+
+        (if the decimal part is non-zero then print it)
+        if /= dec 0. then
+            (dec *= 10^$float_prec$)
+            ftoi *. itof ** 10 $FLOAT_PREC$ dec
+            (remove trailing zeros)
+            while = 0 % over 10 do
+                take dec in
+                    / dec 10
+                end
+            end
+            puti
+        end
+    end
+end

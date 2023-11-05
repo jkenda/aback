@@ -27,13 +27,15 @@ type prep =
     | Sub | FSub
     | Mul | FMul
     | Div | FDiv
-    | Mod | FMod
+    | Mod
+
+    | Itof | Ftoi
 
     | BAnd | BOr | BXor | Lsl | Lsr
     | And  | Or
     | Ref | Deref
 
-    | Putc | Puts | Puti | Putf
+    | Putc | Puts | Puti
 
     | Word of string
 [@@deriving show { with_path = false }]
@@ -56,13 +58,15 @@ let print_prep = function
     | Sub -> "-" | FSub -> "-."
     | Mul -> "*" | FMul -> "*."
     | Div -> "/" | FDiv -> "/."
-    | Mod -> "%" | FMod -> "%."
+    | Mod -> "%"
+
+    | Itof -> "itof" | Ftoi -> "ftoi"
 
     | BAnd -> "&" | BOr -> "|" | BXor -> "^" | Lsl -> "<<" | Lsr -> ">>"
     | And  -> "&&" | Or -> "||"
     | Ref -> "@" | Deref -> "."
 
-    | Putc -> "putc" | Puts -> "puts" | Puti -> "puti" | Putf -> "putf"
+    | Putc -> "putc" | Puts -> "puts" | Puti -> "puti"
 
     | Word w -> w
 
@@ -151,11 +155,13 @@ and preprocess words =
                 | Div -> Div | FDiv -> FDiv
                 | Mod -> Mod
 
+                | Itof -> Itof | Ftoi -> Ftoi
+
                 | BAnd -> BAnd | BOr -> BOr | BXor -> BXor | Lsl -> Lsl | Lsr -> Lsr
                 | And -> And | Or -> Or
                 | Ref -> Ref | Deref -> Deref
 
-                | Putc -> Putc | Puts -> Puts | Puti -> Puti | Putf -> Putf
+                | Putc -> Putc | Puts -> Puts | Puti -> Puti
 
                 | Word w -> Word w
                 | _ -> raise @@ Not_implemented (loc, show_word word)) :: acc, tl

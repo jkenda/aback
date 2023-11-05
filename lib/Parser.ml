@@ -99,12 +99,13 @@ let rec parse strings procs macros max_addr words =
             | Div -> [DIV] | FDiv -> [FDIV]
             | Mod -> [MOD]
 
+            | Itof -> [ITOF] | Ftoi -> [FTOI]
+
             | And -> [AND] | Or -> [OR]
             | BAnd -> [BAND] | BOr -> [BOR] | BXor -> [BXOR]
             | Lsl -> [LSL] | Lsr -> [LSR]
 
-            | Puti -> [PUTI] | Putf -> [PUTF]
-            | Putc -> [PUTC] | Puts -> [PUTS]
+            | Puti -> [PUTI] | Putc -> [PUTC] | Puts -> [PUTS]
 
             | prep -> raise @@ Not_implemented (loc, print_prep prep)
         in

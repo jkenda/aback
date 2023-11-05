@@ -97,10 +97,8 @@ let compile run path src =
     if run then
         if exit_code <> 0 then exit exit_code
         else
-            let exit_code =  Sys.command ("./" ^ filename) in
-            if exit_code <> 0 then
-                printf "\nexit code: %d\n" exit_code;
-                exit exit_code
+            exit
+            @@ Sys.command ("./" ^ filename)
     else
         exit exit_code
 

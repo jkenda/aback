@@ -13,3 +13,15 @@ take a b in
     if >= a b then a
     else b end
 end end
+
+macro **
+    int int -> int
+is
+take a b in
+    0 1 while < over b do
+        take i pow in
+            + 1 i
+            * a pow
+        end
+    end drop
+end end
