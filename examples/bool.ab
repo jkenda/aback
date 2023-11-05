@@ -1,0 +1,11 @@
+include "core/io.ab"
+
+putb && false false |> putc '\n' |>
+putb && false true  |> putc '\n' |>
+putb && true  false |> putc '\n' |>
+putb && true  true  |> putc '\n' |>
+putc '\n' |>
+putb || false false |> putc '\n' |>
+putb || false true  |> putc '\n' |>
+putb || true  false |> putc '\n' |>
+putb || true  true  |> putc '\n' |>

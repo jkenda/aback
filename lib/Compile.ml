@@ -149,7 +149,7 @@ let to_fasm_x64_linux program =
     in
     Array.iter collect' program.ir;
 
-    let compile' (loc, instr) =
+    let compile' (_, instr) =
         let cmp op =
             "\t; " ^ show_ir op ^ "\n" ^
             let op =
@@ -195,7 +195,14 @@ let to_fasm_x64_linux program =
             "\tpop qword [rsp - 8]\n" ^
             "\tmovsd [rsp], xmm0\n"
         and bool_op op =
-            raise @@ Not_implemented (loc, show_ir op)
+            "\t; " ^ show_ir op ^ "\n" ^
+            "\tpop  rax\n" ^
+            "\tpop  rbx\n" ^
+            (match op with
+            | AND -> "\tand  rax, rbx\n"
+            | OR  -> "\tor   rax, rbx\n"
+            | _ -> raise @@ Unreachable (show_ir op)) ^
+            "\tpush rax\n"
         and put op =
             "\t; " ^ show_ir op ^ "\n" ^
             match op with
@@ -318,7 +325,7 @@ let to_fasm_x64_linux program =
     Array.iter compile' @@ Array.combine program.loc program.ir;
     Buffer.add_string buffer footer;
     add_strings buffer program.strings;
-    Buffer.add_string buffer @@ sprintf "vars rq %d\n" (program.storage_size - 6);
+    Buffer.add_string buffer @@ sprintf "vars rq %d\n" program.storage_size;
     Buffer.add_string buffer @@ sprintf "writebuf rb %d\n" 265;
     Buffer.add_string buffer @@ sprintf "wbsiz = $ - writebuf\n";
     Buffer.add_string buffer @@ sprintf "wblen dq 0\n";

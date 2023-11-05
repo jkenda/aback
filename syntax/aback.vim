@@ -29,7 +29,7 @@ syn keyword abackOperator +  -  *  /  %
 syn keyword abackOperator +. -. *. /.
 syn keyword abackOperator = /= < > <= >=
 syn keyword abackOperator ->
-syn match abackOperator '|>'
+syn match   abackOperator '||\||>\||\|&&\|&'
 
 " Matches
 " Integer with - + or nothing in front
