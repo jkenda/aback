@@ -4,14 +4,7 @@
     Source: https://blog.rchapman.org/posts/Linux_System_Call_Table_for_x86_64/
 )
 
-(stdio file descriptors)
-
-macro STDIN  is 0 end
-macro STDOUT is 1 end
-macro STDERR is 2 end
-
 (syscall numbers)
-
 macro SYS_read	                 is 0   end 
 macro SYS_write	                 is 1   end 
 macro SYS_open	                 is 2   end 
@@ -349,18 +342,90 @@ macro io_pgetevents				 is 333 end
 macro rseq                       is 334 end 
 macro pkey_mprotect	             is 335 end 
 
+
+(constants)
+(CONSTANT VALUE DESCRIPTION FILE)
+
+(Network Constants:)
+macro LOCAL       is -2147483647 end (local node NET.h)
+macro MAXNMSGLEN  is 8192        end (maximum length of one message packet NET.h)
+macro NHDSIZE     is 8           end (maximum size in words of ndata argument NET.h)
+macro NOTNODEID   is -2147483648 end (error occurred in igndid_2 NET.h)
+macro NOTNODETYPE is -2147483648 end (error occurred in igrtp_2 NET.h)
+
+(Node Types:)
+macro NTCAST  is 2   end (multicast definition NET.h)
+macro NTWASTE is 4   end (not fully used/wasted NET.h)
+macro NTDISK  is 8   end (node with attached disk NET.h)
+macro NTTUBE  is 16  end (node with attached video unit NET.h)
+macro NTJONES is 32  end (node is a neighbour NET.h)
+macro NTBOOT  is 64  end (neighbour node to boot NET.h)
+macro NTALL   is 127 end (matches any type NET.h)
+
+(Message Flags:)
+macro NOBUF     is 16      end (turn off buffering NET.h)
+macro NREEL     is 1024    end (multireel NET.h)
+macro DRAWDATA  is 65536   end (ndata representation will not be changed NET.h)
+macro DINT4DATA is 131072  end (ndata holds 8 32-bit integer NET.h)
+macro DFLT4DATA is 262144  end (ndata holds 8 single precision reals NET.h)
+macro DFLT8DATA is 524288  end (ndata holds 4 double precision reals NET.h)
+macro DRAWMSG   is 1048576 end (nmsg representation will not be changed NET.h)
+macro DINT4MSG  is 2097152 end (nmsg holds integers NET.h)
+macro DFLT4MSG  is 4194304 end (nmsg holds single precision reals NET.h)
+macro DFLT8MSG  is 8388608 end (nmsg holds double precision reals NET.h)
+
+(Reserved Cast Identifiers:)
+macro HOST2ALL  is -2147483646 end (multicast from origin to all nodes NET.h)
+macro HOST2COMP is -2147483642 end (multicast from origin to compute nodes NET.h)
+
+(File Flags:)
+macro O_RDONLY is 0       end (open for reading only FREQ.h)
+macro O_WRONLY is 1       end (open for writing only FREQ.h)
+macro O_RDWR   is 2       end (open for reading and writing FREQ.h)
+macro O_APPEND is 8       end (append on each write FREQ.h)
+macro O_CREAT  is 512     end (create file if it does not exist FREQ.h)
+macro O_TRUNC  is 1024    end (truncate length to 0 FREQ.h)
+macro O_EXCL   is 2048    end (error if create and file exists FREQ.h)
+macro O_SYNC   is 8192    end (update file data and file status before writing FREQ.h)
+macro O_LOCK   is 65536   end (lock file descriptor active FREQ.h)
+macro O_REUSE  is 131072  end (reuse existing file descriptor FREQ.h)
+macro O_1WAY   is 4194304 end (do not acknowledge writes FREQ.h)
+
+(Process Runtime Flags:)
+macro RTF_WAIT  is 16  end (child sends a message to parent when it exits NET.h)
+macro RTF_TRACE is 256 end (enable process tracing NET.h)
+
+(Stdio File Descriptors)
+macro STDIN  is 0 end
+macro STDOUT is 1 end
+macro STDERR is 2 end
+
+
 (specialized functions)
 
-macro write
-    ptr int
+macro read
+    int ptr int (fd string)
     -> int
 is
-    syscall 3 SYS_write STDOUT
+    syscall 3 SYS_read
 end
 
-macro read
-    ptr int
+macro write
+    int ptr int (fd string)
     -> int
 is
-    syscall 3 SYS_read STDIN
+    syscall 3 SYS_write
+end
+
+macro open
+     ptr int (cstr mode)
+     -> int
+is
+    syscall 2 SYS_open
+end
+
+macro close
+    int -> int (fd -> err)
+is
+    syscall 1 SYS_close
 end

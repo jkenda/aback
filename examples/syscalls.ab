@@ -1,4 +1,4 @@
 include "core/linux.ab"
 include "core/stack.ab"
 
-puti write "Hello via a syscall!\n"
+puti write STDOUT "Hello via a syscall!\n"
