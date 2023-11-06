@@ -15,6 +15,7 @@ syn keyword abackCond if then else
 syn keyword abackCond take peek in
 syn keyword abackCond while do
 syn keyword abackCond macro proc is
+syn keyword abackCond mem
 syn keyword abackCond end
 syn keyword abackStack drop  nip  dup  over  tuck  swap  rot  -rot
 syn keyword abackStack 2drop 2nip 2dup 2over 2tuck 2swap 2rot 2-rot

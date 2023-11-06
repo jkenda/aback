@@ -13,13 +13,14 @@ type prep =
     | Push of data
     | Type of typ
 
-    | Rev
+    | Rev | Return
 
-    | Macro | Proc | Is | End_func
+    | Macro | Proc | Is
     | If | Then | Else | End_if
     | While | Do | End_while
     | Peek | Take | In | End_peek
-    | Let | Assign | Return
+    | Mem | Assign
+    | End
 
     | Eq | NEq | Lt | LEq | Gt | GEq
 
@@ -46,13 +47,13 @@ let print_prep = function
     | Push a -> show_data a
     | Type t -> print_typ t
 
-    | Rev -> "|>"
+    | Rev -> "|>" | Return -> "->"
 
-    | Macro -> "macro" | Proc -> "proc" | Is -> "is" | End_func -> "end"
+    | Macro -> "macro" | Proc -> "proc" | Is -> "is" | End -> "end"
     | If -> "if" | Then -> "then" | Else -> "else" | End_if -> "end"
     | While -> "while" | Do -> "do" | End_while -> "end"
     | Peek -> "peek" | Take -> "take" | In -> "in" | End_peek -> "end"
-    | Let -> "let" | Assign -> ":=" | Return -> "->"
+    | Mem -> "mem" | Assign -> ":="
 
     | Eq -> "=" | NEq -> "!=" | Lt -> "<" | LEq -> "<=" | Gt -> ">" | GEq -> ">="
 
@@ -103,11 +104,11 @@ and preprocess words =
         | (_, Include) :: (loc, _) :: _
         | (loc, Include) :: _ -> raise @@ Error (loc, "expected string after include")
 
-        | (loc, Rev) :: tl -> (loc, Rev) :: acc, tl
-
         | (loc, Macro) :: tl -> push_end (loc, Macro); (loc, Macro) :: acc, tl
         | (loc, Proc)  :: tl -> push_end (loc, Proc) ; (loc, Proc)  :: acc, tl
         | (loc, Is)    :: tl -> (loc, Is) :: acc, tl
+
+        | (loc, Mem) :: tl -> push_end (loc, Mem); (loc, Mem) :: acc, tl
 
         | (loc, If)   :: tl -> push_end (loc, If); (loc, If) :: acc, tl
         | (loc, Then) :: tl -> (loc, Then) :: acc, tl
@@ -125,7 +126,8 @@ and preprocess words =
                 let ir =
                     match Stack.pop end_stack with
                     | (_, Proc)
-                    | (_, Macro) -> End_func
+                    | (_, Macro)
+                    | (_, Mem)   -> End
                     | (_, If)    -> End_if
                     | (_, While) -> End_while
                     | (_, Peek)
@@ -149,9 +151,11 @@ and preprocess words =
                 | True -> Push (Bool true)
                 | False -> Push (Bool false)
 
+                | Rev -> Rev | Mem -> Mem
+
                 | Type t -> Type t
 
-                | Let -> Let | Assign -> Assign | Return -> Return
+                | Assign -> Assign | Return -> Return
                 | Eq -> Eq | NEq -> NEq | Lt -> Lt | LEq -> LEq | Gt -> Gt | GEq -> GEq
                 | Add -> Add | FAdd -> FAdd
                 | Sub -> Sub | FSub -> FSub

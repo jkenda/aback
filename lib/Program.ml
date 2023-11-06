@@ -7,22 +7,22 @@ type data =
     | Bool of bool
     | Char of char
     | Float of float
-    | Str_ptr of int
+    | Local_ptr of string * int
 [@@deriving show { with_path = false }]
 
 let typ_of_data = function
-    | Int _   -> (Int : typ)
-    | Bool _  -> Bool
-    | Char _  -> Char
-    | Float _ -> Float
-    | Str_ptr _   -> Ptr
+    | Int _       -> (Int : typ)
+    | Bool _      -> Bool
+    | Char _      -> Char
+    | Float _     -> Float
+    | Local_ptr _ -> Ptr
 
 let prep_of_data = function
-    | Int _   -> Type Int
-    | Bool _  -> Type Bool
-    | Char _  -> Type Char
-    | Float _ -> Type Float
-    | Str_ptr _   -> Type Ptr
+    | Int _       -> Type Int
+    | Bool _      -> Type Bool
+    | Char _      -> Type Char
+    | Float _     -> Type Float
+    | Local_ptr _ -> Type Ptr
 
 type ir =
     | PUSH of data
@@ -55,6 +55,7 @@ type program = {
     ir : ir array;
     loc : location array;
     strings : string;
+    mem : (string, typ * int) Hashtbl.t;
     storage_size : int
 }
 
@@ -96,9 +97,9 @@ let interpret program =
         and put t = function
             | Int i   :: rest when t = PUTI -> print_int i; rest
             | Char c  :: rest when t = PUTC -> print_char c; rest
-            | Str_ptr p :: Int len :: rest when t = PUTS ->
+            | Local_ptr ("strs", offset) :: Int len :: rest when t = PUTS ->
                     print_string
-                    @@ String.sub program.strings p len;
+                    @@ String.sub program.strings offset len;
                     rest
             | [] -> raise @@ Error ( program.loc.(ip),
                 sprintf "%s: not enough data on stack" (show_ir t))

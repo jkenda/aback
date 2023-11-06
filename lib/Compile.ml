@@ -62,7 +62,16 @@ puts_loop:
     jge puts_ret
 
     mov dil, [rsi]
-    call putc
+
+    ; put char into buffer
+    mov rax, [wblen]
+    mov [writebuf + rax], dil
+    inc [wblen]
+
+    ; flush on newline
+    cmp dil, 10
+    je flush
+
     inc rsi
     inc rcx
     jmp puts_loop
@@ -318,7 +327,7 @@ let to_fasm_x64_linux program =
                 | Bool true -> "\tpush 1\n"
                 | Bool false -> "\tpush 0\n"
                 | Char c -> sprintf "\tpush %d\n" (int_of_char c)
-                | Str_ptr n -> sprintf "\tlea rax, [strs + %d]\n\tpush rax\n" n)
+                | Local_ptr (space, off) -> sprintf "\tlea rax, [%s + %d]\n\tpush rax\n" space off)
 
         | SYSCALL nargs ->
                 "\t; " ^ show_ir instr ^ "\n" ^
@@ -348,9 +357,16 @@ let to_fasm_x64_linux program =
     Array.iteri compile' @@ Array.combine program.loc program.ir;
     Buffer.add_string buffer footer;
     add_strings buffer program.strings;
-    Buffer.add_string buffer @@ sprintf "vars rq %d\n" program.storage_size;
     Buffer.add_string buffer @@ sprintf "writebuf rb %d\n" 265;
     Buffer.add_string buffer @@ sprintf "wbsiz = $ - writebuf\n";
     Buffer.add_string buffer @@ sprintf "wblen dq 0\n";
+    Buffer.add_string buffer @@ sprintf "vars rq %d\n" program.storage_size;
+    Hashtbl.iter (fun name (typ, space) ->
+        let typ_to_str = function
+            | (Char : typ) -> "rb"
+            | _ -> "rq"
+        in
+        Buffer.add_string buffer @@ sprintf "mem_%s %s %d\n" name (typ_to_str typ) space;
+    ) program.mem;
 
     Buffer.to_bytes buffer

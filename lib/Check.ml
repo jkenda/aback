@@ -371,9 +371,10 @@ let check procs macros program =
         | Numbered (n_in, n_out_expected) -> (
             let n_out =
                 let strings = ref ""
+                and mem = Hashtbl.create 10
                 and max_addr = ref 0 in
                 let parse =
-                    parse strings procs macros max_addr
+                    parse strings mem procs macros max_addr
                 in
                 parse seq
                 |> check_numbered n_in
@@ -385,9 +386,10 @@ let check procs macros program =
         | Typed (t_in, t_out) ->
             let stack, t_out =
                 let strings = ref ""
+                and mem = Hashtbl.create 10
                 and max_addr = ref 0 in
                 let parse =
-                    parse strings procs macros max_addr
+                    parse strings mem procs macros max_addr
                 and remove_loc = List.map (fun (_, typ) -> typ) in
                 let stack, _ =
                     parse seq

@@ -26,7 +26,7 @@ let names = ref []
 let next_addr = ref 0
 
 (* parse the preprocessed words into intermediate representation *)
-let rec parse strings procs macros max_addr words =
+let rec parse strings mem procs macros max_addr words =
     let add_func loc name words table =
         let rec extract_types input t_in t_out = function
             | (loc, (Type _ | Word _ as t)) :: words ->
@@ -39,9 +39,10 @@ let rec parse strings procs macros max_addr words =
             | [] -> raise @@ Error (loc, "expected 'is' after function declaration")
         and add' acc = function
             | [] -> raise @@ Error (loc, "'end' expected")
+            | (loc, Mem) :: _ -> raise @@ Error (loc, "cannot allocate global memory inside a function")
             | (loc, Word _name) :: _ when name = _name ->
                     raise @@ Error (loc, sprintf "%s: recursive macros not supported" name)
-            | (_, End_func) :: words ->
+            | (_, End) :: words ->
                     List.rev acc, words
             | word :: words -> add' (word :: acc) words
         in
@@ -84,10 +85,10 @@ let rec parse strings procs macros max_addr words =
                     (match push with
                     | String str ->
                             let addr, len = add_string str in
-                            [PUSH (Int len); PUSH (Str_ptr addr)]
+                            [PUSH (Int len); PUSH (Local_ptr ("strs", addr))]
                     | CStr str ->
                             let addr, _ = add_string str in
-                            [PUSH (Str_ptr addr)]
+                            [PUSH (Local_ptr ("strs", addr))]
                     | _  as push ->
                             [PUSH (data_of_operation loc push)])
 
@@ -204,6 +205,13 @@ let rec parse strings procs macros max_addr words =
                 parse' ([], top :: rest)
                 @@ add_func loc name tl procs
         | (loc, Proc) :: _ -> raise @@ Error (loc, "proc: expected name")
+
+        | (_, Mem) :: (_, Word name) :: (_, Type t) :: (_, Push Int size) :: (_, End) :: tl ->
+                Hashtbl.add mem name (t, size);
+                parse' (top, rest) tl
+        | (loc, Mem) :: _ ->
+                raise @@ Error (loc, sprintf "usage: mem <name> <type> <size> end")
+
         | (_, Rev) :: tl -> parse' ([], top :: rest) tl
         
         | (loc, If) :: tl ->
@@ -251,9 +259,12 @@ let rec parse strings procs macros max_addr words =
                 let var = Hashtbl.find vars name in
                 parse' ((loc, PUT var) :: top, rest) tl
 
+        | (loc, Word name) :: tl when Hashtbl.mem mem name ->
+                parse' ((loc, PUSH (Local_ptr ("mem_" ^ name, 0))) :: top, rest) tl
+
         | (loc, Word name) :: tl when Hashtbl.mem macros name ->
                 let expand prep =
-                    parse strings procs macros max_addr prep
+                    parse strings mem procs macros max_addr prep
                     |> List.map (fun (l, prep) ->
                         { l with expanded_from = (loc, name) :: l.expanded_from }, prep)
                 in
@@ -266,11 +277,13 @@ let rec parse strings procs macros max_addr words =
 
         | (loc, Word name) :: _ ->
                 let vars = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) vars ""
+                and mem  = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) mem ""
                 and procs = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) procs ""
                 and macros = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) macros "" in
                 raise @@ Error (loc, 
                     sprintf "Unknown word: '%s'.\n" name ^
                     sprintf "\tavailable vars: %s\n" vars ^
+                    sprintf "\tavailable mem: %s\n" mem ^
                     sprintf "\tavailable macros: %s\n" macros ^
                     sprintf "\tavailable procs: %s" procs)
 

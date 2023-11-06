@@ -17,12 +17,13 @@ let read path =
 let interpret path src =
     (* define "global" variables *)
     let strings = ref ""
+    and mem = Hashtbl.create 10
     and procs = Hashtbl.create 10
     and macros = Hashtbl.create 10
     and max_addr = ref (-1) in
     (* specialize functions *)
     let lex = lex path []
-    and parse = parse strings procs macros max_addr
+    and parse = parse strings mem procs macros max_addr
     and check = check procs macros in
     (* compile the program *)
     let loc, ir =
@@ -42,7 +43,7 @@ let interpret path src =
 
     try
         Program.interpret
-        @@ { ir; loc; strings; storage_size }
+        @@ { ir; loc; strings; mem; storage_size }
     with Error (loc, msg) ->
         print_error (loc, msg);
         exit 4
@@ -65,12 +66,13 @@ let compile run path src =
 
     (* define "global" variables *)
     let strings = ref ""
+    and mem = Hashtbl.create 10
     and procs = Hashtbl.create 10
     and macros = Hashtbl.create 10
     and max_addr = ref (-1) in
     (* specialize functions *)
     let lex = lex path []
-    and parse = parse strings procs macros max_addr
+    and parse = parse strings mem procs macros max_addr
     and check = check procs macros in
     (* compile the program *)
     let loc, ir =
@@ -89,7 +91,7 @@ let compile run path src =
     and storage_size = !max_addr + 1
     in
 
-    { ir; loc; strings; storage_size };
+    { ir; loc; strings; mem; storage_size };
     |> to_fasm_x64_linux
     |> write_whole_file (filename ^ ".asm");
 
@@ -126,12 +128,13 @@ let print path src =
 
     (* define "global" variables *)
     let strings = ref ""
+    and mem = Hashtbl.create 10
     and procs = Hashtbl.create 10
     and macros = Hashtbl.create 10
     and max_addr = ref (-1) in
     (* specialize functions *)
     let lex = lex path []
-    and parse = parse strings procs macros max_addr in
+    and parse = parse strings mem procs macros max_addr in
     (* compile the program *)
     let _, ir =
         try
@@ -154,12 +157,13 @@ let print path src =
 let check path src =
     (* define "global" variables *)
     let strings = ref ""
+    and mem = Hashtbl.create 10
     and procs = Hashtbl.create 10
     and macros = Hashtbl.create 10
     and max_addr = ref (-1) in
     (* specialize functions *)
     let lex = lex path []
-    and parse = parse strings procs macros max_addr
+    and parse = parse strings mem procs macros max_addr
     and check = check procs macros in
     (* compile the program *)
     let () =
