@@ -1,1 +1,8 @@
+# ignore executables (all files without extension)
+*
+!*.*
+!*/
+
 _build/
+*.asm
+*.exe
