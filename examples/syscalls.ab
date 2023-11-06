@@ -3,11 +3,11 @@ include "core/stack.ab"
 
 mem buffer char 256 end
 
-puti write STDOUT "Hello via a syscall!\n" |>
-putc '\n' |>
+puti write STDOUT "Hello via a syscall!\n" ;
+putc '\n' ;
 
-drop write STDOUT "please enter your name:\n" |>
-read STDIN buffer 256 |>
+drop write STDOUT "please enter your name:\n" ;
+read STDIN buffer 256 ;
 
-drop write STDOUT "Your name is " |>
+drop write STDOUT "Your name is " ;
 puti write STDOUT buffer

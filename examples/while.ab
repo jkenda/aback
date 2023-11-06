@@ -1,7 +1,7 @@
 include "core/stack.ab"
 
 0 while < over 10 do
-    puti dup |>
-    putc ' ' |>
+    puti dup ;
+    putc ' ' ;
     + 1
 end drop

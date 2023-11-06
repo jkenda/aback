@@ -29,8 +29,8 @@ syn keyword abackFunc puts putc puti putf putb itof ftoi
 syn keyword abackOperator +  -  *  /  %
 syn keyword abackOperator +. -. *. /.
 syn keyword abackOperator = /= < > <= >=
-syn keyword abackOperator ->
-syn match   abackOperator '||\||>\||\|&&\|&'
+syn keyword abackOperator ; ;; ->
+syn match   abackOperator '||\||\|&&\|&'
 
 " Matches
 " Integer with - + or nothing in front

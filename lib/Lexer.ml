@@ -44,7 +44,7 @@ let read_lib_file included_from filename =
         raise @@ Error (loc, "Aback source files should have '.ab' extension"));
 
     let rec open_file = function
-        | [] -> raise @@ Failure (sprintf "cannot find file \"%s\"" filename)
+        | [] -> raise_notrace @@ Failure (sprintf "cannot find file \"%s\"" filename)
         | dir :: rest -> 
                 try
                     let f = open_in (dir ^ filename) in
@@ -116,7 +116,7 @@ let instr_of_word (loc, word) =
     let word =
         match word with
         | "include" -> Include
-        | "|>" -> Rev | "->" -> Return
+        | ";" -> Rev | "->" -> Return
         | "macro" -> Macro | "proc" -> Proc | "is" -> Is
         | "if" -> If | "then" -> Then | "else" -> Else | "end" -> End
         | "while" -> While | "do" -> Do

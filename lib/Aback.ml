@@ -191,26 +191,28 @@ let%expect_test _ =
 let%expect_test _ =
     interpret "[test]" {|
         macro put is
-            puti |> putc ' '
+            puti ; putc ' '
         end
-        put + 1  2 |> put - 7 13 |>
-        put * 7  3 |> put / 7  3 |>
+        put + 1  2 ; put - 7 13 ;
+        put * 7  3 ; put / 7  3 ;
         put % 7  3
     |};
     [%expect {| 3 -6 21 2 1 |}]
 
 let%expect_test _ =
     interpret "[test]" {|
+        include "core/io.ab"
+
         macro put. is
-            putf |> putc ' '
+            putf ; putc ' '
         end
-        put. +. 1.  2. |> put. -. 7. 13. |>
-        put. *. 7.  3. |> put. /. 7.  3.
+        put. +. 1.  2. ; put. -. 7. 13. ;
+        put. *. 7.  3. ; put. /. 7.  3.
     |};
     [%expect {| 3. -6. 21. 2.33333333333 |}]
 
 let%expect_test _ =
-    interpret "[test]" {| puts "Hello," |> puts " world!\n" |};
+    interpret "[test]" {| puts "Hello," ; puts " world!\n" |};
     [%expect {| Hello, world! |}]
 
 let%expect_test _ =
@@ -235,17 +237,19 @@ let%expect_test _ =
         (output a Fibonacci sequence up to LIMIT)
         1 0 while < over LIMIT do
             take a b in
-                puti a |>
+                puti a ;
                 + a b a
             end
             putc ' '
-        end 2drop |>
+        end 2drop ;
         puts "\n"
     |};
     [%expect {| 1 1 2 3 5 8 13 |}]
 
 let%expect_test _ =
     interpret "[test]" {|
+        include "core/io.ab"
+
         macro min
             a' a' -> a'
         is
@@ -254,8 +258,8 @@ let%expect_test _ =
             else b end
         end end
 
-        puti min 7  13   |> puts " " |>
-        putf min 7. 3.14 |> puts " " |>
+        puti min 7  13   ; puts " " ;
+        putf min 7. 3.14 ; puts " "
     |};
     [%expect {| 7 3.14 |}]
 

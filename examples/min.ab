@@ -14,5 +14,5 @@ take a b in
     else b end
 end end
 
-puti min 7  13   |> puts " " |>
-putf min 7. 3.14 |> puts " " |>
+puti min 7  13   ; puts " " ;
+putf min 7. 3.14 ; puts " " ;

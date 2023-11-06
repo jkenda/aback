@@ -1,3 +1,5 @@
+include "core/io.ab"
+
 macro min
     a' a' -> a'
 is
@@ -6,7 +8,7 @@ take a b in
     else b end
 end end
 
-puti min 7 13 |>
+puti min 7 13 ;
 (0: PUSH Int 13)
 (1: PUSH Int 7)
 (min ->)
@@ -20,11 +22,11 @@ puti min 7 13 |>
     (9: ELSE 11)
     (10: PUT 1)
 (11: PUTI)
-puts " " |>
+puts " " ;
 (12: PUSH Int 1)
 (13: PUSH Ptr 0)
 (14: PUT)
-putf min 7. 3.14 |>
+putf min 7. 3.14 ;
 (15: PUSH Float 3.14)
 (16: PUSH Float 7.)
 (min ->)
@@ -38,7 +40,7 @@ putf min 7. 3.14 |>
     (24: ELSE 26)
     (25: PUT 1)
 (26: PUTF)
-puts " " |>
+puts " " ;
 (27: PUSH Int 1)
 (28: PUSH Ptr 1)
 (29: PUTS)

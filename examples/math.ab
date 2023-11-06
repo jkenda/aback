@@ -1,6 +1,7 @@
 include "core/math.ab"
+include "core/io.ab"
 
-puti min 7  13  |> putc ' '  |>
-puti max 7  13  |> putc '\n' |>
-putf min 7. 13. |> putc ' '  |>
-putf max 7. 13. |> putc '\n' |>
+puti min 7  13  ; putc ' '  ;
+puti max 7  13  ; putc '\n' ;
+putf min 7. 13. ; putc ' '  ;
+putf max 7. 13. ; putc '\n' ;

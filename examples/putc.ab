@@ -8,13 +8,13 @@ end
 macro print-result
     ->
 is
-    add 7 6 |> puti
+    add 7 6 ; puti
 end
 
-puts "7 + 6 = " |>
-print-result |>
-putc ',' |>
-putc ' ' |>
-puts "14 = " |>
+puts "7 + 6 = " ;
+print-result ;
+putc ',' ;
+putc ' ' ;
+puts "14 = " ;
 puti 14
 

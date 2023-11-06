@@ -1,7 +1,7 @@
 
 # Aback
 Aback is a stack-oriented programming language that uses *Polish notation*. It is named after the [abacus](https://en.wikipedia.org/wiki/Abacus), an ancient calculating tool, and [Forth](https://en.wikipedia.org/wiki/Forth_%28programming_language%29), a *stack based* programming language that uses *reverse Polish notation*. The word *aback* is the opposite of *forth*, but in reality the languages are very similar.
-With the `|>` operator, we can achieve the most human-readable form, a combination of *Polish* and *reverse Polish* notation.
+With the `;` operator, we can achieve the most human-readable form, a combination of *Polish* and *reverse Polish* notation.
 
 # Getting started
 ## Installation
@@ -39,11 +39,11 @@ macro LIMIT is 100 end
 (output a Fibonacci sequence up to LIMIT)
 1 0 while < over LIMIT do
     take a b in
-        puti a |>
+        puti a ;
         + a b a
     end
     putc ' '
-end drop drop |>
+end drop drop ;
 puts "\n"
 ```
 
@@ -151,7 +151,7 @@ The words `1` and `0` push the numbers 0 and 1 onto the stack.
 ```
 takes two elements from the top of the stack - in this case 0 and 1 - and makes them available as variables.
 ```
-        puti a |>
+        puti a ;
 ```
 pushes the value of the variable `a` onto the stack and outputs it.
 ```
@@ -167,7 +167,7 @@ ends the scope of `take`.
 ```
 puts a space onto the stack and outputs it.
 ```
-end 2drop |>
+end 2drop ;
 ```
 ends the while loop and drops 2 elements from the stack.
 ```
@@ -187,9 +187,9 @@ PUTI
 ```
 Keep this in mind when manipulating the stack with such operators as `dup` and `over`. It is also useful to think of the *leftmost* element as the *top of the stack*.
 
-## The `|>` operator
+## The `;` operator
 Polish notation makes sense *inside* individual statements or when pushing multiple elements to the stack, but not so much *between* statements.
-The `|>` operator breaks blocks of Polish notation into reverse Polish notation.
+The `;` operator breaks blocks of Polish notation into reverse Polish notation.
 
 `1 2 3` expands to
 ```
@@ -197,7 +197,7 @@ The `|>` operator breaks blocks of Polish notation into reverse Polish notation.
 (PUSH (Int 2))
 (PUSH (Int 1))
 ```
-while `1 |> 2 3` expands to
+while `1 ; 2 3` expands to
 ```
 (PUSH (Int 1))
 (PUSH (Int 3))
@@ -206,7 +206,7 @@ while `1 |> 2 3` expands to
 The operator can be thought of as a *delimiter between statements*. For example
 ```
 $ cat examples/hello.ab
-puts "Hello," |>
+puts "Hello," ;
 puts " world!\n"
 
 $ aback int examples/hello.ab
@@ -219,7 +219,7 @@ These statements do *exactly what their names suggest*. `take` takes *n* element
 Variables can be defined using these statements like this:
 ```
 3.14 take pi in
-	putf pi |>
+	putf pi ;
 	putf * pi pi
 end
 ```

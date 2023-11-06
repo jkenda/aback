@@ -4,9 +4,9 @@ macro LIMIT is 100 end
 (output a Fibonacci sequence up to LIMIT)
 1 0 while < over LIMIT do
     take a b in
-        puti a |>
+        puti a ;
         + a b a
     end
     putc ' '
-end 2drop |>
+end 2drop ;
 puts "\n"

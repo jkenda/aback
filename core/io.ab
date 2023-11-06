@@ -18,7 +18,7 @@ macro putib
 is
     while > over 0 do
         take n in
-        puti % n 2 |>
+        puti % n 2 ;
         / n 2
         end
     end
@@ -35,15 +35,15 @@ is
     if < over 0. then
         putc '-'
         -. 0.
-    end |>
+    end ;
 
     (get the whole and the decimal part)
-    ftoi dup |>                 (whole float)
-    -. swap itof over over |>   (dec whole float)
-    drop -rot |>                (dec whole)
+    ftoi dup ;                 (whole float)
+    -. swap itof over over ;   (dec whole float)
+    drop -rot ;                (dec whole)
     take dec whole in
-        puti whole |>
-        putc '.' |>
+        puti whole ;
+        putc '.' ;
 
         (if the decimal part is non-zero then print it)
         if /= dec 0. then

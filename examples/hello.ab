@@ -1,2 +1,2 @@
-puts "Hello," |>
+puts "Hello," ;
 puts " world!\n"

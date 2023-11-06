@@ -15,7 +15,7 @@ while < over LIMIT do
     take a b in
 (8:  TAKE 0)
 (9:  TAKE 1)
-        puti a |>
+        puti a ;
 (10: PUT 0)
 (11: PUTI)
         + a b a
@@ -27,7 +27,7 @@ while < over LIMIT do
     putc ' '
 (16: PUSH (Char ' ')
 (17: PUTC)
-end drop drop |>
+end drop drop ;
 (18: END_WHILE 2)
 (drop -> 19: TAKE 0)
 (drop -> 20: TAKE 0)

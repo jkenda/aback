@@ -1,34 +1,34 @@
 include "core/stack.ab"
 
 0 while < over 10 do
-    puti dup |>
-    putc ' ' |>
+    puti dup ;
+    putc ' ' ;
     + 1
-end drop |>
-putc '\n' |>
+end drop ;
+putc '\n' ;
 
 0 while
     peek i in < i 10 end
 do
 peek i in
-    puti i |>
-    putc ' ' |>
+    puti i ;
+    putc ' ' ;
     + 1
 end end
 (10 --)
 
-puti swap 0 |>
-putc ' ' |>
+puti swap 0 ;
+putc ' ' ;
 (0 --)
 
 take a in
     puti a
 end
 
-putc '\n' |>
+putc '\n' ;
 
 7 13 take a b in
-    puti a |> putc ' ' |>
+    puti a ; putc ' ' ;
     puti b
 end
 
