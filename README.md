@@ -76,7 +76,7 @@ $ aback com examples/primes.ab -r
 ```
 
 You can use Linux system calls in the compiled version of the programs.
-See the [Syscall](#syscall) section for more information.
+See the [Syscalls](#syscalls) section for more information.
 
 ## `check`
 Aback always type checks the program before running it. With the `check` subcommand, we can *skip the running step*. Just type `aback check examples/fib.ab`. The program will output `OK.`
