@@ -54,7 +54,7 @@ If you run it with `aback int examples/fib.ab`, you will get the following outpu
 Check out other examples in the `examples/`directory.
 
 # Running the executable
-The `aback` executable has three modes: `int` `check` and `print`. In the future, there will also be a `com` mode, which will compile the program to a *native executable binary*.
+The `aback` executable has three modes: `int`, `com`, `check` and `print`.
 
 ## `int`
 As we've already seen, the `int` mode compiles the executable to an *intermediate representation* and interprets it.
@@ -62,6 +62,21 @@ Example:
 
 	$ aback int examples/fib.ab
 	1 1 2 3 5 8 13 21 34 55 89
+
+## `com`
+If you have an x64 Linux machine like me then you're in luck because you will be able to compile Aback code to a native executable. Just substitute `int` with `com` and your program will be compiled instead of interpreted.
+
+The compiler first output an assembly file and then compile it to machine code with [FASM](https://flatassembler.net/download.php), so you'll have to have it installed.
+
+You can add the option `-r` after the path to run the compiled binary directly after the execution.
+Example:
+
+```
+$ aback com examples/primes.ab -r
+```
+
+You can use Linux system calls in the compiled version of the programs.
+See the [Syscall](#syscall) section for more information.
 
 ## `check`
 Aback always type checks the program before running it. With the `check` subcommand, we can *skip the running step*. Just type `aback check examples/fib.ab`. The program will output `OK.`
@@ -272,4 +287,69 @@ macro add is + end
 Procedures aren't implemented yet.
 ```Ocaml
 raise @@ Not_implemented (loc, "Procs aren't implemented yet!")
+```
+
+## Global memory
+You can alocate global memory like this:
+
+```
+mem buffer char 256 end
+```
+This allocates a buffer of 256 chars with the name `buffer`.
+When you use the word `buffer` (the name of the memory space) in the program, a pointer to the memory is pushed onto the stack. Pointers are very limited as of now, but you can use them in system calls as seen in the `examples/syscalls.ab` example:
+
+```
+include "core/linux.ab"
+include "core/stack.ab"
+
+mem buffer char 256 end
+
+puti write STDOUT "Hello via a syscall!\n" ;
+putc '\n' ;
+
+drop write STDOUT "please enter your name:\n" ;
+read STDIN buffer 256 ;
+
+drop write STDOUT "Your name is " ;
+puti write STDOUT buffer
+```
+
+## Syscalls
+Linux system calls are available when compiling the program. They are available through the `syscall` word.
+Example of a raw syscall:
+
+```
+syscall 0 57
+```
+
+This calls the `fork` syscall which accepts no arguments, that's why we call it with `0` after the `syscall`.
+Aback provides ways to manage syscalls more easily in the core library: `core/linux.ab`.
+There you will find definitions of syscall names as well as some functions and other constants.
+
+This means we can call `fork` in a more readable way with
+
+```
+syscall 0 SYS_fork
+```
+.
+
+`read`, `write`, `open` and `close` syscalls also have special wrapper functions so you can substitute
+
+```
+syscall 3 1 1 "hello"
+```
+```
+write STDOUT "hello"
+```
+
+
+`write` is implemented as
+
+```
+macro write
+    int ptr int (fd string)
+    -> int
+is
+    syscall 3 SYS_write
+end
 ```
