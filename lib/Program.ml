@@ -48,6 +48,7 @@ type ir =
     | WHILE of int | DO of int | END_WHILE of int
     | PEEK of int * int | TAKE of int
     | PUT of int
+    | LOAD of typ | STORE of typ
     | FN of string | FN_END
 [@@deriving show { with_path = false }]
 
@@ -139,6 +140,9 @@ let interpret program =
                 in
                 storage.(addr) <- data; stack, ip + 1
         | PUT addr -> storage.(addr) :: stack, ip + 1
+
+        | LOAD  _t -> raise_notrace @@ Not_implemented (program.loc.(ip), "LOAD")
+        | STORE _t -> raise_notrace @@ Not_implemented (program.loc.(ip), "STORE")
 
         | PUSH d -> d :: stack, ip + 1
 

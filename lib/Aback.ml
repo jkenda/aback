@@ -24,7 +24,7 @@ let interpret path src =
     (* specialize functions *)
     let lex = lex path []
     and parse = parse strings mem procs macros max_addr
-    and check = check procs macros in
+    and check = check procs macros mem in
     (* compile the program *)
     let loc, ir =
         try
@@ -73,7 +73,7 @@ let compile run path src =
     (* specialize functions *)
     let lex = lex path []
     and parse = parse strings mem procs macros max_addr
-    and check = check procs macros in
+    and check = check procs macros mem in
     (* compile the program *)
     let loc, ir =
         try
@@ -86,7 +86,7 @@ let compile run path src =
             |> Array.split
         with Error (loc, msg) ->
             print_error (loc, msg);
-            exit 5
+            exit 6
     and strings = !strings
     and storage_size = !max_addr + 1
     in
@@ -164,7 +164,7 @@ let check path src =
     (* specialize functions *)
     let lex = lex path []
     and parse = parse strings mem procs macros max_addr
-    and check = check procs macros in
+    and check = check procs macros mem in
     (* compile the program *)
     let () =
         try

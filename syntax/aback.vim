@@ -29,8 +29,8 @@ syn keyword abackFunc puts putc puti putf putb itof ftoi
 syn keyword abackOperator +  -  *  /  %
 syn keyword abackOperator +. -. *. /.
 syn keyword abackOperator = /= < > <= >=
-syn keyword abackOperator ; ;; ->
-syn match   abackOperator '||\||\|&&\|&'
+syn keyword abackOperator ; ;; -> :=
+syn match   abackOperator '||\||\|&&\|&\|\[\]'
 
 " Matches
 " Integer with - + or nothing in front
@@ -47,7 +47,8 @@ syn region abackWhileBlock  start='do'   end='end'  fold transparent
 syn region abackPeekBlock   start='in'   end='end'  fold transparent
 syn region abackFuncBlock   start='is'   end='end'  fold transparent
  
-syn region abackString  start='"' end='"'
+syn region abackString  start='"'  end='"'
+syn region abackString  start='c"' end='"'
 syn region abackComment start="(" end=")"
 
 let b:current_syntax = "aback"

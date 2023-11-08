@@ -19,7 +19,7 @@ type prep =
     | If | Then | Else | End_if
     | While | Do | End_while
     | Peek | Take | In | End_peek
-    | Mem | Assign
+    | Mem | Index | Assign
     | End
 
     | Eq | NEq | Lt | LEq | Gt | GEq
@@ -53,7 +53,7 @@ let print_prep = function
     | If -> "if" | Then -> "then" | Else -> "else" | End_if -> "end"
     | While -> "while" | Do -> "do" | End_while -> "end"
     | Peek -> "peek" | Take -> "take" | In -> "in" | End_peek -> "end"
-    | Mem -> "mem" | Assign -> ":="
+    | Mem -> "mem" | Index -> "[]" | Assign -> ":="
 
     | Eq -> "=" | NEq -> "!=" | Lt -> "<" | LEq -> "<=" | Gt -> ">" | GEq -> ">="
 
@@ -155,7 +155,7 @@ and preprocess words =
 
                 | Type t -> Type t
 
-                | Assign -> Assign | Return -> Return
+                | Assign -> Assign | Index -> Index | Return -> Return
                 | Eq -> Eq | NEq -> NEq | Lt -> Lt | LEq -> LEq | Gt -> Gt | GEq -> GEq
                 | Add -> Add | FAdd -> FAdd
                 | Sub -> Sub | FSub -> FSub

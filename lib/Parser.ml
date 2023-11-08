@@ -209,8 +209,58 @@ let rec parse strings mem procs macros max_addr words =
         | (_, Mem) :: (_, Word name) :: (_, Type t) :: (_, Push Int size) :: (_, End) :: tl ->
                 Hashtbl.add mem name (t, size);
                 parse' (top, rest) tl
+        | (_, Mem) :: (_, Word name) :: (_, Type t) :: (loc, Word size) :: (_, End) :: tl
+            when Hashtbl.mem macros size ->
+                let size =
+                    match Hashtbl.find_opt macros size with
+                    | Some { seq = [_, Push Int size]; _ } -> size
+                    | _ -> raise @@ Error (loc, "size has to be of constant value")
+                in
+                Hashtbl.add mem name (t, size);
+                parse' (top, rest) tl
         | (loc, Mem) :: _ ->
                 raise @@ Error (loc, sprintf "usage: mem <name> <type> <size> end")
+
+        | (li, Index) :: (ln, Word name) :: tl when Hashtbl.mem mem name ->
+                let t, addr = Hashtbl.find mem name in
+                let size =
+                    match t with
+                    | Char -> 1
+                    | _ -> 8
+                in
+                let instrs = [
+                   li, PUSH (Int size);
+                   li, MUL;
+                   ln, PUSH (Local_ptr ("mem_" ^ name, addr));
+                   li, ADD;
+                   li, LOAD t
+                ] in
+                parse' (instrs @ top, rest) tl
+        | (la, Assign) :: (li, Index) :: (ln, Word name) :: tl when Hashtbl.mem mem name ->
+                let t, addr = Hashtbl.find mem name in
+                let size =
+                    match t with
+                    | Char -> 1
+                    | _ -> 8
+                in
+                let instrs = [
+                   li, PUSH (Int size);
+                   li, MUL;
+                   ln, PUSH (Local_ptr ("mem_" ^ name, addr));
+                   li, ADD;
+                   la, STORE t
+                ] in
+                parse' (instrs @ top, rest) tl
+        | (_, Index) :: (ln, Word name) :: _ ->
+                let mem = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) mem "" in
+                raise @@ Error (ln, sprintf "unknown mem: %s. available: %s" name mem)
+        | (_, Assign) :: (_, Index) :: (ln, Word name) :: _ ->
+                let mem = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) mem "" in
+                raise @@ Error (ln, sprintf "unknown mem: %s. available: %s" name mem)
+        | (loc, Index) :: _ ->
+                raise @@ Error (loc, "expected [] <mem> <index>")
+        | (loc, Assign) :: _ ->
+                raise @@ Error (loc, "expected := [] <mem> <index>")
 
         | (_, Rev) :: tl -> parse' ([], top :: rest) tl
         

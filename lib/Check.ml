@@ -11,7 +11,7 @@ let loc_id = {
     row = 1; col = 1
 }
 
-let check procs macros program =
+let check procs macros mem program =
     (* get top n elements of the stack *)
     let rec get_top list = function
         | 0 -> []
@@ -91,7 +91,8 @@ let check procs macros program =
                 let diff = Hashtbl.find stack_sizes id in
                 Hashtbl.remove stack_sizes id;
                 if diff = stack_size - (Hashtbl.find stack_sizes id) then stack_size
-                else raise @@ Error (loc, "branches have different stack sizes")
+                else raise @@ Error (loc,
+                    sprintf "branches have different stack sizes: %d %d" stack_size (stack_size - diff))
 
         | WHILE id ->
                 Hashtbl.replace stack_sizes id stack_size; stack_size
@@ -125,6 +126,9 @@ let check procs macros program =
                 | Some () -> stack_size + 1
                 | None -> raise @@ Error (loc,
                         sprintf "nothing storeed at this address"))
+
+        | LOAD  _ -> stack_size - 1
+        | STORE _ -> stack_size - 3
 
         | PUSH _ -> stack_size + 1
 
@@ -232,8 +236,12 @@ let check procs macros program =
                         Hashtbl.add stack_tops id (get_top stack diff);
                         remove_top stack diff, stack_size - diff
             | END_IF id when (try Hashtbl.find elseless id with Not_found -> true) ->
-                    if stack_size = Hashtbl.find stack_sizes id then s 
-                    else raise @@ Error (loc, "Cannot grow or shrink stack inside elseless if.")
+                    let diff = stack_size - Hashtbl.find stack_sizes id in
+                    if diff = 0 then s 
+                    else
+                        let action = if diff > 0 then "grow" else "shrink" in
+                        raise @@ Error (loc,
+                            sprintf "cannot %s stack inside elseless if." action)
             | END_IF id ->
                     let diff = Hashtbl.find stack_sizes id in
                     Hashtbl.remove stack_sizes id;
@@ -243,7 +251,8 @@ let check procs macros program =
                         | Some ((l1, a), (l2, b)) -> raise @@ Error (loc,
                             sprintf "Branches have different types on stack:\n\t%s (%s)\n\t%s (%s)."
                             (print_prep a) (print_location l1) (print_prep b) (print_location l2))
-                    else raise @@ Error (loc, "branches have different stack sizes")
+                    else raise @@ Error (loc,
+                        sprintf "branches have different stack sizes: %d %d" stack_size (stack_size - diff))
 
             | WHILE id ->
                     Hashtbl.replace stack_sizes id stack_size; s
@@ -292,6 +301,25 @@ let check procs macros program =
                     Hashtbl.replace storage addr data; stack, stack_size - 1
             | PUT addr -> (loc, Hashtbl.find storage addr) :: stack, stack_size + 1
 
+            | LOAD t ->
+                    (match stack with
+                    | (_, Type Ptr) :: tl -> (loc, Type t) :: tl, stack_size
+                    | (_, a) :: (_, b) :: _ -> raise @@ Error (loc,
+                            sprintf "expected Ptr Int (pointer to memory and index), got %s %s"
+                            (print_prep a) (print_prep b))
+                    | (_, a) ::  _ -> raise @@ Error (loc,
+                            sprintf "expected Ptr Int, got %s" (print_prep a))
+                    | _ -> raise @@ Error (loc, "not enough elements on the stack"))
+            | STORE _ ->
+                    (match stack with
+                    | (_, Type Ptr) :: _ :: tl -> tl, stack_size - 2
+                    | (_, a) :: (_, b) :: _ -> raise @@ Error (loc,
+                            sprintf "expected Ptr Int (pointer to memory and index), got %s %s"
+                            (print_prep a) (print_prep b))
+                    | (_, a) ::  _ -> raise @@ Error (loc,
+                            sprintf "expected Ptr Int, got %s" (print_prep a))
+                    | _ -> raise @@ Error (loc, "not enough elements on the stack"))
+
             | PUSH d -> (loc, prep_of_data d) :: stack, stack_size + 1
 
             | SYSCALL n ->
@@ -303,7 +331,28 @@ let check procs macros program =
                     in
                     (loc, Type Int) :: remove_n (n + 1, stack), stack_size - n
 
-            | ADD | SUB | MUL | DIV | MOD
+            | ADD ->
+                    (match stack with
+                    | (_, Type Int) :: (_, Type Int) :: tl -> (loc, Type Int) :: tl, stack_size - 1
+                    | (_, Type Ptr) :: (_, Type Int) :: tl -> (loc, Type Ptr) :: tl, stack_size - 1
+                    | (_, a) :: (_, b) :: _ -> raise @@ Error (loc,
+                            sprintf "expected Int Int or Ptr Int, got %s %s; operator is not generic"
+                            (print_prep a) (print_prep b))
+                    | (_, a) ::  _ -> raise @@ Error (loc,
+                            sprintf "expected Int Int, got %s" (print_prep a))
+                    | _ -> raise @@ Error (loc, "not enough elements on the stack"))
+            | SUB ->
+                    (match stack with
+                    | (_, Type Int) :: (_, Type Int) :: tl -> (loc, Type Int) :: tl, stack_size - 1
+                    | (_, Type Ptr) :: (_, Type Ptr) :: tl -> (loc, Type Int) :: tl, stack_size - 1
+                    | (_, a) :: (_, b) :: _ -> raise @@ Error (loc,
+                            sprintf "expected Int Int, got %s %s; operator is not generic"
+                            (print_prep a) (print_prep b))
+                    | (_, a) ::  _ -> raise @@ Error (loc,
+                            sprintf "expected Int Int, got %s" (print_prep a))
+                    | _ -> raise @@ Error (loc, "not enough elements on the stack"))
+
+            | MUL | DIV | MOD
             | BAND | BOR | BXOR | LSL | LSR ->
                     (match stack with
                     | (_, Type Int) :: (_, Type Int) :: tl -> (loc, Type Int) :: tl, stack_size - 1
@@ -386,7 +435,6 @@ let check procs macros program =
         | Typed (t_in, t_out) ->
             let stack, t_out =
                 let strings = ref ""
-                and mem = Hashtbl.create 10
                 and max_addr = ref 0 in
                 let parse =
                     parse strings mem procs macros max_addr

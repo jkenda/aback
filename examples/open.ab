@@ -1,0 +1,17 @@
+include "core/linux.ab"
+include "core/stack.ab"
+
+mem buffer char 64 end
+
+open c"examples/open.ab" O_RDONLY (fd)
+
+peek fd in
+    read fd buffer 64 (len fd)
+    while > over 0 do
+        drop write STDOUT buffer ; (fd)
+        read fd buffer 64        ; (len fd)
+    end
+    drop (fd)
+end
+
+drop close

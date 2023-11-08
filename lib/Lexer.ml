@@ -86,7 +86,7 @@ type word =
     | If | Then | Else
     | While | Do (* while ... end *)
     | Peek | Take | In (* peek ... end, take ... end *)
-    | Mem | Assign
+    | Mem | Index | Assign
 
     | Eq | NEq | Lt | LEq | Gt | GEq
 
@@ -121,7 +121,7 @@ let instr_of_word (loc, word) =
         | "if" -> If | "then" -> Then | "else" -> Else | "end" -> End
         | "while" -> While | "do" -> Do
         | "peek" -> Peek | "take" -> Take | "in" -> In
-        | "mem" -> Mem | ":=" -> Assign
+        | "mem" -> Mem | "[]" -> Index | ":=" -> Assign
 
         | "int" -> Type Int | "float" -> Type Float
         | "char" -> Type Char | "ptr" -> Type Ptr

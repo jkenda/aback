@@ -41,10 +41,13 @@ is
     ftoi dup ;                 (whole float)
     -. swap itof over over ;   (dec whole float)
     drop -rot ;                (dec whole)
-    take dec whole in
-        puti whole ;
-        putc '.' ;
 
+    (print the whole part)
+    puti swap ; (dec)
+    putc '.'  ;
+
+    (print the decimal part)
+    take dec in
         (if the decimal part is non-zero then print it)
         if /= dec 0. then
             (dec *= 10^$float_prec$)

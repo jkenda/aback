@@ -308,6 +308,25 @@ let to_fasm_x64_linux program =
                 in
                 sprintf "\tpush %s\n" loc
 
+        | LOAD t ->
+                "\t; " ^ show_ir instr ^ "\n" ^
+                let size =
+                    match t with
+                    | Char -> "word"
+                    | _    -> "qword"
+                in
+                "\tpop rax\n" ^
+                sprintf "\tpush %s [rax]\n" size
+        | STORE t ->
+                "\t; " ^ show_ir instr ^ "\n" ^
+                let size =
+                    match t with
+                    | Char -> "word"
+                    | _    -> "qword"
+                in
+                "\tpop rax\n" ^
+                sprintf "\tpop %s [rax]\n" size
+
         | PUSH d ->
                 "\t; " ^ show_ir instr ^ "\n" ^
                 (match d with

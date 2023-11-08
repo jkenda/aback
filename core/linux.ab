@@ -404,7 +404,7 @@ macro STDERR is 2 end
 (specialized functions)
 
 macro read
-    int ptr int (fd string)
+    int ptr int (fd buf bufsiz)
     -> int
 is
     syscall 3 SYS_read
@@ -428,4 +428,10 @@ macro close
     int -> int (fd -> err)
 is
     syscall 1 SYS_close
+end
+
+macro exit
+    int -> int (fd -> err)
+is
+    syscall 1 SYS_exit
 end
