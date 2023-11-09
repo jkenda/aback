@@ -36,8 +36,18 @@ puts_loop:
 
     ; flush on newline
     cmp dil, 10
-    je flush
+    je puts_flush
 
+    ; flush if full
+    cmp [wblen], wbsiz
+    jge puts_flush
+
+    jmp puts_inc
+
+puts_flush:
+    call flush
+
+puts_inc:
     inc rsi
     inc rcx
     jmp puts_loop
@@ -269,27 +279,25 @@ let to_fasm_x64_linux program =
                     if addr < 6 then sprintf "r1%d" addr
                     else "rax" 
                 in
-                [
-                    [sprintf "mov %s, [rsp + 8 * %d]" reg depth];
-                    if addr >= 6 then [sprintf "mov  [vars + 8 * %d], rax" (addr - 6)]
-                    else []
-                ]
+                    ["mov"; sprintf "%s, [rsp + 0x%x]" reg (8 * depth)] ::
+                        if addr >= 6 then [["mov"; sprintf "[vars + 0x%x], rax" (8 * (addr - 6))]]
+                        else []
         | TAKE addr ->
                 (* "; " ^ show_ir instr ^ "" ^ *)
                 let addr = program.storage_size - addr in
                 let loc =
                     if addr < 6 then sprintf "r1%d" addr
-                    else sprintf "[vars + 8 * %d]" (addr - 6)
+                    else sprintf "[vars + 0x%x]" (8 * (addr - 6))
                 in
-                [ ["pop"; loc] ]
+                [["pop"; loc]]
         | PUT  addr ->
                 (* "; " ^ show_ir instr ^ "" ^ *)
                 let addr = program.storage_size - addr in
                 let loc =
                     if addr < 6 then sprintf "r1%d" addr
-                    else sprintf "[vars + 8 * %d]" (addr - 6)
+                    else sprintf "[vars + 0x%x]" (8 * (addr - 6))
                 in
-                [ ["push"; loc] ]
+                [["push"; loc]]
 
         | LOAD t ->
                 (* "; " ^ show_ir instr ^ "" ^ *)
@@ -363,7 +371,7 @@ let to_fasm_x64_linux program =
         | AND | OR as op -> bool_op op
         | (PUTC | PUTS | PUTI) as op -> put op) :: acc
     in
-    let rec opti instrs =
+    let rec opti passes instrs =
         let rec opti' acc = function
             | [] -> List.rev acc
             | ["push"; a] :: ["pop"; b] :: tl when a = b -> opti' acc tl
@@ -372,19 +380,22 @@ let to_fasm_x64_linux program =
                     opti' ([op; c; ","; b] :: ["mov"; c; ","; a] :: acc) tl
             | instr :: instrs -> opti' (instr :: acc) instrs
         in
-        let pass = opti' [] instrs in
-        if pass = instrs then instrs else opti pass
+        let next_pass = opti' [] instrs in
+        if next_pass = instrs then passes, instrs
+        else opti (passes + 1) next_pass
     in
 
-    let instrs =
+    let passes, instrs =
         Array.fold_left compile' [] (Array.combine program.loc program.ir)
         |> List.rev
         |> List.flatten
-        |> opti
+        |> opti 1
     in
+    printf "optimization: %d passes\n%!" passes;
     List.iter (function
         | [instr] when String.ends_with ~suffix:":" instr ->
-                Buffer.add_string buffer instr; Buffer.add_char buffer '\n'
+                Buffer.add_string buffer instr;
+                Buffer.add_char buffer '\n'
         | instr :: data ->
                 Buffer.add_char buffer '\t';
                 Buffer.add_string buffer (sprintf "%-4s " instr);
@@ -397,7 +408,6 @@ let to_fasm_x64_linux program =
         ) instrs;
     Buffer.add_string buffer footer;
     add_strings buffer program.strings;
-    Buffer.add_string buffer @@ sprintf "vars rq %d\n" program.storage_size;
     Hashtbl.iter (fun name (typ, space) ->
         let typ_to_str = function
             | (Char : typ) -> "rb"
@@ -405,6 +415,7 @@ let to_fasm_x64_linux program =
         in
         Buffer.add_string buffer @@ sprintf "mem_%s %s %d\n" name (typ_to_str typ) space;
     ) program.mem;
+    Buffer.add_string buffer @@ sprintf "vars rq %d\n" program.storage_size;
     Buffer.add_string buffer "wblen dq 0\n";
     Buffer.add_string buffer "writebuf rb wbsiz\n";
 
