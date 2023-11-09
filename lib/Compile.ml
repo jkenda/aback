@@ -341,9 +341,12 @@ let to_fasm_x64_linux program =
                 | Bool true -> [["push"; "1"]]
                 | Bool false -> [["push"; "0"]]
                 | Char c -> [["push"; string_of_int @@ int_of_char c]]
-                | Local_ptr (space, off) -> [
-                    ["lea"; sprintf "rax, [%s + %d]" space off];
-                    ["push"; "rax"]])
+                | Local_ptr (space, off) ->
+                        if off = 0 then [
+                            ["push"; space]]
+                        else [
+                            ["lea"; sprintf "rax, [%s + %d]" space off];
+                            ["push"; "rax"]])
 
         | SYSCALL nargs ->
                 (* "; " ^ show_ir instr ^ "" ^ *)
@@ -378,6 +381,7 @@ let to_fasm_x64_linux program =
             | ["push"; a] :: ["push"; b] :: ["pop"; c] :: ["pop"; d] :: [op; e; ","; f] :: tl
                 when c = e && d = f ->
                     opti' ([op; c; ","; b] :: ["mov"; c; ","; a] :: acc) tl
+            | ["push"; a] :: ["pop"; b] :: tl -> opti' (["mov"; b; ","; a] :: acc) tl
             | instr :: instrs -> opti' (instr :: acc) instrs
         in
         let next_pass = opti' [] instrs in
