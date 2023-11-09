@@ -375,6 +375,7 @@ let to_fasm_x64_linux program =
     let rec opti passes instrs =
         let rec opti' acc = function
             | [] -> List.rev acc
+            (* load/store *)
             | ["mov"; "rax"; ","; off] :: ["imul"; "rax"; ","; mul] :: ["add"; "rax"; ","; addr] :: tl
                 when not (String.starts_with ~prefix:"[" off ||
                           String.starts_with ~prefix:"[" mul ||
@@ -386,12 +387,23 @@ let to_fasm_x64_linux program =
                     opti' (["pop"; addr] :: acc) tl
             | ["lea"; "rax"; ","; addr] :: ["mov"; a; ","; "qword [rax]"] :: tl ->
                     opti' (["mov"; a; ","; addr] :: acc) tl
+            (* arith. operations *)
             | ["push"; a] :: ["push"; b] :: ["pop"; c] :: ["pop"; d] :: [op; e; ","; f] :: tl
                 when a = c && c = e && d = f ->
                     opti' ([op; c; ","; b] :: acc) tl
             | ["push"; a] :: ["push"; b] :: ["pop"; c] :: ["pop"; d] :: [op; e; ","; f] :: tl
                 when c = e && d = f ->
                     opti' ([op; c; ","; b] :: ["mov"; c; ","; a] :: acc) tl
+            | ["push"; a] :: ("mov" :: "rax" :: _ as mova) :: ["pop"; "rbx"] ::
+              (["xor rcx, rcx"] as xor) :: (["cmp rax, rbx"] as cmp) ::
+              ([s] as set) :: tl when String.starts_with ~prefix:"set" s && String.ends_with ~suffix:"cl" s ->
+                    let instrs = List.rev [
+                        mova;
+                        ["mov"; "rbx"; ","; a];
+                        xor; cmp; set
+                    ] in
+                    opti' (instrs @ acc) tl
+            (* push-pop *)
             | ["push"; a] :: ["pop"; b] :: tl when a = b -> opti' acc tl
             | ["push"; a] :: ["pop"; b] :: tl -> opti' (["mov"; b; ","; a] :: acc) tl
             | instr :: instrs -> opti' (instr :: acc) instrs
