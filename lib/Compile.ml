@@ -279,7 +279,7 @@ let to_fasm_x64_linux program =
                     if addr < 6 then sprintf "r1%d" addr
                     else "rax" 
                 in
-                    ["mov"; sprintf "%s, [rsp + 0x%x]" reg (8 * depth)] ::
+                    ["mov"; reg; ","; sprintf "[rsp + 0x%x]" (8 * depth)] ::
                         if addr >= 6 then [["mov"; sprintf "[vars + 0x%x], rax" (8 * (addr - 6))]]
                         else []
         | TAKE addr ->
@@ -334,7 +334,7 @@ let to_fasm_x64_linux program =
                 | Float f ->
                         let i = Int64.of_nativeint @@ Obj.raw_field (Obj.repr f) 0 in
                         if i > (Int64.of_int 0xFF) then [
-                            [sprintf "mov rax, %s" (Int64.to_string i)];
+                            [sprintf "mov"; "rax"; ","; (Int64.to_string i)];
                             ["push"; "rax"]]
                         else [
                             [sprintf "push"; Int64.to_string i]]
@@ -375,10 +375,24 @@ let to_fasm_x64_linux program =
     let rec opti passes instrs =
         let rec opti' acc = function
             | [] -> List.rev acc
-            | ["push"; a] :: ["pop"; b] :: tl when a = b -> opti' acc tl
+            | ["mov"; "rax"; ","; off] :: ["imul"; "rax"; ","; mul] :: ["add"; "rax"; ","; addr] :: tl
+                when not (String.starts_with ~prefix:"[" off ||
+                          String.starts_with ~prefix:"[" mul ||
+                          String.starts_with ~prefix:"[" addr) ->
+                    opti' (["lea"; "rax"; ","; sprintf "[%s + %s * %s]" addr off mul] :: acc) tl
+            | ["lea"; "rax"; ","; addr] :: ["push"; "qword [rax]"] :: tl ->
+                    opti' (["push"; addr] :: acc) tl
+            | ["lea"; "rax"; ","; addr] :: ["pop"; "qword [rax]"] :: tl ->
+                    opti' (["pop"; addr] :: acc) tl
+            | ["lea"; "rax"; ","; addr] :: ["mov"; a; ","; "qword [rax]"] :: tl ->
+                    opti' (["mov"; a; ","; addr] :: acc) tl
+            | ["push"; a] :: ["push"; b] :: ["pop"; c] :: ["pop"; d] :: [op; e; ","; f] :: tl
+                when a = c && c = e && d = f ->
+                    opti' ([op; c; ","; b] :: acc) tl
             | ["push"; a] :: ["push"; b] :: ["pop"; c] :: ["pop"; d] :: [op; e; ","; f] :: tl
                 when c = e && d = f ->
                     opti' ([op; c; ","; b] :: ["mov"; c; ","; a] :: acc) tl
+            | ["push"; a] :: ["pop"; b] :: tl when a = b -> opti' acc tl
             | ["push"; a] :: ["pop"; b] :: tl -> opti' (["mov"; b; ","; a] :: acc) tl
             | instr :: instrs -> opti' (instr :: acc) instrs
         in
@@ -391,7 +405,7 @@ let to_fasm_x64_linux program =
         Array.fold_left compile' [] (Array.combine program.loc program.ir)
         |> List.rev
         |> List.flatten
-        |> opti 1
+        |> opti 0
     in
     printf "optimization: %d passes\n%!" passes;
     List.iter (function
