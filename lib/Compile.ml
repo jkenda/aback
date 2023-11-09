@@ -168,17 +168,17 @@ let to_fasm_x64_linux program =
                 [["pop"; "rax"]] @
                 [["pop"; "rcx"]] @
                 (match op with
-                | ADD -> [["add  rax, rcx"]]
-                | SUB -> [["sub  rax, rcx"]]
-                | MUL -> [["imul rax, rcx"]]
+                | ADD -> [["add";  "rax"; ","; "rcx"]]
+                | SUB -> [["sub";  "rax"; ","; "rcx"]]
+                | MUL -> [["imul"; "rax"; ","; "rcx"]]
                 | DIV | MOD ->
                         [["cdq"];
-                        ["idiv rcx"]]
-                | BAND -> [["and  rax, rcx"]]
-                | BXOR -> [["or   rax, rcx"]]
-                | BOR  -> [["xor  rax, rcx"]]
-                | LSL  -> [["shl  rax, cl" ]]
-                | LSR  -> [["shr  rax, cl" ]]
+                        ["idiv"; "rcx"]]
+                | BAND -> [["and"; "rax"; ","; "rcx"]]
+                | BXOR -> [["or "; "rax"; ","; "rcx"]]
+                | BOR  -> [["xor"; "rax"; ","; "rcx"]]
+                | LSL  -> [["shl"; "rax"; ","; "cl" ]]
+                | LSR  -> [["shr"; "rax"; ","; "cl" ]]
                 | _ -> raise @@ Unreachable (show_ir op)) @
                 match op with
                 | MOD -> [["push"; "rdx"]]
@@ -281,7 +281,7 @@ let to_fasm_x64_linux program =
                     if addr < 6 then sprintf "r1%d" addr
                     else sprintf "[vars + 8 * %d]" (addr - 6)
                 in
-                [ [sprintf "pop  %s" loc] ]
+                [ ["pop"; loc] ]
         | PUT  addr ->
                 (* "; " ^ show_ir instr ^ "" ^ *)
                 let addr = program.storage_size - addr in
@@ -289,7 +289,7 @@ let to_fasm_x64_linux program =
                     if addr < 6 then sprintf "r1%d" addr
                     else sprintf "[vars + 8 * %d]" (addr - 6)
                 in
-                [ [sprintf "push %s" loc] ]
+                [ ["push"; loc] ]
 
         | LOAD t ->
                 (* "; " ^ show_ir instr ^ "" ^ *)
@@ -300,7 +300,7 @@ let to_fasm_x64_linux program =
                 in
                 [
                     ["pop"; "rax"];
-                    [sprintf "push %s [rax]" size]
+                    ["push"; size ^ " [rax]"]
                 ]
         | STORE t ->
                 (* "; " ^ show_ir instr ^ "" ^ *)
@@ -311,7 +311,7 @@ let to_fasm_x64_linux program =
                 in
                 [
                     ["pop"; "rax"];
-                    [sprintf "pop %s [rax]" size]
+                    [sprintf "pop"; size ^ " [rax]"]
                 ]
 
         | PUSH d ->
@@ -319,7 +319,7 @@ let to_fasm_x64_linux program =
                 (match d with
                 | Int i ->
                         if i > 0xFF then [
-                            [sprintf "mov rax, %d" i];
+                            ["mov"; "rax"; ","; string_of_int i];
                             ["push"; "rax"]]
                         else [
                             ["push"; string_of_int i]]
@@ -330,20 +330,20 @@ let to_fasm_x64_linux program =
                             ["push"; "rax"]]
                         else [
                             [sprintf "push"; Int64.to_string i]]
-                | Bool true -> [["push 1"]]
-                | Bool false -> [["push 0"]]
+                | Bool true -> [["push"; "1"]]
+                | Bool false -> [["push"; "0"]]
                 | Char c -> [["push"; string_of_int @@ int_of_char c]]
                 | Local_ptr (space, off) -> [
                     ["lea"; sprintf "rax, [%s + %d]" space off];
-                    ["push rax"]])
+                    ["push"; "rax"]])
 
         | SYSCALL nargs ->
                 (* "; " ^ show_ir instr ^ "" ^ *)
                 [
-                    ["pop rax"];
+                    ["pop"; "rax"];
                     pop_syscall_regs loc nargs ::
                     ["syscall"];
-                    ["push rax"]
+                    ["push"; "rax"]
                 ]
 
         | ITOF -> [
@@ -363,14 +363,33 @@ let to_fasm_x64_linux program =
         | AND | OR as op -> bool_op op
         | (PUTC | PUTS | PUTI) as op -> put op) :: acc
     in
+    let rec opti instrs =
+        let rec opti' acc = function
+            | [] -> List.rev acc
+            | ["push"; a] :: ["pop"; b] :: tl when a = b -> opti' acc tl
+            | ["push"; a] :: ["push"; b] :: ["pop"; c] :: ["pop"; d] :: [op; e; ","; f] :: tl
+                when c = e && d = f ->
+                    opti' ([op; c; ","; b] :: ["mov"; c; ","; a] :: acc) tl
+            | instr :: instrs -> opti' (instr :: acc) instrs
+        in
+        let pass = opti' [] instrs in
+        if pass = instrs then instrs else opti pass
+    in
+
     let instrs =
         Array.fold_left compile' [] (Array.combine program.loc program.ir)
         |> List.rev
         |> List.flatten
+        |> opti
     in
     List.iter (function
         | [instr] when String.ends_with ~suffix:":" instr ->
                 Buffer.add_string buffer instr; Buffer.add_char buffer '\n'
+        | instr :: data ->
+                Buffer.add_char buffer '\t';
+                Buffer.add_string buffer (sprintf "%-4s " instr);
+                List.iter (fun word -> Buffer.add_string buffer word; Buffer.add_char buffer ' ') data;
+                Buffer.add_char buffer '\n'
         | instr ->
                 Buffer.add_char buffer '\t';
                 List.iter (fun word -> Buffer.add_string buffer word; Buffer.add_char buffer ' ') instr;
