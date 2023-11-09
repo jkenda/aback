@@ -126,10 +126,10 @@ let pop_syscall_regs loc n =
     let rec get' acc = function
         | n, _ when n < 0 -> raise @@ Error (loc, "syscall number must be > 0")
         | _, [] -> raise @@ Error (loc, "syscall number too large")
-        | 0, _ -> acc
-        | n, r :: tl -> get' (acc ^ sprintf "pop %s" r) (n - 1, tl)
+        | 0, _ -> List.rev acc
+        | n, r :: tl -> get' (["pop"; r] :: acc) (n - 1, tl)
     in
-    get' "" (n, arg_regs)
+    get' [] (n, arg_regs)
 
 let add_strings buffer strings =
     Buffer.add_string buffer "strs db \"";
@@ -350,12 +350,10 @@ let to_fasm_x64_linux program =
 
         | SYSCALL nargs ->
                 (* "; " ^ show_ir instr ^ "" ^ *)
-                [
-                    ["pop"; "rax"];
-                    pop_syscall_regs loc nargs ::
-                    ["syscall"];
-                    ["push"; "rax"]
-                ]
+                ["pop"; "rax"] ::
+                pop_syscall_regs loc nargs @
+                [["syscall"]] @
+                [["push"; "rax"]]
 
         | ITOF -> [
                 (* "; " ^ show_ir instr ^ "" ^ *)
