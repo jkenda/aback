@@ -168,10 +168,9 @@ let to_fasm_x64_linux program =
             [
                 ["pop"; "rax"];
                 ["pop"; "rbx"];
-                ["xor rcx, rcx"];
                 ["cmp rax, rbx"];
-                ["set" ^ op ^ " cl"];
-                ["push"; "rcx"]
+                ["set" ^ op; "al"];
+                ["push"; "rax"]
             ]
         and int_op op =
             (* "; " ^ show_ir op ^ "" ^ *)
@@ -235,8 +234,8 @@ let to_fasm_x64_linux program =
         and cond_jmp cond label =
             [
                 ["pop"; "rax"];
-                [sprintf "cmp  rax, %d" cond];
-                [sprintf "je   %s" label]
+                ["cmp"; "al"; ","; string_of_int cond];
+                [sprintf "je"; label]
             ]
         in
 
@@ -394,15 +393,31 @@ let to_fasm_x64_linux program =
             | ["push"; a] :: ["push"; b] :: ["pop"; c] :: ["pop"; d] :: [op; e; ","; f] :: tl
                 when c = e && d = f ->
                     opti' ([op; c; ","; b] :: ["mov"; c; ","; a] :: acc) tl
-            | ["push"; a] :: ("mov" :: "rax" :: _ as mova) :: ["pop"; "rbx"] ::
-              (["xor rcx, rcx"] as xor) :: (["cmp rax, rbx"] as cmp) ::
-              ([s] as set) :: tl when String.starts_with ~prefix:"set" s && String.ends_with ~suffix:"cl" s ->
+            | ["push"; a] :: ("mov" :: "rax" :: _ as mova) :: ["pop"; "rbx"] :: (["cmp rax, rbx"] as cmp) ::
+              ([s] as set) :: tl when String.starts_with ~prefix:"set" s && String.ends_with ~suffix:"al" s ->
                     let instrs = List.rev [
                         mova;
                         ["mov"; "rbx"; ","; a];
-                        xor; cmp; set
+                        cmp; set
                     ] in
                     opti' (instrs @ acc) tl
+            (* cond. jump *)
+            | [set; "al"] :: ["cmp"; "al"; ","; value] :: ["je"; label] :: tl
+                when String.starts_with ~prefix:"set" set ->
+                    let cond = String.sub set 3 (String.length set - 3) in
+                    let cond =
+                        if value = "0" then
+                            match cond with
+                            | "e"  -> "ne"
+                            | "ne" -> "e"
+                            | "l"  -> "ge"
+                            | "le" -> "g"
+                            | "g"  -> "le"
+                            | "ge" -> "l"
+                            | _ -> raise @@ Unreachable "set"
+                        else cond
+                    in
+                    opti' (["j" ^ cond; label] :: acc) tl
             (* push-pop *)
             | ["push"; a] :: ["pop"; b] :: tl when a = b -> opti' acc tl
             | ["push"; a] :: ["pop"; b] :: tl -> opti' (["mov"; b; ","; a] :: acc) tl
