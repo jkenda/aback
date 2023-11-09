@@ -168,7 +168,7 @@ let to_fasm_x64_linux program =
             [
                 ["pop"; "rax"];
                 ["pop"; "rbx"];
-                ["cmp rax, rbx"];
+                ["cmp"; "rax"; ","; "rbx"];
                 ["set" ^ op; "al"];
                 ["push"; "rax"]
             ]
@@ -253,7 +253,7 @@ let to_fasm_x64_linux program =
                     else "end_if_%d") id
         | ELSE id -> [
                 (* "; " ^ show_ir instr ^ "" ^ *)
-                [sprintf "jmp end_if_%d" id];
+                [sprintf "jmp  end_if_%d" id];
                 [sprintf "else_%d:" id]]
         | END_IF id -> [
                 (* "; " ^ show_ir instr ^ "" ^ *)
@@ -393,12 +393,10 @@ let to_fasm_x64_linux program =
             | ["push"; a] :: ["push"; b] :: ["pop"; c] :: ["pop"; d] :: [op; e; ","; f] :: tl
                 when c = e && d = f ->
                     opti' ([op; c; ","; b] :: ["mov"; c; ","; a] :: acc) tl
-            | ["push"; a] :: ("mov" :: "rax" :: _ as mova) :: ["pop"; "rbx"] :: (["cmp rax, rbx"] as cmp) ::
-              ([s] as set) :: tl when String.starts_with ~prefix:"set" s && String.ends_with ~suffix:"al" s ->
+            | ["push"; b] :: ("mov" :: "rax" :: _ as mova) :: ["pop"; "rbx"] :: tl ->
                     let instrs = List.rev [
                         mova;
-                        ["mov"; "rbx"; ","; a];
-                        cmp; set
+                        ["mov"; "rbx"; ","; b]
                     ] in
                     opti' (instrs @ acc) tl
             (* cond. jump *)
@@ -421,7 +419,12 @@ let to_fasm_x64_linux program =
             (* push-pop *)
             | ["push"; a] :: ["pop"; b] :: tl when a = b -> opti' acc tl
             | ["push"; a] :: ["pop"; b] :: tl -> opti' (["mov"; b; ","; a] :: acc) tl
-            | instr :: instrs -> opti' (instr :: acc) instrs
+            (* mov-mov *)
+            | ["mov"; "rax"; ","; src] :: ["mov"; dst; ","; "rax"] :: tl
+                when not (String.starts_with ~prefix:"[" src &&
+                          String.starts_with ~prefix:"[" dst) ->
+                    opti' (["mov"; dst; ","; src] :: acc) tl
+            | hd :: tl -> opti' (hd :: acc) tl
         in
         let next_pass = opti' [] instrs in
         if next_pass = instrs then passes, instrs
