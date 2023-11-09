@@ -222,7 +222,7 @@ let rec parse strings mem procs macros max_addr words =
                 raise @@ Error (loc, sprintf "usage: mem <name> <type> <size> end")
 
         | (li, Index) :: (ln, Word name) :: tl when Hashtbl.mem mem name ->
-                let t, addr = Hashtbl.find mem name in
+                let t, _size = Hashtbl.find mem name in
                 let size =
                     match t with
                     | Char -> 1
@@ -231,13 +231,13 @@ let rec parse strings mem procs macros max_addr words =
                 let instrs = [
                    li, PUSH (Int size);
                    li, MUL;
-                   ln, PUSH (Local_ptr ("mem_" ^ name, addr));
+                   ln, PUSH (Local_ptr ("mem_" ^ name, 0));
                    li, ADD;
                    li, LOAD t
                 ] in
                 parse' (instrs @ top, rest) tl
         | (la, Assign) :: (li, Index) :: (ln, Word name) :: tl when Hashtbl.mem mem name ->
-                let t, addr = Hashtbl.find mem name in
+                let t, _size = Hashtbl.find mem name in
                 let size =
                     match t with
                     | Char -> 1
@@ -246,7 +246,7 @@ let rec parse strings mem procs macros max_addr words =
                 let instrs = [
                    li, PUSH (Int size);
                    li, MUL;
-                   ln, PUSH (Local_ptr ("mem_" ^ name, addr));
+                   ln, PUSH (Local_ptr ("mem_" ^ name, 0));
                    li, ADD;
                    la, STORE t
                 ] in

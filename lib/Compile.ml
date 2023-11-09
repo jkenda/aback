@@ -3,56 +3,22 @@ open Lexer
 open Program
 
 let header = "
-SYS_read  equ 0
-SYS_write equ 1
-
-STDIN  equ 0
-STDOUT equ 1
-STDERR equ 2
-
-; write(fd, buf, count)
-; %rsi = buf
-; %rdx = count
-macro write fd
-{
-	; syscall(SYS_write, fd, buf, count)
-	mov rax, SYS_write
-	mov rdi, fd
-	syscall
-	cmp rax, 0
-	jl _fatal_error
-}
-
-; read(fd, buf, count)
-macro read fd
-{
-	; syscall(SYS_read, fd, buf, count)
-	mov rax, SYS_read
-	mov rdi, fd
-	syscall
-	cmp rax, 0
-	jl _fatal_error
-}
-
-macro exit code
-{
-    call flush
-	mov rdi, code
-	mov rax, 60
-	syscall
-}
+wbsiz equ 1024
 
 format ELF64 executable
 use64
 
 segment readable executable
 entry $
-	; addroff = SP
-	lea r8, [rsp - 8]
+	; set base pointer
+	mov rbp, rsp
+
 "
 
 let footer = "
-	exit 0
+    ; exit 0
+    mov rdi, 0
+    jmp exit
 
 ; puts(rsi, rdx)
 puts:
@@ -95,10 +61,13 @@ putc:
     ret
 
 flush:
+    ; write(STDOUT, writebuf, *wblen)
+    mov rax, 1 ; SYS_write
+    mov rdi, 1 ; STDOUT
     mov rsi, writebuf
     mov rdx, [wblen]
+	syscall
     mov [wblen], 0
-    write STDOUT
     ret
 
 ; puti(rdi)
@@ -130,8 +99,13 @@ puti:
 	lea     edi, [rdx+48]
 	jmp     putc
 
-_fatal_error:
-	exit rax
+; exit(rdi)
+exit:
+    push rdi
+    call flush
+    mov rax, 60
+    pop rdi
+    syscall
 
 
 segment readable writable
@@ -376,9 +350,6 @@ let to_fasm_x64_linux program =
     Array.iteri compile' @@ Array.combine program.loc program.ir;
     Buffer.add_string buffer footer;
     add_strings buffer program.strings;
-    Buffer.add_string buffer @@ sprintf "writebuf rb %d\n" 265;
-    Buffer.add_string buffer @@ sprintf "wbsiz = $ - writebuf\n";
-    Buffer.add_string buffer @@ sprintf "wblen dq 0\n";
     Buffer.add_string buffer @@ sprintf "vars rq %d\n" program.storage_size;
     Hashtbl.iter (fun name (typ, space) ->
         let typ_to_str = function
@@ -387,5 +358,7 @@ let to_fasm_x64_linux program =
         in
         Buffer.add_string buffer @@ sprintf "mem_%s %s %d\n" name (typ_to_str typ) space;
     ) program.mem;
+    Buffer.add_string buffer "wblen dq 0\n";
+    Buffer.add_string buffer "writebuf rb wbsiz\n";
 
     Buffer.to_bytes buffer
