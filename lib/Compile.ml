@@ -117,14 +117,14 @@ let pop_syscall_regs loc n =
         | n, _ when n < 0 -> raise @@ Error (loc, "syscall number must be > 0")
         | _, [] -> raise @@ Error (loc, "syscall number too large")
         | 0, _ -> acc
-        | n, r :: tl -> get' (acc ^ sprintf "\tpop %s\n" r) (n - 1, tl)
+        | n, r :: tl -> get' (acc ^ sprintf "pop %s" r) (n - 1, tl)
     in
     get' "" (n, arg_regs)
 
 let add_strings buffer strings =
     Buffer.add_string buffer "strs db \"";
     String.iter (function
-        | '\000' | '\n' | '\r' | '\t' | '"' as c ->
+        | '\000' | '\t' | '\r' | '\n' | '"' as c ->
                 Buffer.add_string buffer @@ sprintf "\", %d, \"" @@ Char.code c
         | c -> Buffer.add_char buffer c) strings;
     Buffer.add_string buffer "\"\n"
@@ -142,9 +142,9 @@ let to_fasm_x64_linux program =
     in
     Array.iter collect' program.ir;
 
-    let compile' i (_, instr) =
+    let compile' acc (loc, instr) =
         let cmp op =
-            "\t; " ^ show_ir op ^ "\n" ^
+            (*"; " ^ show_ir op ^ "" ^ *)
             let op =
                 match op with
                 | EQ -> "e"
@@ -155,189 +155,205 @@ let to_fasm_x64_linux program =
                 | GE -> "ge"
                 | _ -> raise @@ Unreachable (show_ir op)
             in
-            "\tpop  rax\n" ^
-            "\tpop  rbx\n" ^
-            "\txor  rcx, rcx\n" ^
-            "\tcmp  rax, rbx\n" ^
-            "\tset" ^ op ^ " cl\n" ^
-            "\tpush rcx\n"
+            [
+                ["pop"; "rax"];
+                ["pop"; "rbx"];
+                ["xor rcx, rcx"];
+                ["cmp rax, rbx"];
+                ["set" ^ op ^ " cl"];
+                ["push"; "rcx"]
+            ]
         and int_op op =
-            "\t; " ^ show_ir op ^ "\n" ^
-            "\tpop  rax\n" ^
-            "\tpop  rcx\n" ^
-            (match op with
-            | ADD -> "\tadd  rax, rcx\n"
-            | SUB -> "\tsub  rax, rcx\n"
-            | MUL -> "\timul rax, rcx\n"
-            | DIV | MOD ->
-                    "\tcdq\n" ^
-                    "\tidiv  rcx\n"
-            | BAND -> "\tand  rax, rcx\n"
-            | BXOR -> "\tor   rax, rcx\n"
-            | BOR  -> "\txor  rax, rcx\n"
-            | LSL  -> "\tshl  rax, cl\n"
-            | LSR  -> "\tshr  rax, cl\n"
-            | _ -> raise @@ Unreachable (show_ir op)) ^
-            match op with
-            | MOD -> "\tpush  rdx\n"
-            | _ -> "\tpush rax\n"
+            (* "; " ^ show_ir op ^ "" ^ *)
+                [["pop"; "rax"]] @
+                [["pop"; "rcx"]] @
+                (match op with
+                | ADD -> [["add  rax, rcx"]]
+                | SUB -> [["sub  rax, rcx"]]
+                | MUL -> [["imul rax, rcx"]]
+                | DIV | MOD ->
+                        [["cdq"];
+                        ["idiv rcx"]]
+                | BAND -> [["and  rax, rcx"]]
+                | BXOR -> [["or   rax, rcx"]]
+                | BOR  -> [["xor  rax, rcx"]]
+                | LSL  -> [["shl  rax, cl" ]]
+                | LSR  -> [["shr  rax, cl" ]]
+                | _ -> raise @@ Unreachable (show_ir op)) @
+                match op with
+                | MOD -> [["push"; "rdx"]]
+                | _   -> [["push"; "rax"]]
         and float_op op =
-            "\t; " ^ show_ir op ^ "\n" ^
-            "\tmovsd xmm0, [rsp]\n" ^
-            (match op with
-            | FADD -> "\taddsd xmm0, [rsp + 8]\n"
-            | FSUB -> "\tsubsd xmm0, [rsp + 8]\n"
-            | FMUL -> "\tmulsd xmm0, [rsp + 8]\n"
-            | FDIV -> "\tdivsd xmm0, [rsp + 8]\n"
-            | _ -> raise @@ Unreachable (show_ir op)) ^
-            "\tpop qword [rsp - 8]\n" ^
-            "\tmovsd [rsp], xmm0\n"
+            (* "; " ^ show_ir op ^ "" ^ *)
+            [
+                ["movsd xmm0, [rsp]"];
+                [match op with
+                | FADD -> "addsd xmm0, [rsp + 8]"
+                | FSUB -> "subsd xmm0, [rsp + 8]"
+                | FMUL -> "mulsd xmm0, [rsp + 8]"
+                | FDIV -> "divsd xmm0, [rsp + 8]"
+                | _ -> raise @@ Unreachable (show_ir op)];
+                ["pop qword [rsp - 8]"];
+                ["movsd [rsp], xmm0"]
+            ]
         and bool_op op =
-            "\t; " ^ show_ir op ^ "\n" ^
-            "\tpop  rax\n" ^
-            "\tpop  rbx\n" ^
-            (match op with
-            | AND -> "\tand  rax, rbx\n"
-            | OR  -> "\tor   rax, rbx\n"
-            | _ -> raise @@ Unreachable (show_ir op)) ^
-            "\tpush rax\n"
+            (* "; " ^ show_ir op ^ "" ^ *)
+            [
+                ["pop"; "rax"];
+                ["pop"; "rbx"];
+                [match op with
+                | AND -> "and  rax, rbx"
+                | OR  -> "or   rax, rbx"
+                | _ -> raise @@ Unreachable (show_ir op)];
+                ["push"; "rax"]
+            ]
         and put op =
-            "\t; " ^ show_ir op ^ "\n" ^
+            (* "; " ^ show_ir op ^ "" ^ *)
             match op with
-            | PUTS ->
-                    "\tpop  rsi\n" ^
-                    "\tpop  rdx\n" ^
-                    "\tcall puts\n"
-            | PUTC ->
-                    "\tpop rdi\n" ^
-                    "\tcall putc\n"
-            | PUTI ->
-                    "\tpop  rdi\n" ^
-                    "\tcall puti\n"
+            | PUTS -> [
+                    ["pop"; "rsi"];
+                    ["pop"; "rdx"];
+                    ["call puts"]]
+            | PUTC -> [
+                    ["pop"; "rdi"];
+                    ["call putc"]]
+            | PUTI -> [
+                    ["pop"; "rdi"];
+                    ["call puti"]]
 
             | _ -> raise @@ Unreachable (show_ir op)
         and cond_jmp cond label =
-            "\tpop  rax\n" ^
-            sprintf "\tcmp  rax, %d\n" cond ^
-            sprintf "\tje   %s\n" label
+            [
+                ["pop"; "rax"];
+                [sprintf "cmp  rax, %d" cond];
+                [sprintf "je   %s" label]
+            ]
         in
 
-        Buffer.add_string buffer @@
-        match instr with
-        | (FN _ | FN_END) -> ""
-        | IF id ->
-                "\t; " ^ show_ir instr ^ "\n" ^
-                sprintf "if_%d:\n" id
+        (match instr with
+        | (FN _ | FN_END) -> []
+        | IF id -> [
+                (* "; " ^ show_ir instr ^ "" ^ *)
+                [sprintf "if_%d:" id]]
         | THEN id ->
-                "\t; " ^ show_ir instr ^ "\n" ^
+                (* "; " ^ show_ir instr ^ "" ^ *)
                 cond_jmp 0
                 @@ sprintf (
                     if Hashtbl.mem has_else id
                     then "else_%d"
                     else "end_if_%d") id
-        | ELSE id ->
-                "\t; " ^ show_ir instr ^ "\n" ^
-                sprintf "\tjmp end_if_%d\n" id ^
-                sprintf "else_%d:\n" id
-        | END_IF id ->
-                "\t; " ^ show_ir instr ^ "\n" ^
-                sprintf "end_if_%d:\n" id
+        | ELSE id -> [
+                (* "; " ^ show_ir instr ^ "" ^ *)
+                [sprintf "jmp end_if_%d" id];
+                [sprintf "else_%d:" id]]
+        | END_IF id -> [
+                (* "; " ^ show_ir instr ^ "" ^ *)
+                [sprintf "end_if_%d:" id]]
 
-        | WHILE id ->
-                "\t; " ^ show_ir instr ^ "\n" ^
-                sprintf "while_%d:\n" id
+        | WHILE id -> [
+                (* "; " ^ show_ir instr ^ "" ^ *)
+                [sprintf "while_%d:" id]]
         | DO id ->
-                "\t; " ^ show_ir instr ^ "\n" ^
-                cond_jmp 0 @@ sprintf "end_while_%d" id 
-        | END_WHILE id ->
-                "\t; " ^ show_ir instr ^ "\n" ^
-                sprintf "\tjmp  while_%d\n" id ^
-                sprintf "end_while_%d:\n" id
+                (* "; " ^ show_ir instr ^ "" ^ *)
+                cond_jmp 0 @@ sprintf "end_while_%d" id
+        | END_WHILE id -> [
+                (* "; " ^ show_ir instr ^ "" ^ *)
+                [sprintf "jmp  while_%d" id];
+                [sprintf "end_while_%d:" id]]
 
         (* TODO: if addr below 6, use only registers *)
         | PEEK (depth, addr) ->
-                "\t; " ^ show_ir instr ^ "\n" ^
+                (* "; " ^ show_ir instr ^ "" ^ *)
                 let addr = program.storage_size - addr in
                 let reg =
                     if addr < 6 then sprintf "r1%d" addr
                     else "rax" 
                 in
-                sprintf "\tmov %s, [rsp + 8 * %d]\n" reg depth ^
-                if addr >= 6 then sprintf "\tmov  [vars + 8 * %d], rax\n" (addr - 6)
-                else ""
+                [
+                    [sprintf "mov %s, [rsp + 8 * %d]" reg depth];
+                    if addr >= 6 then [sprintf "mov  [vars + 8 * %d], rax" (addr - 6)]
+                    else []
+                ]
         | TAKE addr ->
-                "\t; " ^ show_ir instr ^ "\n" ^
+                (* "; " ^ show_ir instr ^ "" ^ *)
                 let addr = program.storage_size - addr in
                 let loc =
                     if addr < 6 then sprintf "r1%d" addr
                     else sprintf "[vars + 8 * %d]" (addr - 6)
                 in
-                sprintf "\tpop  %s\n" loc
+                [ [sprintf "pop  %s" loc] ]
         | PUT  addr ->
-                "\t; " ^ show_ir instr ^ "\n" ^
+                (* "; " ^ show_ir instr ^ "" ^ *)
                 let addr = program.storage_size - addr in
                 let loc =
                     if addr < 6 then sprintf "r1%d" addr
                     else sprintf "[vars + 8 * %d]" (addr - 6)
                 in
-                sprintf "\tpush %s\n" loc
+                [ [sprintf "push %s" loc] ]
 
         | LOAD t ->
-                "\t; " ^ show_ir instr ^ "\n" ^
+                (* "; " ^ show_ir instr ^ "" ^ *)
                 let size =
                     match t with
                     | Char -> "word"
                     | _    -> "qword"
                 in
-                "\tpop rax\n" ^
-                sprintf "\tpush %s [rax]\n" size
+                [
+                    ["pop"; "rax"];
+                    [sprintf "push %s [rax]" size]
+                ]
         | STORE t ->
-                "\t; " ^ show_ir instr ^ "\n" ^
+                (* "; " ^ show_ir instr ^ "" ^ *)
                 let size =
                     match t with
                     | Char -> "word"
                     | _    -> "qword"
                 in
-                "\tpop rax\n" ^
-                sprintf "\tpop %s [rax]\n" size
+                [
+                    ["pop"; "rax"];
+                    [sprintf "pop %s [rax]" size]
+                ]
 
         | PUSH d ->
-                "\t; " ^ show_ir instr ^ "\n" ^
+                (* "; " ^ show_ir instr ^ "" ^ *)
                 (match d with
                 | Int i ->
-                        if i > 0xFF then
-                            sprintf "\tmov rax, %d\n" i ^
-                            sprintf "\tpush rax\n"
-                        else
-                            sprintf "\tpush %d\n" i
+                        if i > 0xFF then [
+                            [sprintf "mov rax, %d" i];
+                            ["push"; "rax"]]
+                        else [
+                            ["push"; string_of_int i]]
                 | Float f ->
                         let i = Int64.of_nativeint @@ Obj.raw_field (Obj.repr f) 0 in
-                        if i > (Int64.of_int 0xFF) then
-                            sprintf "\tmov rax, %s\n" (Int64.to_string i) ^
-                            sprintf "\tpush rax\n"
-                        else
-                            sprintf "\tpush %s\n" (Int64.to_string i)
-                | Bool true -> "\tpush 1\n"
-                | Bool false -> "\tpush 0\n"
-                | Char c -> sprintf "\tpush %d\n" (int_of_char c)
-                | Local_ptr (space, off) -> sprintf "\tlea rax, [%s + %d]\n\tpush rax\n" space off)
+                        if i > (Int64.of_int 0xFF) then [
+                            [sprintf "mov rax, %s" (Int64.to_string i)];
+                            ["push"; "rax"]]
+                        else [
+                            [sprintf "push"; Int64.to_string i]]
+                | Bool true -> [["push 1"]]
+                | Bool false -> [["push 0"]]
+                | Char c -> [["push"; string_of_int @@ int_of_char c]]
+                | Local_ptr (space, off) -> [
+                    ["lea"; sprintf "rax, [%s + %d]" space off];
+                    ["push rax"]])
 
         | SYSCALL nargs ->
-                "\t; " ^ show_ir instr ^ "\n" ^
-                let loc = program.loc.(i) in
-                "\tpop rax\n" ^
-                pop_syscall_regs loc nargs ^
-                "\tsyscall\n" ^
-                "\tpush rax\n"
+                (* "; " ^ show_ir instr ^ "" ^ *)
+                [
+                    ["pop rax"];
+                    pop_syscall_regs loc nargs ::
+                    ["syscall"];
+                    ["push rax"]
+                ]
 
-        | ITOF ->
-                "\t; " ^ show_ir instr ^ "\n" ^
-                "\tcvtsi2sd xmm0, [rsp]\n" ^
-                "\tmovsd [rsp], xmm0\n"
-        | FTOI ->
-                "\t; " ^ show_ir instr ^ "\n" ^
-                "\tcvttsd2si rax, [rsp]\n" ^
-                "\tmov [rsp], rax\n"
+        | ITOF -> [
+                (* "; " ^ show_ir instr ^ "" ^ *)
+                ["cvtsi2sd xmm0, [rsp]"];
+                ["movsd [rsp], xmm0"]]
+        | FTOI -> [
+                (* "; " ^ show_ir instr ^ "" ^ *)
+                ["cvttsd2si rax, [rsp]"];
+                ["mov [rsp], rax"]]
 
         | EQ | NE | LT | LE | GT | GE as op -> cmp op
 
@@ -345,9 +361,21 @@ let to_fasm_x64_linux program =
         | BAND | BOR | BXOR | LSL | LSR as op -> int_op op
         | FADD | FSUB | FMUL | FDIV as op -> float_op op
         | AND | OR as op -> bool_op op
-        | (PUTC | PUTS | PUTI) as op -> put op
+        | (PUTC | PUTS | PUTI) as op -> put op) :: acc
     in
-    Array.iteri compile' @@ Array.combine program.loc program.ir;
+    let instrs =
+        Array.fold_left compile' [] (Array.combine program.loc program.ir)
+        |> List.rev
+        |> List.flatten
+    in
+    List.iter (function
+        | [instr] when String.ends_with ~suffix:":" instr ->
+                Buffer.add_string buffer instr; Buffer.add_char buffer '\n'
+        | instr ->
+                Buffer.add_char buffer '\t';
+                List.iter (fun word -> Buffer.add_string buffer word; Buffer.add_char buffer ' ') instr;
+                Buffer.add_char buffer '\n'
+        ) instrs;
     Buffer.add_string buffer footer;
     add_strings buffer program.strings;
     Buffer.add_string buffer @@ sprintf "vars rq %d\n" program.storage_size;
