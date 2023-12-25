@@ -10,12 +10,12 @@ let postprocess program =
             match inst with
             | FN _ | FN_END
             | IF _ -> acc, addr
-            | ELSE id -> Hashtbl.replace else_addr id addr; ir :: acc, addr + 1
+            | ELSE id -> Hashtbl.replace else_addr id (addr + 1); ir :: acc, addr + 1
             | END_IF id -> Hashtbl.replace end_addr id addr; acc, addr
             
             | WHILE id -> Hashtbl.replace while_addr id addr; acc, addr
             | DO _ -> ir :: acc, addr + 1
-            | END_WHILE id -> Hashtbl.replace end_addr id addr; ir :: acc, addr + 1
+            | END_WHILE id -> Hashtbl.replace end_addr id (addr + 1); ir :: acc, addr + 1
 
             | _ -> ir :: acc, addr + 1
         in
@@ -29,7 +29,7 @@ let postprocess program =
                         try Hashtbl.find end_addr id
                         with Not_found -> raise @@ Error (loc, "expected 'else' or 'end'")
                     in
-                    (loc, THEN (addr + 1)) :: acc
+                    (loc, THEN addr) :: acc
             | ELSE id ->
                     let addr =
                         try Hashtbl.find end_addr id
@@ -42,7 +42,7 @@ let postprocess program =
                         try Hashtbl.find end_addr id
                         with Not_found -> raise @@ Error (loc, "expected 'end'")
                     in
-                    (loc, DO (addr + 1)) :: acc
+                    (loc, DO addr) :: acc
             | END_WHILE id ->
                     let addr =
                         try Hashtbl.find while_addr id

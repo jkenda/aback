@@ -19,7 +19,7 @@ type prep =
     | If | Then | Else | End_if
     | While | Do | End_while
     | Peek | Take | In | End_peek
-    | Mem | Index | Assign
+    | Mem | Var | Index | Assign
     | End
 
     | Eq | NEq | Lt | LEq | Gt | GEq
@@ -32,11 +32,11 @@ type prep =
 
     | Itof | Ftoi
 
-    | BAnd | BOr | BXor | Lsl | Lsr
+    | LAnd | LOr | LXor | Lsl | Lsr
     | And  | Or
     | Ref | Deref
 
-    | Putc | Puts | Puti
+    | Putc | Puts
 
     | Syscall
 
@@ -53,7 +53,7 @@ let print_prep = function
     | If -> "if" | Then -> "then" | Else -> "else" | End_if -> "end"
     | While -> "while" | Do -> "do" | End_while -> "end"
     | Peek -> "peek" | Take -> "take" | In -> "in" | End_peek -> "end"
-    | Mem -> "mem" | Index -> "[]" | Assign -> ":="
+    | Mem -> "mem" | Var -> "var" | Index -> "[]" | Assign -> ":="
 
     | Eq -> "=" | NEq -> "!=" | Lt -> "<" | LEq -> "<=" | Gt -> ">" | GEq -> ">="
 
@@ -65,11 +65,11 @@ let print_prep = function
 
     | Itof -> "itof" | Ftoi -> "ftoi"
 
-    | BAnd -> "&" | BOr -> "|" | BXor -> "^" | Lsl -> "<<" | Lsr -> ">>"
+    | LAnd -> "&" | LOr -> "|" | LXor -> "^" | Lsl -> "<<" | Lsr -> ">>"
     | And  -> "&&" | Or -> "||"
     | Ref -> "@" | Deref -> "."
 
-    | Putc -> "putc" | Puts -> "puts" | Puti -> "puti"
+    | Putc -> "putc" | Puts -> "puts"
 
     | Syscall -> "syscall"
 
@@ -108,6 +108,7 @@ and preprocess words =
         | (loc, Proc)  :: tl -> push_end (loc, Proc) ; (loc, Proc)  :: acc, tl
         | (loc, Is)    :: tl -> (loc, Is) :: acc, tl
 
+        | (loc, Var) :: tl -> push_end (loc, Var); (loc, Var) :: acc, tl
         | (loc, Mem) :: tl -> push_end (loc, Mem); (loc, Mem) :: acc, tl
 
         | (loc, If)   :: tl -> push_end (loc, If); (loc, If) :: acc, tl
@@ -127,6 +128,7 @@ and preprocess words =
                     match Stack.pop end_stack with
                     | (_, Proc)
                     | (_, Macro)
+                    | (_, Var)
                     | (_, Mem)   -> End
                     | (_, If)    -> End_if
                     | (_, While) -> End_while
@@ -134,7 +136,7 @@ and preprocess words =
                     | (_, Take) -> End_peek
                     | _ | exception _ ->
                             raise @@ Error (loc,
-                            "end reqires matching begin: one of macro, func, if, while, peek, take")
+                            "end requires matching begin: one of macro, func, if, while, peek, take")
                 in
                 (loc, ir) :: acc, tl
 
@@ -151,7 +153,7 @@ and preprocess words =
                 | True -> Push (Bool true)
                 | False -> Push (Bool false)
 
-                | Rev -> Rev | Mem -> Mem
+                | Rev -> Rev | Var -> Var | Mem -> Mem
 
                 | Type t -> Type t
 
@@ -165,11 +167,11 @@ and preprocess words =
 
                 | Itof -> Itof | Ftoi -> Ftoi
 
-                | BAnd -> BAnd | BOr -> BOr | BXor -> BXor | Lsl -> Lsl | Lsr -> Lsr
+                | LAnd -> LAnd | LOr -> LOr | LXor -> LXor | Lsl -> Lsl | Lsr -> Lsr
                 | And -> And | Or -> Or
                 | Ref -> Ref | Deref -> Deref
 
-                | Putc -> Putc | Puts -> Puts | Puti -> Puti
+                | Putc -> Putc | Puts -> Puts
 
                 | Syscall -> Syscall
 

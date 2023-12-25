@@ -1,5 +1,6 @@
 include "core/linux.ab"
 include "core/stack.ab"
+include "core/io.ab"
 
 mem buffer char 256 end
 

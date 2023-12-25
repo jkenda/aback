@@ -7,7 +7,7 @@ type data =
     | Bool of bool
     | Char of char
     | Float of float
-    | Local_ptr of string * int
+    | Ptr of string * int
 [@@deriving show { with_path = false }]
 
 let typ_of_data = function
@@ -15,14 +15,14 @@ let typ_of_data = function
     | Bool _      -> Bool
     | Char _      -> Char
     | Float _     -> Float
-    | Local_ptr _ -> Ptr
+    | Ptr _ -> Ptr
 
 let prep_of_data = function
     | Int _       -> Type Int
     | Bool _      -> Type Bool
     | Char _      -> Type Char
     | Float _     -> Type Float
-    | Local_ptr _ -> Type Ptr
+    | Ptr _ -> Type Ptr
 
 type ir =
     | PUSH of data
@@ -37,7 +37,7 @@ type ir =
 
     | ITOF | FTOI
 
-    | BAND | BOR | BXOR | LSL | LSR
+    | LAND | LOR | LXOR | LSL | LSR
     | AND  | OR
 
     | PUTC | PUTS | PUTI
@@ -56,6 +56,7 @@ type program = {
     ir : ir array;
     loc : location array;
     strings : string;
+    vars : (string, typ) Hashtbl.t;
     mem : (string, typ * int) Hashtbl.t;
     storage_size : int
 }
@@ -63,151 +64,198 @@ type program = {
 type stack = data list
 [@@deriving show { with_path = false }]
 
+let typ_null = function
+    | (Int : typ) -> Int 0
+    | Float -> Float 0.0
+    | Char -> Char '\000'
+    | Bool -> Bool false
+    | Ptr -> Ptr ("", 0)
+    | String -> Ptr ("", 0)
+    | CStr -> Ptr ("", 0)
+
 let interpret program =
-    let storage = Array.make program.storage_size (Int 0) in
+    let takes = Array.make program.storage_size (Int 0)
+    and mem = Hashtbl.create (Hashtbl.length program.mem) in
+
+    Hashtbl.iter (fun space (typ, size) ->
+        Hashtbl.add mem ("mem_" ^ space) (Array.make size (typ_null typ)))
+    program.mem;
+    Hashtbl.iter (fun space typ ->
+        Hashtbl.add mem ("var_" ^ space) (Array.make 1 (typ_null typ)))
+    program.vars;
+
     let exec' stack ip instr =
         let int_op op = function
-            | Int i :: Int j :: rest -> Int (op i j) :: rest
-            | a :: b :: _ -> raise @@ Error (
-                program.loc.(ip),
-                sprintf "expected Int Int, got %s %s" (show_data a) (show_data b))
-            | _ -> raise @@ Error (
-                program.loc.(ip),
+            | Int a :: Int b :: rest -> Int (op a b) :: rest
+            | Char a :: Int b :: rest -> Char (char_of_int (op (int_of_char a) b)) :: rest
+            | Ptr (space, a) :: Int b :: rest ->
+                Ptr (space, a + b) :: rest
+            | Ptr (space, a) :: Ptr (space', b) :: rest when space = space' ->
+                Int (a - b) :: rest
+            | a :: b :: _ -> raise @@ Error (program.loc.(ip),
+                sprintf "expected int int, got %s %s" (show_data a) (show_data b))
+            | _ -> raise @@ Error (program.loc.(ip),
                 "not enough data on stack")
         and cmp op = function
             | a :: b :: rest -> Bool (op a b) :: rest
-            | stack -> raise @@ Error (
-                program.loc.(ip),
+            | stack -> raise @@ Error (program.loc.(ip),
                 sprintf "not enough data on stack : %s" @@ show_stack stack)
         and float_op op = function
             | Float i :: Float j :: rest -> Float (op i j) :: rest
-            | a :: b :: _ -> raise @@ Error (
-                program.loc.(ip),
-                sprintf "expected Float Float, got %s %s" (show_data a) (show_data b))
-            | _ -> raise @@ Error (
-                program.loc.(ip),
+            | a :: b :: _ -> raise @@ Error (program.loc.(ip),
+                sprintf "expected float float, got %s %s" (show_data a) (show_data b))
+            | _ -> raise @@ Error (program.loc.(ip),
                 "not enough data on stack")
         and bool_op op = function
             | Bool i :: Bool j :: rest -> Bool (op i j) :: rest
-            | a :: b :: _ -> raise @@ Error (
-                program.loc.(ip),
+            | a :: b :: _ -> raise @@ Error (program.loc.(ip),
                 sprintf "expected Bool Bool, got %s %s" (show_data a) (show_data b))
-            | _ -> raise @@ Error (
-                program.loc.(ip),
-            "not enough data on stack")
-        and put t = function
-            | Int i   :: rest when t = PUTI -> print_int i; rest
-            | Char c  :: rest when t = PUTC -> print_char c; rest
-            | Local_ptr ("strs", offset) :: Int len :: rest when t = PUTS ->
+            | _ -> raise @@ Error (program.loc.(ip),
+                "not enough data on stack")
+        and put = function
+            | Int  i :: rest when instr = PUTI -> print_int i; rest
+            | Char c :: rest when instr = PUTC -> print_char c; rest
+            | Ptr ("strs", offset) :: Int len :: rest when instr = PUTS ->
                     print_string
                     @@ String.sub program.strings offset len;
                     rest
-            | [] -> raise @@ Error ( program.loc.(ip),
-                sprintf "%s: not enough data on stack" (show_ir t))
-            | stack -> raise @@ Error ( program.loc.(ip),
-                sprintf "Expected %s, got %s" (show_ir t) (show_data (List.hd stack)))
-        and cond_jmp stack t f =
-            match stack with
-            | Bool true :: tl -> tl, t
-            | Bool false :: tl -> tl, f
-            | _ :: _ -> raise @@ Error ( program.loc.(ip),
-                sprintf "expected bool, got %s" (show_data (List.hd stack)))
-            | [] -> raise @@ Error ( program.loc.(ip),
+            | Ptr (space, offset) :: Int len :: rest when instr = PUTS ->
+                    let str =
+                        Hashtbl.find mem space
+                        |> Array.to_seq
+                        |> Seq.map (function Char c -> c | d -> raise @@ Unreachable (show_data d))
+                        |> String.of_seq
+                    in
+                    print_string
+                    @@ String.sub str offset len;
+                    rest
+            | hd :: _ -> raise @@ Error (program.loc.(ip),
+                sprintf "invalid data for %s: %s" (show_ir instr) (show_data hd))
+            | [] -> raise @@ Error (program.loc.(ip),
+                sprintf "%s: not enough data on stack" (show_ir instr))
+        and cond_jmp t f = function
+            | Bool true :: tl -> t, tl
+            | Bool false :: tl -> f, tl
+            | hd :: _ -> raise @@ Error (program.loc.(ip),
+                sprintf "expected bool, got %s" (show_data hd))
+            | [] -> raise @@ Error (program.loc.(ip),
                 "not enough data on stack")
         in
 
         match instr with
-        | (FN _ | FN_END) -> raise @@ Unreachable (sprintf "%s: please run postprocess" (show_ir instr))
-        | IF _ | WHILE _ -> raise @@ Unreachable (sprintf "%s: please run postprocess" (show_ir instr))
-        | THEN addr -> cond_jmp stack (ip + 1) addr
-        | ELSE addr -> stack, addr
-        | END_IF _ -> raise @@ Unreachable "END_IF: please run postprocess"
+        | FN _ | FN_END | IF _ | WHILE _ | END_IF _ ->
+                raise @@ Unreachable (sprintf "%s: please run postprocess" (show_ir instr))
 
-        | DO addr -> cond_jmp stack (ip + 1) addr 
-        | END_WHILE addr -> stack, addr
+        | THEN addr | DO addr -> cond_jmp (ip + 1) addr stack
+        | ELSE addr | END_WHILE addr -> addr, stack
 
         | PEEK (depth, addr) ->
                 let data =
                     try List.nth stack depth
-                    with _ -> raise @@ Error (program.loc.(ip), "stack underflow")
+                    with _ -> raise @@ Error (program.loc.(ip), sprintf "PEEK %d: stack underflow" depth)
                 in
-                storage.(addr) <- data; stack, ip + 1
+                takes.(addr) <- data; ip + 1, stack
         | TAKE addr ->
                 let data, stack =
                     match stack with
                     | hd :: tl -> hd, tl
+                    | _ -> raise @@ Error (program.loc.(ip), "TAKE: stack underflow")
+                in
+                takes.(addr) <- data; ip + 1, stack
+        | PUT addr -> ip + 1, takes.(addr) :: stack
+
+        | LOAD t ->
+                let space, addr, stack =
+                    match stack with
+                    | Ptr (space, addr) :: tl -> space, addr, tl
+                    | hd :: _ -> raise @@ Error (program.loc.(ip),
+                            sprintf "expected Ptr, got %s" (show_data hd))
+                    | _ -> raise @@ Error (program.loc.(ip), "LOAD: stack underflow")
+                in
+                let data = (Hashtbl.find mem space).(addr) in
+
+                if typ_of_data data = t then ip + 1, data :: stack
+                else raise @@ Error (program.loc.(ip),
+                        sprintf "expected %s, got %s" (show_typ t) (show_data data))
+        | STORE t ->
+                let space, addr, data, stack =
+                    match stack with
+                    | Ptr (space, addr) :: data :: tl -> space, addr, data, tl
+                    | hd :: _ -> raise @@ Error (program.loc.(ip),
+                            sprintf "expected Ptr, got %s" (show_data hd))
                     | _ -> raise @@ Error (program.loc.(ip), "stack underflow")
                 in
-                storage.(addr) <- data; stack, ip + 1
-        | PUT addr -> storage.(addr) :: stack, ip + 1
+                    (Hashtbl.find mem space).(addr) <- data;
+                    if typ_of_data data = t then ip + 1, stack
+                    else raise @@ Error (program.loc.(ip),
+                            sprintf "expected %s, got %s" (show_typ t) (show_data data))
 
-        | LOAD  _t -> raise_notrace @@ Not_implemented (program.loc.(ip), "LOAD")
-        | STORE _t -> raise_notrace @@ Not_implemented (program.loc.(ip), "STORE")
 
-        | PUSH d -> d :: stack, ip + 1
+        | PUSH data -> ip + 1, data :: stack
 
-        | EQ -> cmp ( =  ) stack, ip + 1
-        | NE -> cmp ( <> ) stack, ip + 1
-        | LT -> cmp ( <  ) stack, ip + 1
-        | LE -> cmp ( <= ) stack, ip + 1
-        | GT -> cmp ( >  ) stack, ip + 1
-        | GE -> cmp ( >= ) stack, ip + 1
+        | EQ -> ip + 1, cmp ( =  ) stack
+        | NE -> ip + 1, cmp ( <> ) stack
+        | LT -> ip + 1, cmp ( <  ) stack
+        | LE -> ip + 1, cmp ( <= ) stack
+        | GT -> ip + 1, cmp ( >  ) stack
+        | GE -> ip + 1, cmp ( >= ) stack
 
-        | ADD -> int_op ( + ) stack, ip + 1
-        | SUB -> int_op ( - ) stack, ip + 1
-        | MUL -> int_op ( * ) stack, ip + 1
-        | DIV -> int_op ( / ) stack, ip + 1
-        | MOD -> int_op (mod) stack, ip + 1
+        | ADD -> ip + 1, int_op ( + ) stack
+        | SUB -> ip + 1, int_op ( - ) stack
+        | MUL -> ip + 1, int_op ( * ) stack
+        | DIV -> ip + 1, int_op ( / ) stack
+        | MOD -> ip + 1, int_op (mod) stack
 
-        | FADD -> float_op ( +. ) stack, ip + 1
-        | FSUB -> float_op ( -. ) stack, ip + 1
-        | FMUL -> float_op ( *. ) stack, ip + 1
-        | FDIV -> float_op ( /. ) stack, ip + 1
+        | FADD -> ip + 1, float_op ( +. ) stack
+        | FSUB -> ip + 1, float_op ( -. ) stack
+        | FMUL -> ip + 1, float_op ( *. ) stack
+        | FDIV -> ip + 1, float_op ( /. ) stack
 
         | ITOF ->
                 (match stack with
-                | Int a :: rest -> Float (float_of_int a) :: rest, ip + 1
+                | Int a :: rest -> ip + 1, Float (float_of_int a) :: rest
                 | a :: _ -> raise @@ Error (program.loc.(ip),
                     sprintf "expected int, got %s" (show_data a))
                 | _ -> raise @@ Error (program.loc.(ip), "not enough data on stack"))
         | FTOI ->
                 (match stack with
-                | Float a :: rest -> Int (int_of_float a) :: rest, ip + 1
+                | Float a :: rest -> ip + 1, Int (int_of_float a) :: rest
                 | a :: _ -> raise @@ Error (program.loc.(ip),
                     sprintf "expected float, got %s" (show_data a))
                 | _ -> raise @@ Error (program.loc.(ip), "not enough data on stack"))
 
-        | AND -> bool_op ( && ) stack, ip + 1
-        | OR  -> bool_op ( || ) stack, ip + 1
+        | AND -> ip + 1, bool_op ( && ) stack
+        | OR  -> ip + 1, bool_op ( || ) stack
 
-        | BAND -> int_op ( land ) stack, ip + 1
-        | BOR  -> int_op ( lor  ) stack, ip + 1
-        | BXOR -> int_op ( lxor ) stack, ip + 1
-        | LSL  -> int_op ( lsl  ) stack, ip + 1
-        | LSR  -> int_op ( lsr  ) stack, ip + 1
+        | LAND -> ip + 1, int_op ( land ) stack
+        | LOR  -> ip + 1, int_op ( lor  ) stack
+        | LXOR -> ip + 1, int_op ( lxor ) stack
+        | LSL  -> ip + 1, int_op ( lsl  ) stack
+        | LSR  -> ip + 1, int_op ( lsr  ) stack
 
         | SYSCALL n ->
                 raise @@ Error (program.loc.(ip),
                     sprintf "syscall %d not implemented" n)
 
-        | (PUTC | PUTS | PUTI) as t -> put t stack, ip + 1
+        | PUTC | PUTS | PUTI -> ip + 1, put stack
     in
 
-    let rec exec'' stack ip =
+    let rec exec'' ip stack =
         if ip >= Array.length program.ir then stack
         else
-            let stack, ip = exec' stack ip program.ir.(ip) in
-            exec'' stack ip
+            let ip, stack = exec' stack ip program.ir.(ip) in
+            exec'' ip stack
     in
     let stack =
-        try exec'' [] 0
+        try exec'' 0 []
         with Error (loc, msg) -> raise @@ Error (loc, "runtime exception: " ^ msg)
     in
 
     match stack with
     | [] -> ()
     | stack ->
-            let stack = List.map typ_of_data stack in
+            List.iter (fun d -> print_endline @@ show_data d) stack;
+            let typ_stack = List.map typ_of_data stack in
             raise @@ Error (program.loc.(Array.length program.loc - 1),
                 sprintf "%s left on the stack at the end of program"
-                (print_typ_stack stack))
+                (print_typ_stack typ_stack))

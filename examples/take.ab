@@ -1,4 +1,5 @@
 include "core/stack.ab"
+include "core/io.ab"
 
 0 while < over 10 do
     puti dup ;

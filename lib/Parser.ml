@@ -20,13 +20,16 @@ let _print_funcs funcs =
     print_string 
     @@ Hashtbl.fold (fun name macro acc -> acc ^ sprintf "%s: %s\n" name (show_func macro)) funcs ""
 
+let strings = ref ""
+let takes = Hashtbl.create 10
+let mem = Hashtbl.create 10
 let vars = Hashtbl.create 10
-let locs = Hashtbl.create 10
 let names = ref []
 let next_addr = ref 0
+let max_addr = ref (-1)
 
 (* parse the preprocessed words into intermediate representation *)
-let rec parse strings mem procs macros max_addr words =
+let rec parse ptr_size procs macros words =
     let add_func loc name words table =
         let rec extract_types input t_in t_out = function
             | (loc, (Type _ | Word _ as t)) :: words ->
@@ -85,10 +88,10 @@ let rec parse strings mem procs macros max_addr words =
                     (match push with
                     | String str ->
                             let addr, len = add_string str in
-                            [PUSH (Int len); PUSH (Local_ptr ("strs", addr))]
+                            [PUSH (Int len); PUSH (Ptr ("strs", addr))]
                     | CStr str ->
                             let addr, _ = add_string str in
-                            [PUSH (Local_ptr ("strs", addr))]
+                            [PUSH (Ptr ("strs", addr))]
                     | _  as push ->
                             [PUSH (data_of_operation loc push)])
 
@@ -103,10 +106,10 @@ let rec parse strings mem procs macros max_addr words =
             | Itof -> [ITOF] | Ftoi -> [FTOI]
 
             | And -> [AND] | Or -> [OR]
-            | BAnd -> [BAND] | BOr -> [BOR] | BXor -> [BXOR]
+            | LAnd -> [LAND] | LOr -> [LOR] | LXor -> [LXOR]
             | Lsl -> [LSL] | Lsr -> [LSR]
 
-            | Puti -> [PUTI] | Putc -> [PUTC] | Puts -> [PUTS]
+            | Putc -> [PUTC] | Puts -> [PUTS]
 
             | prep -> raise @@ Not_implemented (loc, print_prep prep)
         in
@@ -206,6 +209,9 @@ let rec parse strings mem procs macros max_addr words =
                 @@ add_func loc name tl procs
         | (loc, Proc) :: _ -> raise @@ Error (loc, "proc: expected name")
 
+        | (_, Var) :: (_, Word name) :: (_, Type t) :: (_, End) :: tl ->
+                Hashtbl.add vars name t;
+                parse' (top, rest) tl
         | (_, Mem) :: (_, Word name) :: (_, Type t) :: (_, Push Int size) :: (_, End) :: tl ->
                 Hashtbl.add mem name (t, size);
                 parse' (top, rest) tl
@@ -220,18 +226,21 @@ let rec parse strings mem procs macros max_addr words =
                 parse' (top, rest) tl
         | (loc, Mem) :: _ ->
                 raise @@ Error (loc, sprintf "usage: mem <name> <type> <size> end")
+        | (loc, Var) :: _ ->
+                raise @@ Error (loc, sprintf "usage: var <name> <type> end")
 
         | (li, Index) :: (ln, Word name) :: tl when Hashtbl.mem mem name ->
                 let t, _size = Hashtbl.find mem name in
                 let size =
                     match t with
                     | Char -> 1
-                    | _ -> 8
+                    | Ptr
+                    | _ -> ptr_size
                 in
                 let instrs = [
                    li, PUSH (Int size);
                    li, MUL;
-                   ln, PUSH (Local_ptr ("mem_" ^ name, 0));
+                   ln, PUSH (Ptr ("mem_" ^ name, 0));
                    li, ADD;
                    li, LOAD t
                 ] in
@@ -241,13 +250,21 @@ let rec parse strings mem procs macros max_addr words =
                 let size =
                     match t with
                     | Char -> 1
-                    | _ -> 8
+                    | Ptr
+                    | _ -> ptr_size
                 in
                 let instrs = [
                    li, PUSH (Int size);
                    li, MUL;
-                   ln, PUSH (Local_ptr ("mem_" ^ name, 0));
+                   ln, PUSH (Ptr ("mem_" ^ name, 0));
                    li, ADD;
+                   la, STORE t
+                ] in
+                parse' (instrs @ top, rest) tl
+        | (la, Assign) :: (ln, Word name) :: tl when Hashtbl.mem vars name ->
+                let t = Hashtbl.find vars name in
+                let instrs = [
+                   ln, PUSH (Ptr ("var_" ^ name, 0));
                    la, STORE t
                 ] in
                 parse' (instrs @ top, rest) tl
@@ -274,7 +291,7 @@ let rec parse strings mem procs macros max_addr words =
 
         | (loc, ((Peek | Take) as word)) :: tl ->
                 let n, tl = parse_vars loc tl
-                and top_vars = ref [] in
+                and top_takes = ref [] in
                 let irs =
                     n |>
                     List.mapi (fun depth (loc, name) ->
@@ -282,14 +299,13 @@ let rec parse strings mem procs macros max_addr words =
                         if not @@ String.starts_with ~prefix:"_" name then
                             (max_addr := max !max_addr addr;
                             next_addr := !next_addr + 1;
-                            top_vars := name :: !top_vars;
-                            Hashtbl.add vars name addr;
-                            Hashtbl.add locs name loc);
+                            top_takes := name :: !top_takes;
+                            Hashtbl.add takes name addr);
                         if word = Peek
                         then loc, PEEK (depth, addr)
                         else loc, TAKE addr)
                 in
-                names := !top_vars :: !names;
+                names := !top_takes :: !names;
                 parse' ([], irs :: top :: rest) tl
         | (loc, End_peek) :: tl ->
                 let top_vars =
@@ -297,7 +313,7 @@ let rec parse strings mem procs macros max_addr words =
                     with _ -> raise @@ Error (loc, "cannot end peek/take")
                 in
                 next_addr := !next_addr - List.length top_vars;
-                List.iter (Hashtbl.remove vars) top_vars;
+                List.iter (Hashtbl.remove takes) top_vars;
                 names := List.tl !names;
                 parse' ([], top :: rest) tl
 
@@ -305,16 +321,24 @@ let rec parse strings mem procs macros max_addr words =
             parse' ((loc, SYSCALL i) :: top, rest) tl
         | (loc, Syscall) :: _ -> raise @@ Error (loc, "syscall: expected int")
 
-        | (loc, Word name) :: tl when Hashtbl.mem vars name ->
-                let var = Hashtbl.find vars name in
+        | (loc, Word name) :: tl when Hashtbl.mem takes name ->
+                let var = Hashtbl.find takes name in
                 parse' ((loc, PUT var) :: top, rest) tl
 
+        | (loc, Word name) :: tl when Hashtbl.mem vars name ->
+                let t = Hashtbl.find vars name in
+                let instrs = [
+                    loc, PUSH (Ptr ("var_" ^ name, 0));
+                    loc, LOAD t
+                ] in
+                parse' (instrs @ top, rest) tl
+
         | (loc, Word name) :: tl when Hashtbl.mem mem name ->
-                parse' ((loc, PUSH (Local_ptr ("mem_" ^ name, 0))) :: top, rest) tl
+                parse' ((loc, PUSH (Ptr ("mem_" ^ name, 0))) :: top, rest) tl
 
         | (loc, Word name) :: tl when Hashtbl.mem macros name ->
                 let expand prep =
-                    parse strings mem procs macros max_addr prep
+                    parse ptr_size procs macros prep
                     |> List.map (fun (l, prep) ->
                         { l with expanded_from = (loc, name) :: l.expanded_from }, prep)
                 in
@@ -326,7 +350,7 @@ let rec parse strings mem procs macros max_addr words =
                 raise @@ Not_implemented (loc, "Procs aren't implemented yet!")
 
         | (loc, Word name) :: _ ->
-                let vars = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) vars ""
+                let vars = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) takes ""
                 and mem  = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) mem ""
                 and procs = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) procs ""
                 and macros = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) macros "" in

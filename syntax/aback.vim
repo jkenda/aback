@@ -15,7 +15,7 @@ syn keyword abackCond if then else
 syn keyword abackCond take peek in
 syn keyword abackCond while do
 syn keyword abackCond macro proc is
-syn keyword abackCond mem
+syn keyword abackCond mem var
 syn keyword abackCond end
 syn keyword abackStack drop  nip  dup  over  tuck  swap  rot  -rot
 syn keyword abackStack 2drop 2nip 2dup 2over 2tuck 2swap 2rot 2-rot
@@ -30,14 +30,13 @@ syn keyword abackOperator +  -  *  /  %
 syn keyword abackOperator +. -. *. /.
 syn keyword abackOperator = /= < > <= >=
 syn keyword abackOperator ; ;; -> :=
-syn match   abackOperator '||\||\|&&\|&\|\[\]'
+syn match   abackOperator '\<\(||\||\|&&\|&\|\[\]\)\>'
 
-" Matches
-" Integer with - + or nothing in front
-syn match abackNumber '[-+]\?\d\+'
-" Floating point number with decimal no E or e 
-syn match abackNumber '[-+]\?\d\+\.\d*'
-syn match abackChar   "'\\\?.'"
+" Int
+syn match abackNumber '\<\([-+]\?\d\+\)\>'
+" Float
+syn match abackNumber '\<\([-+]\?\d\+\.\d*\)\>'
+syn match abackChar   "\<\('\\\?.'\)\>"
 
 " Regions
 syn region abackIfBlock     start='then' end='end'  fold transparent

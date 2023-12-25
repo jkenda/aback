@@ -86,7 +86,7 @@ type word =
     | If | Then | Else
     | While | Do (* while ... end *)
     | Peek | Take | In (* peek ... end, take ... end *)
-    | Mem | Index | Assign
+    | Mem | Var | Index | Assign
 
     | Eq | NEq | Lt | LEq | Gt | GEq
 
@@ -98,11 +98,11 @@ type word =
 
     | Itof | Ftoi
 
-    | BAnd | BOr | BXor | Lsl | Lsr
+    | LAnd | LOr | LXor | Lsl | Lsr
     | And  | Or
     | Ref | Deref
 
-    | Putc | Puts | Puti
+    | Putc | Puts
 
     | Syscall
 
@@ -121,7 +121,7 @@ let instr_of_word (loc, word) =
         | "if" -> If | "then" -> Then | "else" -> Else | "end" -> End
         | "while" -> While | "do" -> Do
         | "peek" -> Peek | "take" -> Take | "in" -> In
-        | "mem" -> Mem | "[]" -> Index | ":=" -> Assign
+        | "mem" -> Mem | "var" -> Var | "[]" -> Index | ":=" -> Assign
 
         | "int" -> Type Int | "float" -> Type Float
         | "char" -> Type Char | "ptr" -> Type Ptr
@@ -139,12 +139,12 @@ let instr_of_word (loc, word) =
 
         | "itof" -> Itof | "ftoi" -> Ftoi
 
-        | "&"  -> BAnd | "|"  -> BOr | "^" -> BXor
+        | "&"  -> LAnd | "|"  -> LOr | "^" -> LXor
         | "<<" -> Lsl  | ">>" -> Lsr
         | "&&" -> And  | "||" -> Or
         | "@"  -> Ref  | "."  -> Deref
 
-        | "putc" -> Putc | "puts" -> Puts | "puti" -> Puti
+        | "putc" -> Putc | "puts" -> Puts
 
         | "true" -> True | "false" -> False
 

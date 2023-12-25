@@ -4,14 +4,7 @@ open Preprocess
 open Parser
 open Program
 
-let loc_id = {
-    filename = "[test]";
-    included_from = [];
-    expanded_from = [];
-    row = 1; col = 1
-}
-
-let check procs macros mem program =
+let check ptr_size procs macros program =
     (* get top n elements of the stack *)
     let rec get_top list = function
         | 0 -> []
@@ -44,106 +37,106 @@ let check procs macros mem program =
 
     let check_numbered =
         let check' stack_size (loc, ir) =
-        if stack_size < 0 then
-            raise @@ Error (loc, "stack undeflow");
+            if stack_size < 0 then
+                raise @@ Error (loc, "stack underflow");
 
-        match ir with
-        | FN name ->
-                (let func =
-                    try Hashtbl.find procs name with Not_found ->
-                    Hashtbl.find macros name
-                in
-                match func.types with
-                | Untyped -> stack_size
-                | Numbered (n_in, _) ->
-                        if stack_size < n_in then
-                            raise @@ Error (loc,
-                            sprintf "not enough arguments for function '%s'" name)
-                        else stack_size
-                | Typed (_, _) ->
-                        raise @@ Error (loc, "cannot use typed function inside numbered one"))
-        | FN_END -> stack_size
+            match ir with
+            | FN name ->
+                    (let func =
+                        try Hashtbl.find procs name with Not_found ->
+                        Hashtbl.find macros name
+                    in
+                    match func.types with
+                    | Untyped -> stack_size
+                    | Numbered (n_in, _) ->
+                            if stack_size < n_in then
+                                raise @@ Error (loc,
+                                sprintf "not enough arguments for function '%s'" name)
+                            else stack_size
+                    | Typed (_, _) ->
+                            raise @@ Error (loc, "cannot use typed function inside numbered one"))
+            | FN_END -> stack_size
 
-        | IF id ->
-                Hashtbl.replace stack_sizes id stack_size;
-                stack_size
-        | THEN id ->
-                let diff =
-                    let prev_size = Hashtbl.find stack_sizes id in
-                    stack_size - prev_size
-                in
-                if diff = 1 then (
-                    Hashtbl.replace stack_sizes id (stack_size - 1);
-                    stack_size - 1)
-                else
-                    raise @@ Error (loc, sprintf "expected stack to grow by 1, grew %d" diff)
-        | ELSE id ->
-                let diff = stack_size - (Hashtbl.find stack_sizes id) in
-                if diff < 0 then raise @@ Error (loc, "cannot shrink stack inside if clause")
-                else
-                    Hashtbl.add elseless id false;
-                    Hashtbl.add stack_sizes id diff;
-                    stack_size - diff
-        | END_IF id when (try Hashtbl.find elseless id with Not_found -> true) ->
-                if stack_size = Hashtbl.find stack_sizes id then stack_size
-                else raise @@ Error (loc, "cannot grow or shrink stack inside elseless if")
-        | END_IF id ->
-                let diff = Hashtbl.find stack_sizes id in
-                Hashtbl.remove stack_sizes id;
-                if diff = stack_size - (Hashtbl.find stack_sizes id) then stack_size
-                else raise @@ Error (loc,
-                    sprintf "branches have different stack sizes: %d %d" stack_size (stack_size - diff))
+            | IF id ->
+                    Hashtbl.replace stack_sizes id stack_size;
+                    stack_size
+            | THEN id ->
+                    let diff =
+                        let prev_size = Hashtbl.find stack_sizes id in
+                        stack_size - prev_size
+                    in
+                    if diff = 1 then (
+                        Hashtbl.replace stack_sizes id (stack_size - 1);
+                        stack_size - 1)
+                    else
+                        raise @@ Error (loc, sprintf "expected stack to grow by 1, grew %d" diff)
+            | ELSE id ->
+                    let diff = stack_size - (Hashtbl.find stack_sizes id) in
+                    if diff < 0 then raise @@ Error (loc, "cannot shrink stack inside if clause")
+                    else
+                        Hashtbl.add elseless id false;
+                        Hashtbl.add stack_sizes id diff;
+                        stack_size - diff
+            | END_IF id when (try Hashtbl.find elseless id with Not_found -> true) ->
+                    if stack_size = Hashtbl.find stack_sizes id then stack_size
+                    else raise @@ Error (loc, "cannot grow or shrink stack inside elseless if")
+            | END_IF id ->
+                    let diff = Hashtbl.find stack_sizes id in
+                    Hashtbl.remove stack_sizes id;
+                    if diff = stack_size - (Hashtbl.find stack_sizes id) then stack_size
+                    else raise @@ Error (loc,
+                        sprintf "branches have different stack sizes: %d %d" stack_size (stack_size - diff))
 
-        | WHILE id ->
-                Hashtbl.replace stack_sizes id stack_size; stack_size
-        | DO id -> 
-                let diff =
-                    let prev_size = Hashtbl.find stack_sizes id in
-                    stack_size - prev_size
-                in
-                if diff = 1 then (
-                    Hashtbl.replace stack_sizes id (stack_size - 1);
-                    stack_size - 1)
-                else raise @@ Error (loc, sprintf "expected stack to grow by 1, grew %d" diff)
-        | END_WHILE id ->
-                let diff = stack_size - Hashtbl.find stack_sizes id in
-                if diff = 0 then stack_size
-                else if diff > 0 then
-                    raise @@ Error (loc, "cannot grow stack inside loop")
-                else raise @@ Error (loc, "cannot shrink stack inside loop")
+            | WHILE id ->
+                    Hashtbl.replace stack_sizes id stack_size; stack_size
+            | DO id -> 
+                    let diff =
+                        let prev_size = Hashtbl.find stack_sizes id in
+                        stack_size - prev_size
+                    in
+                    if diff = 1 then (
+                        Hashtbl.replace stack_sizes id (stack_size - 1);
+                        stack_size - 1)
+                    else raise @@ Error (loc, sprintf "expected stack to grow by 1, grew %d" diff)
+            | END_WHILE id ->
+                    let diff = stack_size - Hashtbl.find stack_sizes id in
+                    if diff = 0 then stack_size
+                    else if diff > 0 then
+                        raise @@ Error (loc, "cannot grow stack inside loop")
+                    else raise @@ Error (loc, "cannot shrink stack inside loop")
 
-        | PEEK (depth, addr) ->
-                Hashtbl.replace storage addr ();
-                if depth < stack_size then stack_size
-                else raise @@ Error (loc,
-                    sprintf "cannot peek %d deep into stack of length %d"
-                    (depth + 1) stack_size)
-        | TAKE addr ->
-                Hashtbl.replace storage addr ();
-                stack_size - 1
-        | PUT addr -> (
-                match Hashtbl.find_opt storage addr with
-                | Some () -> stack_size + 1
-                | None -> raise @@ Error (loc,
-                        sprintf "nothing storeed at this address"))
+            | PEEK (depth, addr) ->
+                    Hashtbl.replace storage addr ();
+                    if depth < stack_size then stack_size
+                    else raise @@ Error (loc,
+                        sprintf "cannot peek %d deep into stack of length %d"
+                        (depth + 1) stack_size)
+            | TAKE addr ->
+                    Hashtbl.replace storage addr ();
+                    stack_size - 1
+            | PUT addr -> (
+                    match Hashtbl.find_opt storage addr with
+                    | Some () -> stack_size + 1
+                    | None -> raise @@ Error (loc,
+                            sprintf "nothing storeed at this address"))
 
-        | LOAD  _ -> stack_size - 1
-        | STORE _ -> stack_size - 3
+            | LOAD  _ -> stack_size
+            | STORE _ -> stack_size - 2
 
-        | PUSH _ -> stack_size + 1
+            | PUSH _ -> stack_size + 1
 
-        | SYSCALL n -> stack_size - n
+            | SYSCALL n -> stack_size - n
 
-        | ADD | SUB | MUL | DIV | MOD
-        | FADD | FSUB | FMUL | FDIV
-        | BAND | BOR | BXOR | LSL | LSR
-        | AND | OR
-        | EQ | NE | LT | LE | GT | GE -> stack_size - 1
+            | ADD | SUB | MUL | DIV | MOD
+            | FADD | FSUB | FMUL | FDIV
+            | LAND | LOR | LXOR | LSL | LSR
+            | AND | OR
+            | EQ | NE | LT | LE | GT | GE -> stack_size - 1
 
-        | ITOF | FTOI -> stack_size
+            | ITOF | FTOI -> stack_size
 
-        | PUTS -> stack_size - 1
-        | PUTC | PUTI -> stack_size - 1
+            | PUTS -> stack_size - 1
+            | PUTC | PUTI -> stack_size - 1
         in
         List.fold_left check'
     in
@@ -158,7 +151,7 @@ let check procs macros mem program =
         let gen_to_concrete = Hashtbl.create 10
         and type_stack = Stack.create () in
 
-        let check' (((stack : (location * prep) list), stack_size) as s) (loc, instr) =
+        let check' ((stack : (location * prep) list), stack_size as s) (loc, instr) =
             match instr with
             | FN name ->
                     (let func =
@@ -167,8 +160,7 @@ let check procs macros mem program =
                     in
                     match func.types with
                     | Untyped ->
-                            Stack.push [] type_stack;
-                            s
+                            Stack.push [] type_stack; s
                     | Numbered (n_expected, _) ->
                             Stack.push [] type_stack;
                             if stack_size < n_expected then
@@ -176,13 +168,12 @@ let check procs macros mem program =
                                 sprintf "not enough arguments for function '%s'" name)
                             else s
                     | Typed (t_expected, _) -> (
-                            let t_expected = t_expected |> List.split |> snd in
+                            let t_expected = snd @@ List.split t_expected in
                             Stack.push t_expected type_stack;
                             let check_types' i (t_expected, t) =
                                 match t_expected, t with
-                                | Type expected, Type actual ->
-                                        if expected = actual then ()
-                                        else raise @@ Error (loc,
+                                | Type expected, Type actual when expected = actual -> ()
+                                | Type expected, Type actual -> raise @@ Error (loc,
                                             sprintf "Invalid argument n. %d for function '%s'. " i name ^
                                             sprintf "Expected: %s, " (print_typ expected) ^
                                             sprintf "actual: %s." (print_typ actual))
@@ -310,9 +301,12 @@ let check procs macros mem program =
                     | (_, a) ::  _ -> raise @@ Error (loc,
                             sprintf "expected Ptr Int, got %s" (print_prep a))
                     | _ -> raise @@ Error (loc, "not enough elements on the stack"))
-            | STORE _ ->
+            | STORE t ->
                     (match stack with
-                    | (_, Type Ptr) :: _ :: tl -> tl, stack_size - 2
+                    | (_, Type Ptr) :: (_, Type typ) :: tl ->
+                            if t = typ then tl, stack_size - 2
+                            else raise @@ Error (loc,
+                                    sprintf "expected %s, got %s" (show_typ t) (show_typ typ))
                     | (_, a) :: (_, b) :: _ -> raise @@ Error (loc,
                             sprintf "expected Ptr Int (pointer to memory and index), got %s %s"
                             (print_prep a) (print_prep b))
@@ -335,32 +329,33 @@ let check procs macros mem program =
                     (match stack with
                     | (_, Type Int) :: (_, Type Int) :: tl -> (loc, Type Int) :: tl, stack_size - 1
                     | (_, Type Ptr) :: (_, Type Int) :: tl -> (loc, Type Ptr) :: tl, stack_size - 1
+                    | (_, Type Char) :: (_, Type Int) :: tl -> (loc, Type Char) :: tl, stack_size - 1
                     | (_, a) :: (_, b) :: _ -> raise @@ Error (loc,
-                            sprintf "expected Int Int or Ptr Int, got %s %s; operator is not generic"
+                            sprintf "expected int int or ptr int, got %s %s; operator is not generic"
                             (print_prep a) (print_prep b))
                     | (_, a) ::  _ -> raise @@ Error (loc,
-                            sprintf "expected Int Int, got %s" (print_prep a))
+                            sprintf "expected int int, got %s" (print_prep a))
                     | _ -> raise @@ Error (loc, "not enough elements on the stack"))
             | SUB ->
                     (match stack with
                     | (_, Type Int) :: (_, Type Int) :: tl -> (loc, Type Int) :: tl, stack_size - 1
                     | (_, Type Ptr) :: (_, Type Ptr) :: tl -> (loc, Type Int) :: tl, stack_size - 1
                     | (_, a) :: (_, b) :: _ -> raise @@ Error (loc,
-                            sprintf "expected Int Int, got %s %s; operator is not generic"
+                            sprintf "expected int int, got %s %s; operator is not generic"
                             (print_prep a) (print_prep b))
                     | (_, a) ::  _ -> raise @@ Error (loc,
-                            sprintf "expected Int Int, got %s" (print_prep a))
+                            sprintf "expected int int, got %s" (print_prep a))
                     | _ -> raise @@ Error (loc, "not enough elements on the stack"))
 
             | MUL | DIV | MOD
-            | BAND | BOR | BXOR | LSL | LSR ->
+            | LAND | LOR | LXOR | LSL | LSR ->
                     (match stack with
                     | (_, Type Int) :: (_, Type Int) :: tl -> (loc, Type Int) :: tl, stack_size - 1
                     | (_, a) :: (_, b) :: _ -> raise @@ Error (loc,
-                            sprintf "expected Int Int, got %s %s; operator is not generic"
+                            sprintf "expected int int, got %s %s; operator is not generic"
                             (print_prep a) (print_prep b))
                     | (_, a) ::  _ -> raise @@ Error (loc,
-                            sprintf "expected Int Int, got %s" (print_prep a))
+                            sprintf "expected int int, got %s" (print_prep a))
                     | _ -> raise @@ Error (loc, "not enough elements on the stack"))
 
             | ITOF ->
@@ -398,7 +393,7 @@ let check procs macros mem program =
                     (match stack with
                     | (_, Type Ptr) :: (_, Type Int) :: tl -> tl, stack_size - 2
                     | (_, a) :: (_, b) :: _ -> raise @@ Error (loc,
-                            sprintf "expected Ptr Int, got %s %s" (print_prep a) (print_prep b))
+                            sprintf "expected ptr int, got %s %s" (print_prep a) (print_prep b))
                     | _ -> raise @@ Error (loc, "not enough elements on the stack"))
             | (PUTC | PUTI) as t -> put t loc stack, stack_size - 1
 
@@ -419,11 +414,8 @@ let check procs macros mem program =
         | Untyped -> ()
         | Numbered (n_in, n_out_expected) -> (
             let n_out =
-                let strings = ref ""
-                and mem = Hashtbl.create 10
-                and max_addr = ref 0 in
                 let parse =
-                    parse strings mem procs macros max_addr
+                    parse ptr_size procs macros
                 in
                 parse seq
                 |> check_numbered n_in
@@ -434,10 +426,8 @@ let check procs macros mem program =
                 name n_out_expected n_out))
         | Typed (t_in, t_out) ->
             let stack, t_out =
-                let strings = ref ""
-                and max_addr = ref 0 in
                 let parse =
-                    parse strings mem procs macros max_addr
+                    parse ptr_size procs macros
                 and remove_loc = List.map (fun (_, typ) -> typ) in
                 let stack, _ =
                     parse seq

@@ -1,4 +1,6 @@
 include "core/stack.ab"
+include "core/io.ab"
+
 macro LIMIT is 100 end
 
 (output a Fibonacci sequence up to LIMIT)

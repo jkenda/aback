@@ -8,13 +8,12 @@ end
 macro print-result
     ->
 is
-    add 7 6 ; puti
+    + '0' add 4 3 ; putc
 end
 
-puts "7 + 6 = " ;
+puts "4 + 3 = " ;
 print-result ;
 putc ',' ;
 putc ' ' ;
-puts "14 = " ;
-puti 14
-
+puts "9 = " ;
+putc + '0' 9

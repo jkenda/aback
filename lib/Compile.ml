@@ -2,10 +2,8 @@ open Format
 open Lexer
 open Program
 
-let header = "
-wbsiz equ 1024
-
-format ELF64 executable
+let header =
+"format ELF64 executable
 use64
 
 segment readable executable
@@ -15,17 +13,20 @@ entry $
 
 "
 
-let footer = "
+let footer =
+"
     ; exit 0
     mov rdi, 0
     jmp exit
 
+wbsiz equ 1024
+
 ; puts(rsi, rdx)
 puts:
     mov rcx, 0
-puts_loop:
+.puts_loop:
     cmp rcx, rdx
-    jge puts_ret
+    jge .puts_ret
 
     mov dil, [rsi]
 
@@ -36,22 +37,22 @@ puts_loop:
 
     ; flush on newline
     cmp dil, 10
-    je puts_flush
+    je .puts_flush
 
     ; flush if full
     cmp [wblen], wbsiz
-    jge puts_flush
+    jge .puts_flush
 
-    jmp puts_inc
+    jmp .puts_inc
 
-puts_flush:
+.puts_flush:
     call flush
 
-puts_inc:
+.puts_inc:
     inc rsi
     inc rcx
-    jmp puts_loop
-puts_ret:
+    jmp .puts_loop
+.puts_ret:
     ret
 
 ; putc(rdi)
@@ -80,35 +81,6 @@ flush:
     mov [wblen], 0
     ret
 
-; puti(rdi)
-puti:
-	push    rbx
-	mov     rbx, rdi
-.L3:
-	test    rbx, rbx
-	jns     .L2
-	mov     edi, 45
-	neg     rbx
-	call    putc
-	jmp     .L3
-.L2:
-	cmp     rbx, 9
-	jle     .L4
-	mov     rax, rbx
-	mov     ecx, 10
-	cqo
-	idiv    rcx
-	mov     rdi, rax
-	call    puti
-.L4:
-	mov     rax, rbx
-	mov     ecx, 10
-	pop     rbx
-	cqo
-	idiv    rcx
-	lea     edi, [rdx+48]
-	jmp     putc
-
 ; exit(rdi)
 exit:
     push rdi
@@ -116,9 +88,6 @@ exit:
     mov rax, 60
     pop rdi
     syscall
-
-
-segment readable writable
 "
 
 let arg_regs = ["rdi"; "rsi"; "rdx"; "r10"; "r8"; "r9"]
@@ -131,13 +100,96 @@ let pop_syscall_regs loc n =
     in
     get' [] (n, arg_regs)
 
-let add_strings buffer strings =
-    Buffer.add_string buffer "strs db \"";
-    String.iter (function
-        | '\000' | '\t' | '\r' | '\n' | '"' as c ->
-                Buffer.add_string buffer @@ sprintf "\", %d, \"" @@ Char.code c
-        | c -> Buffer.add_char buffer c) strings;
-    Buffer.add_string buffer "\"\n"
+let neg_comp = function
+    | "e"  -> "ne"
+    | "ne" -> "e"
+    | "l"  -> "ge"
+    | "le" -> "g"
+    | "g"  -> "le"
+    | "ge" -> "l"
+    | _ -> raise @@ Unreachable "cond"
+
+let cmp_op op =
+    let op =
+        match op with
+        | EQ -> "e"
+        | NE -> "ne"
+        | LT -> "l"
+        | LE -> "le"
+        | GT -> "g"
+        | GE -> "ge"
+        | _ -> raise @@ Unreachable (show_ir op)
+    in
+    [
+        ["pop"; "rax"];
+        ["pop"; "rbx"];
+        ["cmp"; "rax"; ","; "rbx"];
+        ["set" ^ op; "al"];
+        ["push"; "rax"]
+    ]
+
+let int_op op =
+        [["pop"; "rax"]] @
+        [["pop"; "rcx"]] @
+        (match op with
+        | ADD -> [["add";  "rax"; ","; "rcx"]]
+        | SUB -> [["sub";  "rax"; ","; "rcx"]]
+        | MUL -> [["imul"; "rax"; ","; "rcx"]]
+        | DIV | MOD ->
+                [["cdq"];
+                ["idiv"; "rcx"]]
+        | LAND -> [["and"; "rax"; ","; "rcx"]]
+        | LXOR -> [["or "; "rax"; ","; "rcx"]]
+        | LOR  -> [["xor"; "rax"; ","; "rcx"]]
+        | LSL  -> [["shl"; "rax"; ","; "cl" ]]
+        | LSR  -> [["shr"; "rax"; ","; "cl" ]]
+        | _ -> raise @@ Unreachable (show_ir op)) @
+        match op with
+        | MOD -> [["push"; "rdx"]]
+        | _   -> [["push"; "rax"]]
+
+let float_op op = [
+        ["movsd"; "xmm0"; ","; "[rsp]"];
+        (match op with
+        | FADD -> ["addsd"; "xmm0"; ","; "[rsp + 8]"]
+        | FSUB -> ["subsd"; "xmm0"; ","; "[rsp + 8]"]
+        | FMUL -> ["mulsd"; "xmm0"; ","; "[rsp + 8]"]
+        | FDIV -> ["divsd"; "xmm0"; ","; "[rsp + 8]"]
+        | _ -> raise @@ Unreachable (show_ir op));
+        ["pop"; "qword [rsp - 8]"];
+        ["movsd"; "[rsp]"; ","; "xmm0"]
+    ]
+
+let bool_op op = [
+        ["pop"; "rax"];
+        ["pop"; "rbx"];
+        (match op with
+        | AND -> ["and"; "rax, rbx"]
+        | OR  -> ["or" ; "rax, rbx"]
+        | _ -> raise @@ Unreachable (show_ir op));
+        ["push"; "rax"]
+    ]
+
+let put_op = function
+    | PUTS -> [
+            ["pop";  "rsi"];
+            ["pop";  "rdx"];
+            ["call"; "puts"]]
+    | PUTC -> [
+            ["pop";  "rdi"];
+            ["call"; "putc"]]
+    | PUTI -> [
+            ["pop";  "rdi"];
+            ["call"; "puti"]]
+
+    | op -> raise @@ Unreachable (show_ir op)
+
+let cond_jmp cond label =
+    [
+        ["pop"; "rax"];
+        ["cmp"; "al"; ","; string_of_int cond];
+        [sprintf "je"; label]
+    ]
 
 let to_fasm_x64_linux program =
     let buffer =
@@ -145,184 +197,92 @@ let to_fasm_x64_linux program =
         @@ String.to_seq header
     in
 
-    let has_else = Hashtbl.create 10 in
-    let collect' = function
-        | ELSE id -> Hashtbl.replace has_else id ()
-        | _ -> ()
+    let has_else =
+        let has_else' = Hashtbl.create 10 in
+        let collect' = function
+            | ELSE id -> Hashtbl.replace has_else' id ()
+            | _ -> ()
+        in
+        Array.iter collect' program.ir;
+        has_else'
     in
-    Array.iter collect' program.ir;
 
     let compile' acc (loc, instr) =
-        let cmp op =
-            (*"; " ^ show_ir op ^ "" ^ *)
-            let op =
-                match op with
-                | EQ -> "e"
-                | NE -> "ne"
-                | LT -> "l"
-                | LE -> "le"
-                | GT -> "g"
-                | GE -> "ge"
-                | _ -> raise @@ Unreachable (show_ir op)
-            in
-            [
-                ["pop"; "rax"];
-                ["pop"; "rbx"];
-                ["cmp"; "rax"; ","; "rbx"];
-                ["set" ^ op; "al"];
-                ["push"; "rax"]
-            ]
-        and int_op op =
-            (* "; " ^ show_ir op ^ "" ^ *)
-                [["pop"; "rax"]] @
-                [["pop"; "rcx"]] @
-                (match op with
-                | ADD -> [["add";  "rax"; ","; "rcx"]]
-                | SUB -> [["sub";  "rax"; ","; "rcx"]]
-                | MUL -> [["imul"; "rax"; ","; "rcx"]]
-                | DIV | MOD ->
-                        [["cdq"];
-                        ["idiv"; "rcx"]]
-                | BAND -> [["and"; "rax"; ","; "rcx"]]
-                | BXOR -> [["or "; "rax"; ","; "rcx"]]
-                | BOR  -> [["xor"; "rax"; ","; "rcx"]]
-                | LSL  -> [["shl"; "rax"; ","; "cl" ]]
-                | LSR  -> [["shr"; "rax"; ","; "cl" ]]
-                | _ -> raise @@ Unreachable (show_ir op)) @
-                match op with
-                | MOD -> [["push"; "rdx"]]
-                | _   -> [["push"; "rax"]]
-        and float_op op =
-            (* "; " ^ show_ir op ^ "" ^ *)
-            [
-                ["movsd xmm0, [rsp]"];
-                [match op with
-                | FADD -> "addsd xmm0, [rsp + 8]"
-                | FSUB -> "subsd xmm0, [rsp + 8]"
-                | FMUL -> "mulsd xmm0, [rsp + 8]"
-                | FDIV -> "divsd xmm0, [rsp + 8]"
-                | _ -> raise @@ Unreachable (show_ir op)];
-                ["pop qword [rsp - 8]"];
-                ["movsd [rsp], xmm0"]
-            ]
-        and bool_op op =
-            (* "; " ^ show_ir op ^ "" ^ *)
-            [
-                ["pop"; "rax"];
-                ["pop"; "rbx"];
-                [match op with
-                | AND -> "and  rax, rbx"
-                | OR  -> "or   rax, rbx"
-                | _ -> raise @@ Unreachable (show_ir op)];
-                ["push"; "rax"]
-            ]
-        and put op =
-            (* "; " ^ show_ir op ^ "" ^ *)
-            match op with
-            | PUTS -> [
-                    ["pop"; "rsi"];
-                    ["pop"; "rdx"];
-                    ["call puts"]]
-            | PUTC -> [
-                    ["pop"; "rdi"];
-                    ["call putc"]]
-            | PUTI -> [
-                    ["pop"; "rdi"];
-                    ["call puti"]]
-
-            | _ -> raise @@ Unreachable (show_ir op)
-        and cond_jmp cond label =
-            [
-                ["pop"; "rax"];
-                ["cmp"; "al"; ","; string_of_int cond];
-                [sprintf "je"; label]
-            ]
-        in
-
         (match instr with
         | (FN _ | FN_END) -> []
-        | IF id -> [
-                (* "; " ^ show_ir instr ^ "" ^ *)
-                [sprintf "if_%d:" id]]
+        | IF id ->
+                [[sprintf ".if_%d:" id]]
         | THEN id ->
-                (* "; " ^ show_ir instr ^ "" ^ *)
                 cond_jmp 0
                 @@ sprintf (
                     if Hashtbl.mem has_else id
-                    then "else_%d"
-                    else "end_if_%d") id
+                    then ".else_%d"
+                    else ".end_if_%d") id
         | ELSE id -> [
-                (* "; " ^ show_ir instr ^ "" ^ *)
-                [sprintf "jmp  end_if_%d" id];
-                [sprintf "else_%d:" id]]
-        | END_IF id -> [
-                (* "; " ^ show_ir instr ^ "" ^ *)
-                [sprintf "end_if_%d:" id]]
+                ["jmp"; sprintf ".end_if_%d" id];
+                [sprintf ".else_%d:" id]]
+        | END_IF id ->
+                [[sprintf ".end_if_%d:" id]]
 
-        | WHILE id -> [
-                (* "; " ^ show_ir instr ^ "" ^ *)
-                [sprintf "while_%d:" id]]
+        | WHILE id ->
+                [[sprintf ".while_%d:" id]]
         | DO id ->
-                (* "; " ^ show_ir instr ^ "" ^ *)
-                cond_jmp 0 @@ sprintf "end_while_%d" id
+                cond_jmp 0
+                @@ sprintf ".end_while_%d" id
         | END_WHILE id -> [
-                (* "; " ^ show_ir instr ^ "" ^ *)
-                [sprintf "jmp  while_%d" id];
-                [sprintf "end_while_%d:" id]]
+                ["jmp"; sprintf ".while_%d" id];
+                [sprintf ".end_while_%d:" id]]
 
-        (* TODO: if addr below 6, use only registers *)
+        (*
+            TODO: when you add procedures, this will have to change.
+            It won't be as simple, PUT will have to know if it's coming before or after a rewrite,
+            TAKE and PEEK will have to know if they're ever rewritten.
+            For starters just remove the optimization and let them always read and write to memory.
+        *)
         | PEEK (depth, addr) ->
-                (* "; " ^ show_ir instr ^ "" ^ *)
                 let addr = program.storage_size - addr in
                 let reg =
                     if addr < 6 then sprintf "r1%d" addr
                     else "rax" 
                 in
                     ["mov"; reg; ","; sprintf "[rsp + 0x%x]" (8 * depth)] ::
-                        if addr >= 6 then [["mov"; sprintf "[vars + 0x%x], rax" (8 * (addr - 6))]]
+                        if addr >= 6 then [["mov"; sprintf "[takes + 0x%x]" (8 * (addr - 6)); ","; "rax"]]
                         else []
         | TAKE addr ->
-                (* "; " ^ show_ir instr ^ "" ^ *)
                 let addr = program.storage_size - addr in
                 let loc =
                     if addr < 6 then sprintf "r1%d" addr
-                    else sprintf "[vars + 0x%x]" (8 * (addr - 6))
+                    else sprintf "[takes + 0x%x]" (8 * (addr - 6))
                 in
                 [["pop"; loc]]
-        | PUT  addr ->
-                (* "; " ^ show_ir instr ^ "" ^ *)
+        | PUT addr ->
                 let addr = program.storage_size - addr in
                 let loc =
                     if addr < 6 then sprintf "r1%d" addr
-                    else sprintf "[vars + 0x%x]" (8 * (addr - 6))
+                    else sprintf "[takes + 0x%x]" (8 * (addr - 6))
                 in
                 [["push"; loc]]
 
         | LOAD t ->
-                (* "; " ^ show_ir instr ^ "" ^ *)
-                let size =
+                let reg =
                     match t with
-                    | Char -> "word"
-                    | _    -> "qword"
+                    | Char -> "dil"
+                    | _    -> "rdi"
                 in
-                [
-                    ["pop"; "rax"];
-                    ["push"; size ^ " [rax]"]
-                ]
+                [["pop"; "rax"];
+                 ["mov"; reg; ","; "[rax]"];
+                 ["push"; "rdi"]]
         | STORE t ->
-                (* "; " ^ show_ir instr ^ "" ^ *)
-                let size =
+                let reg =
                     match t with
-                    | Char -> "word"
-                    | _    -> "qword"
+                    | Char -> "dil"
+                    | _    -> "rdi"
                 in
-                [
-                    ["pop"; "rax"];
-                    [sprintf "pop"; size ^ " [rax]"]
-                ]
+                [["pop"; "rax"];
+                 ["pop"; "rdi"];
+                 ["mov"; "[rax]"; ","; reg]]
 
         | PUSH d ->
-                (* "; " ^ show_ir instr ^ "" ^ *)
                 (match d with
                 | Int i ->
                         if i > 0xFF then [
@@ -340,90 +300,98 @@ let to_fasm_x64_linux program =
                 | Bool true -> [["push"; "1"]]
                 | Bool false -> [["push"; "0"]]
                 | Char c -> [["push"; string_of_int @@ int_of_char c]]
-                | Local_ptr (space, off) ->
+                | Ptr (space, off) ->
                         if off = 0 then [
                             ["push"; space]]
                         else [
-                            ["lea"; sprintf "rax, [%s + %d]" space off];
+                            ["lea"; "rax"; ","; sprintf "[%s + %d]" space off];
                             ["push"; "rax"]])
 
         | SYSCALL nargs ->
-                (* "; " ^ show_ir instr ^ "" ^ *)
                 ["pop"; "rax"] ::
                 pop_syscall_regs loc nargs @
-                [["syscall"]] @
-                [["push"; "rax"]]
+                [["syscall"];
+                ["push"; "rax"]]
 
         | ITOF -> [
-                (* "; " ^ show_ir instr ^ "" ^ *)
                 ["cvtsi2sd xmm0, [rsp]"];
                 ["movsd [rsp], xmm0"]]
         | FTOI -> [
-                (* "; " ^ show_ir instr ^ "" ^ *)
                 ["cvttsd2si rax, [rsp]"];
                 ["mov [rsp], rax"]]
 
-        | EQ | NE | LT | LE | GT | GE as op -> cmp op
+        | EQ | NE | LT | LE | GT | GE as op -> cmp_op op
 
         | ADD | SUB | MUL | DIV | MOD
-        | BAND | BOR | BXOR | LSL | LSR as op -> int_op op
+        | LAND | LOR | LXOR | LSL | LSR as op -> int_op op
         | FADD | FSUB | FMUL | FDIV as op -> float_op op
         | AND | OR as op -> bool_op op
-        | (PUTC | PUTS | PUTI) as op -> put op) :: acc
+        | (PUTC | PUTS | PUTI) as op -> put_op op) :: acc
     in
+
     let rec opti passes instrs =
         let rec opti' acc = function
             | [] -> List.rev acc
+
             (* load/store *)
             | ["mov"; "rax"; ","; off] :: ["imul"; "rax"; ","; mul] :: ["add"; "rax"; ","; addr] :: tl
-                when not (String.starts_with ~prefix:"[" off ||
-                          String.starts_with ~prefix:"[" mul ||
-                          String.starts_with ~prefix:"[" addr) ->
+                when not (String.contains off  '[' ||
+                          String.contains mul  '[' ||
+                          String.contains addr '[') ->
                     opti' (["lea"; "rax"; ","; sprintf "[%s + %s * %s]" addr off mul] :: acc) tl
+            | ["mov"; "rax"; ","; addr] :: ["mov"; reg; ","; "qword [rax]"] :: tl
+                when reg.[0] = 'r' ->
+                    opti' (["mov"; reg; ","; "[" ^ addr ^ "]"] :: acc) tl
+            | ["push"; a] :: ["mov"; "rax"; ","; addr] :: ["pop"; "qword [rax]"] :: tl
+                when addr.[0] = 'r' ->
+                    opti' (["mov"; "[" ^  addr ^ "]"; ","; a] :: acc) tl
+
             | ["lea"; "rax"; ","; addr] :: ["push"; "qword [rax]"] :: tl ->
                     opti' (["push"; addr] :: acc) tl
             | ["lea"; "rax"; ","; addr] :: ["pop"; "qword [rax]"] :: tl ->
                     opti' (["pop"; addr] :: acc) tl
             | ["lea"; "rax"; ","; addr] :: ["mov"; a; ","; "qword [rax]"] :: tl ->
                     opti' (["mov"; a; ","; addr] :: acc) tl
+
             (* arith. operations *)
-            | ["push"; a] :: ["push"; b] :: ["pop"; c] :: ["pop"; d] :: [op; e; ","; f] :: tl
-                when a = c && c = e && d = f ->
-                    opti' ([op; c; ","; b] :: acc) tl
-            | ["push"; a] :: ["push"; b] :: ["pop"; c] :: ["pop"; d] :: [op; e; ","; f] :: tl
-                when c = e && d = f ->
-                    opti' ([op; c; ","; b] :: ["mov"; c; ","; a] :: acc) tl
-            | ["push"; b] :: ("mov" :: "rax" :: _ as mova) :: ["pop"; "rbx"] :: tl ->
-                    let instrs = List.rev [
-                        mova;
-                        ["mov"; "rbx"; ","; b]
-                    ] in
-                    opti' (instrs @ acc) tl
+            | ["push"; a] :: ["push"; b] :: ["pop"; r1] :: ["pop"; r2] :: [op; e; ","; f] :: tl
+                when a = r1 && r1 = e && r2 = f ->
+                    opti' ([op; r1; ","; b] :: acc) tl
+            | ["push"; a] :: ["push"; b] :: ["pop"; r1] :: ["pop"; r2] :: [op; e; ","; f] :: tl
+                when r1 = e && r2 = f ->
+                    opti' ([op; r1; ","; b] :: ["mov"; r1; ","; a] :: acc) tl
+
+            | ["push"; b] :: ["mov"; r1; ","; a] :: ["pop"; r2] :: [op; e; ","; f] :: tl
+                when r1 = e && r2 = f && List.mem op ["add"; "sub"] ->
+                    opti' ([op; r1; ","; b] :: ["mov"; r1; ","; a] :: acc) tl
+
             (* cond. jump *)
             | [set; "al"] :: ["cmp"; "al"; ","; value] :: ["je"; label] :: tl
                 when String.starts_with ~prefix:"set" set ->
                     let cond = String.sub set 3 (String.length set - 3) in
                     let cond =
-                        if value = "0" then
-                            match cond with
-                            | "e"  -> "ne"
-                            | "ne" -> "e"
-                            | "l"  -> "ge"
-                            | "le" -> "g"
-                            | "g"  -> "le"
-                            | "ge" -> "l"
-                            | _ -> raise @@ Unreachable "set"
+                        if value = "0" then neg_comp cond
                         else cond
                     in
                     opti' (["j" ^ cond; label] :: acc) tl
+
             (* push-pop *)
-            | ["push"; a] :: ["pop"; b] :: tl when a = b -> opti' acc tl
-            | ["push"; a] :: ["pop"; b] :: tl -> opti' (["mov"; b; ","; a] :: acc) tl
-            (* mov-mov *)
-            | ["mov"; "rax"; ","; src] :: ["mov"; dst; ","; "rax"] :: tl
+            | ["push"; src] :: ["pop"; dst] :: tl when src = dst ->
+                    opti' acc tl
+            | ["push"; src] :: ["pop"; dst] :: tl
                 when not (String.starts_with ~prefix:"[" src &&
                           String.starts_with ~prefix:"[" dst) ->
+                              opti' (["mov"; dst; ","; src] :: acc) tl
+
+            (* mov-mov *)
+            | ["mov"; r0; ","; src] :: ["mov"; dst; ","; r1] :: tl
+                when r0 = r1 && r0.[0] = 'r' &&
+                    not (String.starts_with ~prefix:"[" src &&
+                         String.starts_with ~prefix:"[" dst) ->
                     opti' (["mov"; dst; ","; src] :: acc) tl
+            | ["mov"; a; ","; b] as mova :: ["mov"; c; ","; d] :: tl
+                when a = d && b = c ->
+                    opti' (mova :: acc) tl
             | hd :: tl -> opti' (hd :: acc) tl
         in
         let next_pass = opti' [] instrs in
@@ -438,13 +406,15 @@ let to_fasm_x64_linux program =
         |> opti 0
     in
     printf "optimization: %d passes\n%!" passes;
+
+    (* add instructions *)
     List.iter (function
         | [instr] when String.ends_with ~suffix:":" instr ->
                 Buffer.add_string buffer instr;
                 Buffer.add_char buffer '\n'
         | instr :: data ->
                 Buffer.add_char buffer '\t';
-                Buffer.add_string buffer (sprintf "%-4s " instr);
+                Buffer.add_string buffer (sprintf "%-5s " instr);
                 List.iter (fun word -> Buffer.add_string buffer word; Buffer.add_char buffer ' ') data;
                 Buffer.add_char buffer '\n'
         | instr ->
@@ -452,8 +422,46 @@ let to_fasm_x64_linux program =
                 List.iter (fun word -> Buffer.add_string buffer word; Buffer.add_char buffer ' ') instr;
                 Buffer.add_char buffer '\n'
         ) instrs;
+
+    (* add footer *)
     Buffer.add_string buffer footer;
-    add_strings buffer program.strings;
+
+    Buffer.add_string buffer "\nsegment readable\n";
+
+    (* add strings *)
+    Buffer.add_string buffer "strs db ";
+    ignore @@
+    String.fold_left (fun prev_was_num c ->
+        match c with
+        | '\000' | '\t' | '\r' | '\n' | '"' as c ->
+                Buffer.add_string buffer @@
+                if prev_was_num then
+                    sprintf "%d, " @@ Char.code c
+                else
+                    sprintf "\", %d, " @@ Char.code c;
+                true
+        | c ->
+                if prev_was_num then
+                    Buffer.add_string buffer @@
+                    sprintf "\"%c" c
+                else
+                    Buffer.add_char buffer c;
+                false) true program.strings;
+    Buffer.truncate buffer (Buffer.length buffer - 2);
+    Buffer.add_char buffer '\n';
+
+    Buffer.add_string buffer "\nsegment readable writeable\n";
+
+    (* reserve space for vars *)
+    Hashtbl.iter (fun name typ ->
+        let typ_to_str = function
+            | (Char : typ) -> "rb"
+            | _ -> "rq"
+        in
+        Buffer.add_string buffer @@ sprintf "var_%s %s %d\n" name (typ_to_str typ) 1;
+    ) program.vars;
+
+    (* reserve space for arrays *)
     Hashtbl.iter (fun name (typ, space) ->
         let typ_to_str = function
             | (Char : typ) -> "rb"
@@ -461,7 +469,11 @@ let to_fasm_x64_linux program =
         in
         Buffer.add_string buffer @@ sprintf "mem_%s %s %d\n" name (typ_to_str typ) space;
     ) program.mem;
-    Buffer.add_string buffer @@ sprintf "vars rq %d\n" program.storage_size;
+
+    (* reserve space for take/peek vars *)
+    Buffer.add_string buffer @@ sprintf "takes rq %d\n" program.storage_size;
+
+    (* reserve space for write buffer *)
     Buffer.add_string buffer "wblen dq 0\n";
     Buffer.add_string buffer "writebuf rb wbsiz\n";
 

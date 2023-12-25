@@ -1,29 +1,45 @@
 include "core/stack.ab"
 include "core/math.ab"
 
-(print boolean values
- as "true" or "false")
-macro putb
-    bool ->
-is
-take b in
-    puts
-    if b then "true"
-    else "false" end
-end end
+macro $INT_BUFSIZ$ is 64 end
+mem $int_buf$ char $INT_BUFSIZ$ end
+var $int_len$ int end
 
-(print int in binary representation)
-macro putib
-    int ->
+macro $puti$
+    int int ->
 is
+take radix n in
+    := $int_len$ $INT_BUFSIZ$ ;
+
+    if < n 0 then
+        putc '-' ;
+        - 0 n
+    else n end ;
+
+    take n in
+        := $int_len$ - $int_len$ 1 ;
+        / n radix ;
+
+        + '0' % n radix ;
+        := [] $int_buf$ $int_len$ ;
+    end
+
     while > over 0 do
         take n in
-        puti % n 2 ;
-        / n 2
+            := $int_len$ - $int_len$ 1 ;
+            / n radix ;
+
+            + '0' % n radix ;
+            := [] $int_buf$ $int_len$ ;
         end
-    end
-    drop
-end
+    end drop ;
+
+    puts + $int_buf$ $int_len$ - $INT_BUFSIZ$ $int_len$
+end end
+
+macro puti is $puti$ 10 end
+macro putib is $puti$ 2 end
+macro putix is $puti$ 16 end
 
 macro $FLOAT_PREC$ is 6 end
 
@@ -38,13 +54,13 @@ is
     end ;
 
     (get the whole and the decimal part)
-    ftoi dup ;                 (whole float)
-    -. swap itof over over ;   (dec whole float)
-    drop -rot ;                (dec whole)
+    ftoi dup ;                 (whole float --)
+    -. swap itof over over ;   (dec whole float --)
+    drop -rot ;                (dec whole --)
 
     (print the whole part)
-    puti swap ; (dec)
-    putc '.'  ;
+    puti swap ; (dec --)
+    putc '.'  ; (dec --)
 
     (print the decimal part)
     take dec in
@@ -62,3 +78,14 @@ is
         end
     end
 end
+
+(print boolean values
+ as "true" or "false")
+macro putb
+    bool ->
+is
+take b in
+    puts
+    if b then "true"
+    else "false" end
+end end
