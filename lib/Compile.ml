@@ -2,6 +2,10 @@ open Format
 open Lexer
 open Program
 
+let str_of_typ = function
+    | (Char : typ) -> "rb"
+    | _ -> "rq"
+
 let header =
 "format ELF64 executable
 use64
@@ -13,13 +17,15 @@ entry $
 
 "
 
+let wbsiz = 1024
+
 let footer =
 "
     ; exit 0
     mov rdi, 0
     jmp exit
 
-wbsiz equ 1024
+    wbsiz equ " ^ string_of_int wbsiz ^ "
 
 ; puts(rsi, rdx)
 puts:
@@ -464,20 +470,37 @@ let to_fasm_x64_linux program =
         Buffer.add_string buffer @@ sprintf "var_%s %s %d\n" name (typ_to_str typ) 1;
     ) program.vars;
 
-    (* reserve space for arrays *)
-    Hashtbl.iter (fun name (typ, space) ->
-        let typ_to_str = function
-            | (Char : typ) -> "rb"
-            | _ -> "rq"
-        in
-        Buffer.add_string buffer @@ sprintf "mem_%s %s %d\n" name (typ_to_str typ) space;
-    ) program.mem;
-
     (* reserve space for take/peek vars *)
     Buffer.add_string buffer @@ sprintf "takes rq %d\n" program.storage_size;
-
     (* reserve space for write buffer *)
     Buffer.add_string buffer "wblen dq 0\n";
-    Buffer.add_string buffer "writebuf rb wbsiz\n";
+
+    (* add writbuf to arrays *)
+    Hashtbl.to_seq program.mem
+    |> List.of_seq
+    |> List.iter (fun (name, rhs) ->
+            Hashtbl.remove program.mem name;
+            Hashtbl.add program.mem ("mem_" ^ name) rhs
+    );
+
+    Hashtbl.add program.mem "writebuf" (Char, wbsiz);
+
+    let array =
+        Array.of_seq @@
+        Hashtbl.to_seq program.mem
+    in
+
+    (* sort arrays by size so that the last one is the biggest *)
+    (* and doesn't contribute to the size of the executable *)
+    Array.sort (fun (_, (t1, s1)) (_, (t2, s2)) ->
+        let b1 = size_of_typ t1
+        and b2 = size_of_typ t2 in
+        compare (s1 * b1) (s2 * b2))
+    array;
+    (* reserve space *)
+    Array.iter (fun (name, (typ, space)) ->
+        Buffer.add_string buffer
+        @@ sprintf "%s %s %d\n" name (str_of_typ typ) space)
+    array;
 
     Buffer.to_bytes buffer

@@ -61,6 +61,10 @@ let print_typ = function
     | Int -> "int" | Float -> "float" | Char -> "char"
     | Bool -> "bool" | Ptr -> "ptr" | String -> "str" | CStr -> "cstr"
 
+let size_of_typ = function
+    | Char -> 1
+    | _ -> 8
+
 let print_typ_stack =
     List.fold_left (fun acc typ -> acc ^ print_typ typ ^ " ") ""
 
