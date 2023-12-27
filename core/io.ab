@@ -34,12 +34,14 @@ take radix n in
         end
     end drop ;
 
-    puts + $int_buf$ $int_len$ - $INT_BUFSIZ$ $int_len$
+    puts
+        + $int_buf$ $int_len$
+        - $INT_BUFSIZ$ $int_len$
 end end
 
 macro puti is $puti$ 10 end
-macro putib is $puti$ 2 end
-macro putix is $puti$ 16 end
+macro putib is puts "0b" ; $puti$ 2 end
+macro putix is puts "0x" ; $puti$ 16 end
 
 macro $FLOAT_PREC$ is 6 end
 
@@ -86,6 +88,6 @@ macro putb
 is
 take b in
     puts
-    if b then "true"
-    else "false" end
+        if b then "true"
+        else "false" end
 end end

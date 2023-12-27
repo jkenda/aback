@@ -217,21 +217,21 @@ let to_fasm_x64_linux program =
                 @@ sprintf (
                     if Hashtbl.mem has_else id
                     then ".else_%d"
-                    else ".end_if_%d") id
+                    else ".end_%d") id
         | ELSE id -> [
-                ["jmp"; sprintf ".end_if_%d" id];
+                ["jmp"; sprintf ".end_%d" id];
                 [sprintf ".else_%d:" id]]
         | END_IF id ->
-                [[sprintf ".end_if_%d:" id]]
+                [[sprintf ".end_%d:" id]]
 
         | WHILE id ->
                 [[sprintf ".while_%d:" id]]
         | DO id ->
                 cond_jmp 0
-                @@ sprintf ".end_while_%d" id
+                @@ sprintf ".end_%d" id
         | END_WHILE id -> [
                 ["jmp"; sprintf ".while_%d" id];
-                [sprintf ".end_while_%d:" id]]
+                [sprintf ".end_%d:" id]]
 
         (*
             TODO: when you add procedures, this will have to change.
@@ -270,6 +270,7 @@ let to_fasm_x64_linux program =
                     | _    -> "rdi"
                 in
                 [["pop"; "rax"];
+                 ["mov"; "rdi"; ","; "0"];
                  ["mov"; reg; ","; "[rax]"];
                  ["push"; "rdi"]]
         | STORE t ->
@@ -357,9 +358,11 @@ let to_fasm_x64_linux program =
             | ["push"; a] :: ["push"; b] :: ["pop"; r1] :: ["pop"; r2] :: [op; e; ","; f] :: tl
                 when a = r1 && r1 = e && r2 = f ->
                     opti' ([op; r1; ","; b] :: acc) tl
+            (*
             | ["push"; a] :: ["push"; b] :: ["pop"; r1] :: ["pop"; r2] :: [op; e; ","; f] :: tl
                 when r1 = e && r2 = f ->
                     opti' ([op; r1; ","; b] :: ["mov"; r1; ","; a] :: acc) tl
+            *)
 
             | ["push"; b] :: ["mov"; r1; ","; a] :: ["pop"; r2] :: [op; e; ","; f] :: tl
                 when r1 = e && r2 = f && List.mem op ["add"; "sub"] ->

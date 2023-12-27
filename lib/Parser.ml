@@ -62,9 +62,13 @@ let rec parse ptr_size procs macros words =
         Hashtbl.replace table name { loc; types; seq };
         words
     and add_string str =
-        let addr = String.length !strings in
-        strings := !strings ^ str ^ "\x00";
-        addr, String.length str
+        try
+            let re = Str.regexp_string str in
+            Str.search_forward re !strings 0, String.length str
+        with Not_found ->
+            let addr = String.length !strings in
+            strings := !strings ^ str ^ "\x00";
+            addr, String.length str
     and parse_vars loc words =
         let rec parse' vars = function
             | (_, In) :: words -> List.rev vars, words
