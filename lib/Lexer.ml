@@ -71,27 +71,7 @@ let print_typ_stack =
 type loc_typ = location * typ
 [@@deriving show { with_path = false }]
 
-(* token types *)
-type word =
-    | Include
-
-    | Int of int
-    | Float of float
-    | Char of char
-    | String of string
-    | CStr of string
-    | True | False
-
-    | Type of typ
-
-    | Rev | Return
-
-    | Macro | Proc | Is | End
-    | If | Then | Else
-    | While | Do (* while ... end *)
-    | Peek | Take | In (* peek ... end, take ... end *)
-    | Mem | Var | Index | Assign
-
+type operator =
     | Eq | NEq | Lt | LEq | Gt | GEq
 
     | Add | FAdd
@@ -109,6 +89,31 @@ type word =
     | Putc | Puts
 
     | Syscall
+    | Call
+[@@deriving show { with_path = false }]
+
+(* token types *)
+type word =
+    | Include
+
+    | Int of int
+    | Float of float
+    | Char of char
+    | String of string
+    | CStr of string
+    | True | False
+
+    | Type of typ
+
+    | Sep | Return
+
+    | Macro | Proc | Is | End
+    | If | Then | Else
+    | While | Do (* while ... end *)
+    | Peek | Take | In (* peek ... end, take ... end *)
+    | Mem | Var | Index | Assign
+
+    | Op of operator
 
     | Word of string
 [@@deriving show { with_path = false }]
@@ -120,7 +125,7 @@ let instr_of_word (loc, word) =
     let word =
         match word with
         | "include" -> Include
-        | ";" -> Rev | "->" -> Return
+        | ";" -> Sep | "->" -> Return
         | "macro" -> Macro | "proc" -> Proc | "is" -> Is
         | "if" -> If | "then" -> Then | "else" -> Else | "end" -> End
         | "while" -> While | "do" -> Do
@@ -131,28 +136,28 @@ let instr_of_word (loc, word) =
         | "char" -> Type Char | "ptr" -> Type Ptr
         | "bool" -> Type Bool
 
-        | "=" -> Eq | "/=" -> NEq
-        | "<" -> Lt | "<=" -> LEq
-        | ">" -> Gt | ">=" -> GEq
+        | "=" -> Op Eq | "/=" -> Op NEq
+        | "<" -> Op Lt | "<=" -> Op LEq
+        | ">" -> Op Gt | ">=" -> Op GEq
 
-        | "+" -> Add | "+." -> FAdd
-        | "-" -> Sub | "-." -> FSub
-        | "*" -> Mul | "*." -> FMul
-        | "/" -> Div | "/." -> FDiv
-        | "%" -> Mod
+        | "+" -> Op Add | "+." -> Op FAdd
+        | "-" -> Op Sub | "-." -> Op FSub
+        | "*" -> Op Mul | "*." -> Op FMul
+        | "/" -> Op Div | "/." -> Op FDiv
+        | "%" -> Op Mod
 
-        | "itof" -> Itof | "ftoi" -> Ftoi
+        | "itof" -> Op Itof | "ftoi" -> Op Ftoi
 
-        | "&"  -> LAnd | "|"  -> LOr | "^" -> LXor
-        | "<<" -> Lsl  | ">>" -> Lsr
-        | "&&" -> And  | "||" -> Or
-        | "@"  -> Ref  | "."  -> Deref
+        | "&"  -> Op LAnd | "|"  -> Op LOr | "^" -> Op LXor
+        | "<<" -> Op Lsl  | ">>" -> Op Lsr
+        | "&&" -> Op And  | "||" -> Op Or
+        | "@"  -> Op Ref  | "."  -> Op Deref
 
-        | "putc" -> Putc | "puts" -> Puts
+        | "syscall" -> Op Syscall
+
+        | "putc" -> Op Putc | "puts" -> Op Puts
 
         | "true" -> True | "false" -> False
-
-        | "syscall" -> Syscall
 
         (* chars, strings, numbers and other words *)
         | word ->
@@ -260,7 +265,7 @@ let%test _ =
     } in
     test (lex "[test]" [] "+ 12 13 'c' 'cc' drop")
     ([
-        { loc with col = 1  }, Add;
+        { loc with col = 1  }, Op Add;
         { loc with col = 3  }, Int 12;
         { loc with col = 6  }, Int 13;
         { loc with col = 9  }, Char 'c';

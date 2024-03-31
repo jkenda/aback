@@ -13,7 +13,7 @@ type prep =
     | Push of data
     | Type of typ
 
-    | Rev | Return
+    | Sep | Return
 
     | Macro | Proc | Is
     | If | Then | Else | End_if
@@ -22,23 +22,7 @@ type prep =
     | Mem | Var | Index | Assign
     | End
 
-    | Eq | NEq | Lt | LEq | Gt | GEq
-
-    | Add | FAdd
-    | Sub | FSub
-    | Mul | FMul
-    | Div | FDiv
-    | Mod
-
-    | Itof | Ftoi
-
-    | LAnd | LOr | LXor | Lsl | Lsr
-    | And  | Or
-    | Ref | Deref
-
-    | Putc | Puts
-
-    | Syscall
+    | Op of operator
 
     | Word of string
 [@@deriving show { with_path = false }]
@@ -47,7 +31,7 @@ let print_prep = function
     | Push a -> show_data a
     | Type t -> print_typ t
 
-    | Rev -> "|>" | Return -> "->"
+    | Sep -> ";" | Return -> "->"
 
     | Macro -> "macro" | Proc -> "proc" | Is -> "is" | End -> "end"
     | If -> "if" | Then -> "then" | Else -> "else" | End_if -> "end"
@@ -55,23 +39,23 @@ let print_prep = function
     | Peek -> "peek" | Take -> "take" | In -> "in" | End_peek -> "end"
     | Mem -> "mem" | Var -> "var" | Index -> "[]" | Assign -> ":="
 
-    | Eq -> "=" | NEq -> "!=" | Lt -> "<" | LEq -> "<=" | Gt -> ">" | GEq -> ">="
+    | Op Eq -> "=" | Op NEq -> "!=" | Op Lt -> "<" | Op LEq -> "<=" | Op Gt -> ">" | Op GEq -> ">="
 
-    | Add -> "+" | FAdd -> "+."
-    | Sub -> "-" | FSub -> "-."
-    | Mul -> "*" | FMul -> "*."
-    | Div -> "/" | FDiv -> "/."
-    | Mod -> "%"
+    | Op Add -> "+" | Op FAdd -> "+."
+    | Op Sub -> "-" | Op FSub -> "-."
+    | Op Mul -> "*" | Op FMul -> "*."
+    | Op Div -> "/" | Op FDiv -> "/."
+    | Op Mod -> "%"
 
-    | Itof -> "itof" | Ftoi -> "ftoi"
+    | Op Itof -> "itof" | Op Ftoi -> "ftoi"
 
-    | LAnd -> "&" | LOr -> "|" | LXor -> "^" | Lsl -> "<<" | Lsr -> ">>"
-    | And  -> "&&" | Or -> "||"
-    | Ref -> "@" | Deref -> "."
+    | Op LAnd -> "&"  | Op LOr -> "|" | Op LXor -> "^" | Op Lsl -> "<<" | Op Lsr -> ">>"
+    | Op And  -> "&&" | Op Or -> "||"
+    | Op Ref -> "@"   | Op Deref -> "."
 
-    | Putc -> "putc" | Puts -> "puts"
+    | Op Putc -> "putc" | Op Puts -> "puts"
 
-    | Syscall -> "syscall"
+    | Op Syscall -> "syscall"
 
     | Word w -> w
 
@@ -153,27 +137,13 @@ and preprocess words =
                 | True -> Push (Bool true)
                 | False -> Push (Bool false)
 
-                | Rev -> Rev | Var -> Var | Mem -> Mem
+                | Sep -> Sep | Var -> Var | Mem -> Mem
 
                 | Type t -> Type t
 
                 | Assign -> Assign | Index -> Index | Return -> Return
-                | Eq -> Eq | NEq -> NEq | Lt -> Lt | LEq -> LEq | Gt -> Gt | GEq -> GEq
-                | Add -> Add | FAdd -> FAdd
-                | Sub -> Sub | FSub -> FSub
-                | Mul -> Mul | FMul -> FMul
-                | Div -> Div | FDiv -> FDiv
-                | Mod -> Mod
 
-                | Itof -> Itof | Ftoi -> Ftoi
-
-                | LAnd -> LAnd | LOr -> LOr | LXor -> LXor | Lsl -> Lsl | Lsr -> Lsr
-                | And -> And | Or -> Or
-                | Ref -> Ref | Deref -> Deref
-
-                | Putc -> Putc | Puts -> Puts
-
-                | Syscall -> Syscall
+                | Op op -> Op op
 
                 | Word w -> Word w
                 | _ -> raise @@ Not_implemented (loc, show_word word)) :: acc, tl
