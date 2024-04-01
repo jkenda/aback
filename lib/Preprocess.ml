@@ -10,7 +10,7 @@ type data =
 [@@deriving show { with_path = false }]
 
 type prep =
-    | Push of data
+    | Literal of data
     | Type of typ
 
     | Sep | Return
@@ -22,13 +22,15 @@ type prep =
     | Mem | Var | Index | Assign
     | End
 
+    | Syscall
+
     | Op of operator
 
     | Word of string
 [@@deriving show { with_path = false }]
 
 let print_prep = function
-    | Push a -> show_data a
+    | Literal a -> show_data a
     | Type t -> print_typ t
 
     | Sep -> ";" | Return -> "->"
@@ -38,6 +40,8 @@ let print_prep = function
     | While -> "while" | Do -> "do" | End_while -> "end"
     | Peek -> "peek" | Take -> "take" | In -> "in" | End_peek -> "end"
     | Mem -> "mem" | Var -> "var" | Index -> "[]" | Assign -> ":="
+
+    | Syscall -> "syscall"
 
     | Op Eq -> "=" | Op NEq -> "!=" | Op Lt -> "<" | Op LEq -> "<=" | Op Gt -> ">" | Op GEq -> ">="
 
@@ -54,8 +58,6 @@ let print_prep = function
     | Op Ref -> "@"   | Op Deref -> "."
 
     | Op Putc -> "putc" | Op Puts -> "puts"
-
-    | Op Syscall -> "syscall"
 
     | Word w -> w
 
@@ -129,13 +131,13 @@ and preprocess words =
 
         | (loc, word) :: tl ->
                 (loc, match word with
-                | Int i -> Push (Int i)
-                | Float f -> Push (Float f)
-                | Char c -> Push (Char c)
-                | String s -> Push (String s)
-                | CStr s -> Push (CStr s)
-                | True -> Push (Bool true)
-                | False -> Push (Bool false)
+                | Int i     -> Literal (Int i)
+                | Float f   -> Literal (Float f)
+                | Char c    -> Literal (Char c)
+                | String s  -> Literal (String s)
+                | CStr s    -> Literal (CStr s)
+                | True      -> Literal (Bool true)
+                | False     -> Literal (Bool false)
 
                 | Sep -> Sep | Var -> Var | Mem -> Mem
 

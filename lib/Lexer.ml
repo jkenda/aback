@@ -87,9 +87,6 @@ type operator =
     | Ref | Deref
 
     | Putc | Puts
-
-    | Syscall
-    | Call
 [@@deriving show { with_path = false }]
 
 (* token types *)
@@ -112,6 +109,8 @@ type word =
     | While | Do (* while ... end *)
     | Peek | Take | In (* peek ... end, take ... end *)
     | Mem | Var | Index | Assign
+
+    | Syscall
 
     | Op of operator
 
@@ -153,7 +152,7 @@ let instr_of_word (loc, word) =
         | "&&" -> Op And  | "||" -> Op Or
         | "@"  -> Op Ref  | "."  -> Op Deref
 
-        | "syscall" -> Op Syscall
+        | "syscall" -> Syscall
 
         | "putc" -> Op Putc | "puts" -> Op Puts
 
