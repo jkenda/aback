@@ -54,22 +54,51 @@ and macro = {
 }
 [@@deriving show { with_path = false }]
 
-let nargs = function
-    | Typed (args, _) -> List.length args
-    | Numbered (nargs, _) -> nargs
+module Procs = struct
+    type t = (string, proc) Hashtbl.t
 
-let _print_macros funcs =
-    print_string 
-    @@ Hashtbl.fold (fun name macro acc -> acc ^ sprintf "%s: %s\n" name (show_macro macro)) funcs ""
+    let pp ppf values =
+        Hashtbl.iter (fun key data ->
+            Format.fprintf ppf "@[<1>%s: %s@]@." key (show_proc data))
+        values 
+end
 
+module Macros = struct
+    type t = (string, macro) Hashtbl.t
+
+    let pp ppf values =
+        Hashtbl.iter (fun key data ->
+            Format.fprintf ppf "@[<1>%s: %s@]@." key (show_macro data))
+        values 
+end
+
+module Vars = struct
+    type t = (string, typ) Hashtbl.t
+
+    let pp ppf values =
+        Hashtbl.iter (fun key data ->
+            Format.fprintf ppf "@[<1>%s: %s@]@." key (show_typ data))
+        values 
+end
+
+module Mems = struct
+    type t = (string, typ * size) Hashtbl.t
+
+    let pp ppf values =
+        Hashtbl.iter (fun key data ->
+            Format.fprintf ppf "@[<1>%s: %s@]@." key (sprintf "%s %d" (show_typ (fst data)) (snd data)))
+        values 
+end
 
 type parser_output = {
-    procs : (name, proc) Hashtbl.t;
-    macros : (name, macro) Hashtbl.t;
-    vars : (name, typ) Hashtbl.t;
-    mems : (name, (typ * size)) Hashtbl.t;
+    procs : Procs.t;
+    macros : Macros.t;
+    vars : Vars.t;
+    mems : Mems.t;
     strings : string ref;
 }
+[@@deriving show { with_path = false }]
+
 
 (*
     Parse the preprocessed words into an AST.
@@ -90,8 +119,16 @@ let parse words =
 
     let takes = Hashtbl.create 10 in
 
+    (* count the number of arguments *)
+    let nargs = function
+        | Typed (args, _) -> List.length args
+        | Numbered (nargs, _) -> nargs
+    in
+
+    (* add a string to the string table *)
     let _add_string str =
         let strings = output.strings in
+        (* try to find and reuse existing string *)
         try
             let re = Str.regexp_string str in
             Str.search_forward re !strings 0, String.length str
@@ -100,9 +137,11 @@ let parse words =
             strings := !strings ^ str ^ "\x00";
             addr, String.length str
 
+    (* add a variable to the table *)
     and add_var name typ =
         Hashtbl.add output.vars name typ
 
+    (* add array to the table *)
     and add_mem loc name typ size =
         let size =
             match size with
@@ -125,12 +164,12 @@ let parse words =
         | [] -> Empty, []
         | (loc, word : location * prep) :: words ->
                 match word with
+                | Literal p ->
+                        Push_literal p, words
                 | Op op ->
                         let node1, words = parse_polish words in
                         let node2, words = parse_polish words in
                         Op (op, node1, node2), words
-                | Literal p ->
-                        Push_literal p, words
                 | Word name when Hashtbl.mem output.macros name ->
                         let macro = Hashtbl.find output.macros name in
                         let nargs = (nargs macro.m_types) in
@@ -174,6 +213,7 @@ let parse words =
         Macro (name, macro, args), tl
     in
 
+    (* get input and output types of function *)
     let extract_types loc words =
         let rec extract' input t_in t_out = function
             | (_, Return) :: words -> extract' false t_in t_out words
@@ -228,6 +268,7 @@ let parse words =
         Hashtbl.replace output.procs name { p_loc; p_types; p_seq; recursive };
         words
 
+    (* parse 'take' and 'peek' *)
     and parse_take loc words =
         let rec parse' acc = function
             | [] -> raise @@ Error (loc, "expected 'end'")
@@ -238,6 +279,7 @@ let parse words =
         in
         parse' [] words
 
+    (* parse sequence of statements *)
     and parse_sequence terminators f words =
         let rec parse' acc = function
             | [] when terminators = [] -> End, List.rev acc, []
@@ -252,19 +294,23 @@ let parse words =
         in
         parse' [] words
 
+    (* parse array indexing *)
     and parse_indexing name words =
         let index, words = parse_polish words in
         Index_into (name, index), words
 
+    (* parse array element assignment *)
     and parse_assign_to_mem name words =
         let index, words = parse_polish words in
         let value, words = parse_polish words in
         Assign_to_mem (name, index, value), words
 
+    (* parse variable assignment *)
     and parse_assign_to_var name words =
         let value, words = parse_polish words in
         Assign_to_var (name, value), words
 
+    (* parse if statement *)
     and parse_if loc words =
         let condition, words = parse_polish words in
         let words =
@@ -281,6 +327,7 @@ let parse words =
         in
         If_statement (condition, then_branch, else_branch), words
 
+    (* parse while block *)
     and parse_while loc words =
         let condition, words = parse_polish words in
         let words =
@@ -291,17 +338,20 @@ let parse words =
         let _, body, words = parse_sequence [] parse_next words in
         While_statement (condition, body), words
 
+    (* parse syscall *)
     and parse_syscall loc nargs id words =
         let args, words =
             parse_args loc (sprintf "syscall %d %d" nargs id) nargs words
         in
         Syscall (id, args), words
 
+    (* parse operator *)
     and parse_op op words =
         let left, words = parse_polish words in
         let right, words = parse_polish words in
         Op (op, left, right), words
 
+    (* parse next statement/expression *)
     and parse_next = function
         | [] -> Empty, []
 
@@ -401,6 +451,7 @@ let parse words =
                 raise @@ Error (loc, "unexpected word" ^ print_prep word)
     in
 
+    (* parse top-level program constructs -- global memory and functions *)
     let parse_toplevel words =
         let parse_tl' (words : (location * prep) list) =
             match words with
@@ -436,3 +487,51 @@ let parse words =
 
     parse_toplevel words;
     output
+
+
+(*
+   TEST
+*)
+
+let test input expected =
+    let parsed = parse input in
+    let matches = parsed = expected in
+    if matches then
+        print_endline "OK"
+    else
+        print_endline (Format.asprintf "%s\n!=\n%s" (show_parser_output expected) (show_parser_output parsed));
+    matches
+
+let hashtbl_of_list l =
+    Hashtbl.of_seq @@ List.to_seq l
+
+let test_loc = {
+    filename = "[test]";
+    included_from = [];
+    expanded_from = [];
+    row = 1; col = 1
+}
+
+let%test _ =
+    let input : prep list =
+        [Var; Word "x"; Is; Type Int; End]
+    in
+    let input = List.map (fun prep -> (test_loc, prep)) input 
+    and expected = {
+        procs   = hashtbl_of_list [];
+        macros  = hashtbl_of_list [];
+        mems    = hashtbl_of_list [];
+        vars    = hashtbl_of_list [
+            "x", (Int : typ)
+        ];
+        strings = ref ""
+    } in
+    test input expected
+
+let%expect_test _ =
+    [(Mem : prep); Word "x"; Is; Type Int; End]
+    |> List.map (fun prep -> (test_loc, prep))
+    |> parse
+    |> ignore;
+    [%expect {||}]
+

@@ -4,7 +4,7 @@ open Preprocess
 open Parser
 open Program
 
-let check ptr_size procs macros program =
+let check procs macros program =
     (* get top n elements of the stack *)
     let rec get_top list = function
         | 0 -> []
