@@ -2,9 +2,25 @@ open Lexer
 open Program
 
 let postprocess program =
+    let strings = ref "" in
+
+    (* add a string to the string table *)
+    let _add_string str =
+        (* try to find and reuse existing string *)
+        try
+            let re = Str.regexp_string str in
+            Str.search_forward re !strings 0, String.length str
+        (* if not found, add new string *)
+        with Not_found ->
+            let addr = String.length !strings in
+            strings := !strings ^ str ^ "\x00";
+            addr, String.length str
+    in
+
     let while_addr = Hashtbl.create 10
     and else_addr = Hashtbl.create 10
     and end_addr = Hashtbl.create 10 in
+
     let collect_jumps instrs =
         let collect' (acc, addr) (_, inst as ir) =
             match inst with

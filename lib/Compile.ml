@@ -6,6 +6,10 @@ let str_of_typ = function
     | (Char : typ) -> "rb"
     | _ -> "rq"
 
+let size_of_typ = function
+    | (Char : typ) -> 1
+    | _ -> 8
+
 let header =
 "format ELF64 executable
 use64

@@ -1,18 +1,21 @@
 open Format
-open Lexer
-open Preprocess
+
+open Parser_types
 open Parser
 open Program
 
-let check procs macros program =
+let check { procs; macros; vars; mems; typs } =
+
     (* get top n elements of the stack *)
     let rec get_top list = function
         | 0 -> []
         | n -> List.hd list :: get_top (List.tl list) (n - 1)
+
     (* remove top n elements from the stack *)
     and remove_top list = function
         | 0 -> list
         | n -> remove_top (List.tl list) (n - 1)
+
     (* find the first element on the stack that differs *)
     and stack_diff = function
         | ([], [])
@@ -20,6 +23,7 @@ let check procs macros program =
         | (_ :: _, []) -> None
         | ((_, t1 as h1) :: _, (_, t2 as h2) :: _) when t1 <> t2 -> Some (h1, h2)
         | (_ :: t1, _ :: t2) -> stack_diff (t1, t2)
+
     (* return the state after console output *)
     and put t loc = function
         | (_, Type Int : location * prep) :: rest when t = PUTI -> rest
@@ -35,7 +39,7 @@ let check procs macros program =
     and stack_sizes = Hashtbl.create 10
     and elseless = Hashtbl.create 10 in
 
-    let check_numbered =
+    let check_numbered  =
         let check' stack_size (loc, ir) =
             if stack_size < 0 then
                 raise @@ Error (loc, "stack underflow");
@@ -46,8 +50,7 @@ let check procs macros program =
                         try Hashtbl.find procs name with Not_found ->
                         Hashtbl.find macros name
                     in
-                    match func.types with
-                    | Untyped -> stack_size
+                    match func.p_types with
                     | Numbered (n_in, _) ->
                             if stack_size < n_in then
                                 raise @@ Error (loc,
@@ -158,9 +161,7 @@ let check procs macros program =
                         try Hashtbl.find procs name with Not_found ->
                         Hashtbl.find macros name
                     in
-                    match func.types with
-                    | Untyped ->
-                            Stack.push [] type_stack; s
+                    match func.p_types with
                     | Numbered (n_expected, _) ->
                             Stack.push [] type_stack;
                             if stack_size < n_expected then
@@ -409,14 +410,10 @@ let check procs macros program =
         List.fold_left check' (t_in, List.length t_in)
     in
     (* typecheck typed procs and macros *)
-    let check_func_inside name { loc; types; seq } =
-        match types with
-        | Untyped -> ()
+    let check_func_inside name { p_loc; p_types; p_seq; recursive } =
+        match p_types with
         | Numbered (n_in, n_out_expected) -> (
             let n_out =
-                let parse =
-                    parse ptr_size procs macros
-                in
                 parse seq
                 |> check_numbered n_in
             in

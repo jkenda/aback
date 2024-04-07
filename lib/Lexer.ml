@@ -61,10 +61,6 @@ let print_typ = function
     | Int -> "int" | Float -> "float" | Char -> "char"
     | Bool -> "bool" | Ptr -> "ptr" | String -> "str" | CStr -> "cstr"
 
-let size_of_typ = function
-    | Char -> 1
-    | _ -> 8
-
 let print_typ_stack =
     List.fold_left (fun acc typ -> acc ^ print_typ typ ^ " ") ""
 
@@ -110,6 +106,8 @@ type word =
     | Peek | Take | In (* peek ... end, take ... end *)
     | Mem | Var | Index | Assign
 
+    | Dot_dot_dot
+
     | Syscall
 
     | Op of operator
@@ -153,6 +151,8 @@ let instr_of_word (loc, word) =
         | "@"  -> Op Ref  | "."  -> Op Deref
 
         | "syscall" -> Syscall
+
+        | "..." -> Dot_dot_dot
 
         | "putc" -> Op Putc | "puts" -> Op Puts
 
@@ -270,4 +270,24 @@ let%test _ =
         { loc with col = 9  }, Char 'c';
         { loc with col = 13 }, Word "'cc'";
         { loc with col = 18 }, Word "drop"
+    ])
+
+let%test _ =
+    let loc1 = {
+        filename = "[test]";
+        included_from = [];
+        expanded_from = [];
+        row = 1; col = 1
+    } in
+    let loc2 = { loc1 with row = 2 } in
+
+    test (lex "[test]" [] "+ 12 13\n'c' 'cc' drop")
+    ([
+        { loc1 with col = 1 }, Op Add;
+        { loc1 with col = 3 }, Int 12;
+        { loc1 with col = 6 }, Int 13;
+
+        { loc2 with col = 1  }, Char 'c';
+        { loc2 with col = 5  }, Word "'cc'";
+        { loc2 with col = 10 }, Word "drop"
     ])

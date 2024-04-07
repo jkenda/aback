@@ -16,11 +16,15 @@ type prep =
     | Sep | Return
 
     | Macro | Proc | Is
-    | If | Then | Else | End_if
-    | While | Do | End_while
-    | Peek | Take | In | End_peek
-    | Mem | Var | Index | Assign
+    | If | Then | Else
+    | While | Do
+    | Peek | Take
+    | Mem | Var
     | End
+
+    | Index | Assign
+
+    | Dot_dot_dot
 
     | Syscall
 
@@ -35,11 +39,16 @@ let print_prep = function
 
     | Sep -> ";" | Return -> "->"
 
-    | Macro -> "macro" | Proc -> "proc" | Is -> "is" | End -> "end"
-    | If -> "if" | Then -> "then" | Else -> "else" | End_if -> "end"
-    | While -> "while" | Do -> "do" | End_while -> "end"
-    | Peek -> "peek" | Take -> "take" | In -> "in" | End_peek -> "end"
-    | Mem -> "mem" | Var -> "var" | Index -> "[]" | Assign -> ":="
+    | Macro -> "macro" | Proc -> "proc" | Is -> "is"
+    | If -> "if" | Then -> "then" | Else -> "else"
+    | While -> "while" | Do -> "do"
+    | Peek -> "peek" | Take -> "take"
+    | Mem -> "mem" | Var -> "var"
+    | End -> "end"
+
+    | Index -> "[]" | Assign -> ":="
+
+    | Dot_dot_dot -> "..."
 
     | Syscall -> "syscall"
 
@@ -79,52 +88,16 @@ and preprocess words =
     in
 
     let end_stack = Stack.create () in
-    let push_end data = Stack.push data end_stack in
 
     let preprocess'' (acc, words) =
         match words with
         | [] -> acc, []
+
         | (loc, Include) :: (_, String src) :: tl ->
                 let included_from = loc.filename :: loc.included_from in
                 include_file included_from src @ acc, tl
         | (_, Include) :: (loc, _) :: _
         | (loc, Include) :: _ -> raise @@ Error (loc, "expected string after include")
-
-        | (loc, Macro) :: tl -> push_end (loc, Macro); (loc, Macro) :: acc, tl
-        | (loc, Proc)  :: tl -> push_end (loc, Proc) ; (loc, Proc)  :: acc, tl
-        | (loc, Is)    :: tl -> (loc, Is) :: acc, tl
-
-        | (loc, Var) :: tl -> push_end (loc, Var); (loc, Var) :: acc, tl
-        | (loc, Mem) :: tl -> push_end (loc, Mem); (loc, Mem) :: acc, tl
-
-        | (loc, If)   :: tl -> push_end (loc, If); (loc, If) :: acc, tl
-        | (loc, Then) :: tl -> (loc, Then) :: acc, tl
-        | (loc, Else) :: tl -> (loc, Else) :: acc, tl
-        (* TODO: Else :: If -> Elif *)
-
-        | (loc, While) :: tl -> push_end (loc, While); (loc, While) :: acc, tl
-        | (loc, Do)    :: tl -> (loc, Do) :: acc, tl
-
-        | (loc, Peek) :: tl -> push_end (loc, Peek); (loc, Peek) :: acc, tl
-        | (loc, Take) :: tl -> push_end (loc, Take); (loc, Take) :: acc, tl
-        | (loc, In)   :: tl -> (loc, In) :: acc, tl
-
-        | (loc, End) :: tl ->
-                let ir =
-                    match Stack.pop end_stack with
-                    | (_, Proc)
-                    | (_, Macro)
-                    | (_, Var)
-                    | (_, Mem)   -> End
-                    | (_, If)    -> End_if
-                    | (_, While) -> End_while
-                    | (_, Peek)
-                    | (_, Take) -> End_peek
-                    | _ | exception _ ->
-                            raise @@ Error (loc,
-                            "end requires matching begin: one of macro, func, if, while, peek, take")
-                in
-                (loc, ir) :: acc, tl
 
         | ((_, Word w) :: _) as words when String.starts_with ~prefix:"(" w ->
                 acc, remove_comment words
@@ -139,9 +112,18 @@ and preprocess words =
                 | True      -> Literal (Bool true)
                 | False     -> Literal (Bool false)
 
-                | Sep -> Sep | Var -> Var | Mem -> Mem
+                | Macro -> Macro | Proc -> Proc | Is -> Is
+                | If -> If | Then -> Then | Else -> Else
+                | While -> While | Do -> Do
+                | Peek -> Peek | Take -> Take
+                | Mem -> Mem | Var -> Var
+                | End
+
+                | Sep -> Sep
 
                 | Type t -> Type t
+
+                | Dot_dot_dot -> Dot_dot_dot
 
                 | Assign -> Assign | Index -> Index | Return -> Return
 
