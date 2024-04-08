@@ -1,4 +1,6 @@
 open Format
+
+open Common
 open Lexer
 open Preprocess
 

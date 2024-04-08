@@ -1,4 +1,4 @@
-open Lexer
+open Common
 open Program
 
 let postprocess program =

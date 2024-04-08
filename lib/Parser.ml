@@ -1,5 +1,6 @@
 open Format
 
+open Common
 open Lexer
 open Preprocess
 
@@ -35,6 +36,8 @@ let parse words =
     and add_take take =
         Hashtbl.replace takes take ();
         Hashtbl.replace (List.hd !scopes_of_takes) take ()
+    and has_take take =
+        Hashtbl.mem takes take
     in
 
     (** parse multiple subsequent words into a list of types *)
@@ -82,7 +85,7 @@ let parse words =
                         with _ -> raise @@ Error (loc, "Unknown value")
                     in
                     match macro with
-                    | { seq = [Push_literal Int size]; _ } -> size
+                    | { seq = [Push_literal { data = Int size; _ }]; _ } -> size
                     | _ -> raise @@ Error (loc, "size has to be of constant value"))
             | Literal Int size -> size
             | _ -> raise @@ Error (loc, "usage: mem <name> <type> <size> end")
@@ -97,22 +100,22 @@ let parse words =
         | [] -> Empty, []
         | (loc, word : location * prep) :: rest ->
                 match word with
-                | Literal p ->
-                        Push_literal p, rest
+                | Literal data ->
+                        Push_literal { loc; data }, rest
                 | Op op ->
-                        let node1, rest = parse_polish rest in
-                        let node2, rest = parse_polish rest in
-                        Op (op, node1, node2), rest
+                        let left , rest = parse_polish rest in
+                        let right, rest = parse_polish rest in
+                        Op { loc; op; left; right }, rest
                 | Word name when Hashtbl.mem output.macros name ->
-                        let macro = Hashtbl.find output.macros name in
-                        let nargs = nargs In macro.types in
+                        let func = Hashtbl.find output.macros name in
+                        let nargs = List.length func.types.t_in in
                         let args, tl = parse_args loc name nargs rest in
-                        Macro (name, macro, args), tl
+                        Macro_call { loc; func; args }, tl
                 | Word name when Hashtbl.mem output.procs name ->
-                        let proc = Hashtbl.find output.procs name in
-                        let nargs = nargs In proc.types in
+                        let func = Hashtbl.find output.procs name in
+                        let nargs = List.length func.types.t_in in
                         let args, tl = parse_args loc name nargs rest in
-                        Proc (name, proc, args), tl
+                        Proc_call { loc; func; args }, tl
                 | End ->
                         Empty, words
 
@@ -130,12 +133,12 @@ let parse words =
             | (loc, Sep) :: _ -> raise @@ Error (loc, "Expected argument, got " ^ print_prep Sep)
 
             (* parse next argument *)
-            | words ->
+            | (loc, _) :: _ as words ->
                     let node, rest = parse_polish words in
                     match node with
-                    | Empty -> List.rev (Unknown_sequence n :: acc), rest
-                    | Proc (_, func, _) | Macro (_, func, _) ->
-                            let nargs = nargs In func.types in
+                    | Empty -> List.rev (Unknown_sequence { loc; length = n } :: acc), rest
+                    | Proc_call { func; _ } | Macro_call { func; _ } ->
+                            let nargs = List.length func.types.t_in in
                             parse' (n - nargs) (node :: acc) rest
                     | _ ->
                             parse' (n - 1) (node :: acc) rest
@@ -144,36 +147,26 @@ let parse words =
     in
 
     (** parse function call *)
-    let parse_proc_call loc name words =
+    let parse_func_call f loc name words =
         let proc = Hashtbl.find output.procs name in
-        let nargs = nargs In proc.types in
+        let nargs = List.length proc.types.t_in in
         let args, rest = parse_args loc name nargs words in
-        Proc (name, proc, args), rest
-    and parse_macro_call loc name words =
-        let macro = Hashtbl.find output.macros name in
-        let nargs = nargs In macro.types in
-        let args, rest = parse_args loc name nargs words in
-        Macro (name, macro, args), rest
+        f (loc, proc, args), rest
     in
 
     (** get input and output types of function *)
     let extract_types loc words =
-        match (words : (location * prep) list) with
-        | (_, Literal Int n_in) :: (_, Return) :: (_, Literal Int n_out) :: (_, Is) :: tl ->
-                Numbered (n_in, n_out), tl
-        | _ ->
-                let t_in , rest = parse_typs loc Return words in
-                let t_out, rest = parse_typs loc Is rest in
-                Typed (t_in, t_out), rest
+        let t_in , rest = parse_typs loc Return words in
+        let t_out, rest = parse_typs loc Is rest in
+        { t_in; t_out }, rest
     in
 
     (** add a proc to the table of procs *)
     let rec add_func loc table name words =
         let types, words = extract_types loc words in
-        let recursive = check_recursion loc name words in
-        let _, seq, words = parse_sequence [|End|] parse_next words in
-        Hashtbl.replace table name { loc; types; seq; recursive; ncalls = ref 0 };
-        words
+        let _, seq, rest = parse_sequence [|End|] parse_next words in
+        Hashtbl.replace table name { loc; name; types; seq; ncalls = ref 0 };
+        rest
 
     (** parse sequence of statements *)
     and parse_sequence terminators f words =
@@ -199,64 +192,58 @@ let parse words =
         ret
 
     (** parse array indexing *)
-    and parse_indexing name words =
-        let index, words = parse_polish words in
-        Index_into (name, index), words
+    and parse_indexing loc name words =
+        let index, rest = parse_polish words in
+        Index_into { loc; name; index }, rest
 
     (** parse array element assignment *)
-    and parse_assign_to_mem name words =
-        let index, words = parse_polish words in
-        let value, words = parse_polish words in
-        Assign_to_mem (name, index, value), words
+    and parse_assign_to_mem loc name words =
+        let index, rest = parse_polish words in
+        let value, rest = parse_polish rest in
+        Assign_to_mem { loc; name; index; value }, rest
 
     (** parse variable assignment *)
-    and parse_assign_to_var name words =
-        let value, words = parse_polish words in
-        Assign_to_var (name, value), words
+    and parse_assign_to_var loc name words =
+        let value, rest = parse_polish words in
+        Assign_to_var { loc; name; value }, rest
 
     (** parse syscall *)
-    and parse_syscall loc nargs id words =
-        let args, words =
-            parse_args loc (sprintf "syscall %d %d" nargs id) nargs words
+    and parse_syscall loc nargs number words =
+        let args, rest =
+            parse_args loc (sprintf "syscall %d" number) nargs words
         in
-        Syscall (id, args), words
-
-    (** parse operator *)
-    and parse_op op words =
-        let l, words = parse_polish words in
-        let r, words = parse_polish words in
-        Op (op, l, r), words
+        Syscall { loc; number; args }, rest
 
     (** parse next statement/expression *)
     and parse_next words =
 
         (** parse if statement *)
         let parse_if loc words =
-            let condition, rest = parse_polish words in
+            let cond, rest = parse_polish words in
             let rest =
                 match rest with
                 | (_, Then) :: tl -> tl
                 | _ -> raise @@ Error (loc, "expected 'then'")
             in
-            let t, then_branch, rest = parse_sequence [|Else; End|] parse_next rest in
-            let _, else_branch, rest =
+            let t, true_branch, rest = parse_sequence [|Else; End|] parse_next rest in
+            let _, false_branch, rest =
                 match t with
                 | End -> End, [], rest
                 | Else -> parse_sequence [|End|] parse_next rest
                 | _ -> raise @@ Error (loc, "expected 'else' or 'end'")
             in
-            If_statement (condition, then_branch, else_branch), rest
+            If_statement { loc; cond; true_branch; false_branch }, rest
 
         (** parse while statement *)
         and parse_while loc words =
-            let condition, rest = parse_polish words in
+            let cond, rest = parse_polish words in
             let rest =
                 match rest with
                 | (_, Do) :: words -> words
                 | _ -> raise @@ Error (loc, "expected 'then'")
             in
             let _, body, rest = parse_sequence [||] parse_next rest in
-            While_statement (condition, body), rest
+            While_statement { loc; cond; body }, rest
 
         (** parse 'take' and 'peek' *)
         and parse_take loc words =
@@ -277,59 +264,65 @@ let parse words =
         | [] -> Empty, []
 
         (* parse variable pushes *)
-        | (_, Word name) :: tl when Hashtbl.mem takes name ->
-                Push_take name, tl
-        | (_, Word name) :: tl when Hashtbl.mem output.vars name ->
-                Var (name, Hashtbl.find output.vars name), tl
-        | (_, Word name) :: tl when Hashtbl.mem output.mems name ->
-                Mem (name, Hashtbl.find output.mems name), tl
+        | (loc, Word name) :: tl when has_take name ->
+                Push_take { loc; name }, tl
+        | (loc, Word name) :: tl when Hashtbl.mem output.vars name ->
+                let typ = Hashtbl.find output.vars name in
+                Var { loc; name; typ }, tl
+        | (loc, Word name) :: tl when Hashtbl.mem output.mems name ->
+                let typ, size = Hashtbl.find output.mems name in
+                Mem { loc; name; typ; size }, tl
 
-        (* parse function/macro calls *)
+        (* parse function/macro call *)
         | (loc, Word name) :: tl when Hashtbl.mem output.macros name ->
-                parse_macro_call loc name tl
+                parse_func_call make_macro loc name tl
         | (loc, Word name) :: tl when Hashtbl.mem output.procs name ->
-                parse_proc_call loc name tl
+                parse_func_call make_proc loc name tl
+
+        (* parse operator *)
+        | (_, Op _) :: _ ->
+                parse_polish words
 
         (* ERROR -- unknown word *)
         | (loc, Word name) :: _ ->
-                let vars = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) takes ""
-                and mem  = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) output.mems ""
-                and procs = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) output.procs ""
+                let vars   = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) takes ""
+                and mem    = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) output.mems ""
+                and procs  = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) output.procs ""
                 and macros = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) output.macros "" in
                 raise @@ Error (loc, 
-                    sprintf "Unknown word: '%s'.\n" name ^
-                    sprintf "\tavailable vars: %s\n" vars ^
-                    sprintf "\tavailable mem: %s\n" mem ^
-                    sprintf "\tavailable macros: %s\n" macros ^
-                    sprintf "\tavailable procs: %s" procs)
+                    sprintf "Unknown word: '%s'.\n"     name ^
+                    sprintf "\tavailable vars: %s\n"    vars ^
+                    sprintf "\tavailable mem: %s\n"     mem ^
+                    sprintf "\tavailable macros: %s\n"  macros ^
+                    sprintf "\tavailable procs: %s"     procs)
 
         (* ERROR -- function definitions only allowed in toplevel *)
-        | (loc, Macro) :: _ -> raise @@ Error (loc, "macro: expected name")
-        | (loc, Proc)  :: _ -> raise @@ Error (loc, "proc: expected name")
+        | (loc, Macro) :: _ -> raise @@ Error (loc, "macro definitions only allowed in toplevel")
+        | (loc, Proc)  :: _ -> raise @@ Error (loc, "proc definitions only allowed in toplevel")
 
         (* ERROR -- global memory definitions only allowed in toplevel *)
-        | (loc, Mem) :: _ -> raise @@ Error (loc, sprintf "usage: mem <name> is <type> <size> end")
-        | (loc, Var) :: _ -> raise @@ Error (loc, sprintf "usage: var <name> is <type> end")
+        | (loc, Mem) :: _ -> raise @@ Error (loc, sprintf "global memory definitions only allowed in toplevel")
+        | (loc, Var) :: _ -> raise @@ Error (loc, sprintf "global variable definitions only allowed in toplevel")
 
 
         | (loc, Take) :: tl ->
-                let seq, tl = parse_take loc tl in
-                Take seq, tl
+                let vars, tl = parse_take loc tl in
+                Take { loc; vars }, tl
         | (loc, Peek) :: tl ->
-                let seq, tl = parse_take loc tl in
-                Peek seq, tl
+                let vars, tl = parse_take loc tl in
+                Peek { loc; vars }, tl
 
         (* ERROR -- unexpected separator ; *)
         | (loc, Sep) :: _ ->
                 raise @@ Error (loc, "unexpected ';'")
 
         (* index into arrays to get the value or assign to it *)
-        | (_, Index) :: (_, Word name) :: tl when Hashtbl.mem output.mems name ->
-                parse_indexing name tl
-        | (_, Assign) :: (_, Index) :: (_, Word name) :: tl when Hashtbl.mem output.mems name ->
-                parse_assign_to_mem name tl
-        | (_, Assign) :: (_, Word name) :: tl when Hashtbl.mem output.vars name ->
-                parse_assign_to_var name tl
+        | (loc, Index) :: (_, Word name) :: tl when Hashtbl.mem output.mems name ->
+                parse_indexing loc name tl
+        | (loc, Assign) :: (_, Index) :: (_, Word name) :: tl when Hashtbl.mem output.mems name ->
+                parse_assign_to_mem loc name tl
+        | (loc, Assign) :: (_, Word name) :: tl when Hashtbl.mem output.vars name ->
+                parse_assign_to_var loc name tl
 
         (* ERROR -- unknown memory *)
         | (_, Index) :: (ln, Word name) :: _ ->
@@ -361,15 +354,12 @@ let parse words =
         (* ERROR -- syscall without nargs, id *)
         | (loc, Syscall) :: _ -> raise @@ Error (loc, "usage: syscall <nargs> <id>")
 
-        (* parse operator *)
-        | (_, Op op) :: tl ->
-                parse_op op tl
-
-        | (_, Literal l) :: tl ->
-                Push_literal l, tl
+        (* parse literal *)
+        | (loc, Literal data) :: tl ->
+                Push_literal { loc; data }, tl
 
         | (loc, word) :: _ ->
-                raise @@ Error (loc, "unexpected word" ^ print_prep word)
+                raise @@ Error (loc, print_prep word ^ ": word not allowed at the toplevel")
     in
 
     (** parse top-level program constructs -- global memory and functions *)
