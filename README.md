@@ -68,7 +68,7 @@ If you have an x64 Linux machine like me then you're in luck because you will be
 
 The compiler first output an assembly file and then compile it to machine code with [FASM](https://flatassembler.net/download.php), so you'll have to have it installed.
 
-You can add the option `-r` after the path to run the compiled binary directly after the execution.
+You can add the option `-r` after the path to run the compiled binary directly after the compilation.
 Example:
 
 ```
