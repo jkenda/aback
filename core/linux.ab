@@ -5,342 +5,342 @@
 )
 
 (syscall numbers)
-macro SYS_read	                 is 0   end 
-macro SYS_write	                 is 1   end 
-macro SYS_open	                 is 2   end 
-macro SYS_close	                 is 3   end 
-macro SYS_stat	                 is 4   end 
-macro SYS_fstat	                 is 5   end 
-macro SYS_lstat	                 is 6   end 
-macro SYS_poll	                 is 7   end 
-macro SYS_lseek	                 is 8   end 
-macro SYS_mmap	                 is 9   end 
-macro SYS_mprotect	             is 10  end 
-macro SYS_munmap	             is 11  end 
-macro SYS_brk	                 is 12  end 
-macro SYS_rt_sigaction	         is 13  end 
-macro SYS_rt_sigprocmask	     is 14  end 
-macro SYS_rt_sigreturn	         is 15  end 
-macro SYS_ioctl	                 is 16  end 
-macro SYS_pread64	             is 17  end 
-macro SYS_pwrite64	             is 18  end 
-macro SYS_readv	                 is 19  end 
-macro SYS_writev	             is 20  end 
-macro SYS_access	             is 21  end 
-macro SYS_pipe	                 is 22  end 
-macro SYS_select	             is 23  end 
-macro SYS_sched_yield			 is 24  end 
-macro SYS_mremap                 is 25  end 
-macro SYS_msync	                 is 26  end 
-macro SYS_mincore	             is 27  end 
-macro SYS_madvise	             is 28  end 
-macro SYS_shmget	             is 29  end 
-macro SYS_shmat	                 is 30  end 
-macro SYS_shmctl	             is 31  end 
-macro SYS_dup	                 is 32  end 
-macro SYS_dup2	                 is 33  end 
-macro SYS_pause					 is 34  end 
-macro SYS_nanosleep              is 35  end 
-macro SYS_getitimer	             is 36  end 
-macro SYS_alarm	                 is 37  end 
-macro SYS_setitimer	             is 38  end 
-macro SYS_getpid				 is 39  end 
-macro SYS_sendfile               is 40  end 
-macro SYS_socket	             is 41  end 
-macro SYS_connect	             is 42  end 
-macro SYS_accept	             is 43  end 
-macro SYS_sendto	             is 44  end 
-macro SYS_recvfrom	             is 45  end 
-macro SYS_sendmsg	             is 46  end 
-macro SYS_recvmsg	             is 47  end 
-macro SYS_shutdown	             is 48  end 
-macro SYS_bind	                 is 49  end 
-macro SYS_listen	             is 50  end 
-macro SYS_getsockname	         is 51  end 
-macro SYS_getpeername	         is 52  end 
-macro SYS_socketpair	         is 53  end 
-macro SYS_setsockopt	         is 54  end 
-macro SYS_getsockopt	         is 55  end 
-macro SYS_clone	                 is 56  end 
-macro SYS_fork					 is 57  end 
-macro SYS_vfork                  is 58  end 
-macro SYS_execve	             is 59  end 
-macro SYS_exit	                 is 60  end 
-macro SYS_wait4	                 is 61  end 
-macro SYS_kill	                 is 62  end 
-macro SYS_uname	                 is 63  end 
-macro SYS_semget	             is 64  end 
-macro SYS_semop	                 is 65  end 
-macro SYS_semctl	             is 66  end 
-macro SYS_shmdt	                 is 67  end 
-macro SYS_msgget	             is 68  end 
-macro SYS_msgsnd	             is 69  end 
-macro SYS_msgrcv	             is 70  end 
-macro SYS_msgctl	             is 71  end 
-macro SYS_fcntl	                 is 72  end 
-macro SYS_flock	                 is 73  end 
-macro SYS_fsync	                 is 74  end 
-macro SYS_fdatasync	             is 75  end 
-macro SYS_truncate	             is 76  end 
-macro SYS_ftruncate	             is 77  end 
-macro SYS_getdents	             is 78  end 
-macro SYS_getcwd	             is 79  end 
-macro SYS_chdir	                 is 80  end 
-macro SYS_fchdir	             is 81  end 
-macro SYS_rename	             is 82  end 
-macro SYS_mkdir	                 is 83  end 
-macro SYS_rmdir	                 is 84  end 
-macro SYS_creat	                 is 85  end 
-macro SYS_link	                 is 86  end 
-macro SYS_unlink	             is 87  end 
-macro SYS_symlink	             is 88  end 
-macro SYS_readlink	             is 89  end 
-macro SYS_chmod	                 is 90  end 
-macro SYS_fchmod	             is 91  end 
-macro SYS_chown	                 is 92  end 
-macro SYS_fchown	             is 93  end 
-macro SYS_lchown	             is 94  end 
-macro SYS_umask	                 is 95  end 
-macro SYS_gettimeofday	         is 96  end 
-macro SYS_getrlimit	             is 97  end 
-macro SYS_getrusage	             is 98  end 
-macro SYS_sysinfo	             is 99  end 
-macro SYS_times	                 is 100 end 
-macro SYS_ptrace	             is 101 end 
-macro SYS_getuid				 is 102 end 
-macro SYS_getgid                 is 103 end 
-macro SYS_getgid				 is 104 end 
-macro SYS_setuid                 is 105 end 
-macro SYS_setgid	             is 106 end 
-macro SYS_geteuid				 is 107 end 
-macro SYS_getegid                is 108 end 
-macro SYS_setpgid	             is 109 end 
-macro SYS_getppid				 is 110 end 
-macro SYS_getpgrp                is 111 end 
-macro SYS_setsid				 is 112 end 
-macro SYS_setreuid               is 113 end 
-macro SYS_setregid	             is 114 end 
-macro SYS_getgroups	             is 115 end 
-macro SYS_setgroups	             is 116 end 
-macro SYS_setresuid	             is 117 end 
-macro SYS_getresuid	             is 118 end 
-macro SYS_setresgid	             is 119 end 
-macro SYS_getresgid	             is 120 end 
-macro SYS_getpgid	             is 121 end 
-macro SYS_setfsuid	             is 122 end 
-macro SYS_setfsgid	             is 123 end 
-macro SYS_getsid	             is 124 end 
-macro SYS_capget	             is 125 end 
-macro SYS_capset	             is 126 end 
-macro SYS_rt_sigpending	         is 127 end 
-macro SYS_rt_sigtimedwait	     is 128 end 
-macro SYS_rt_sigqueueinfo	     is 129 end 
-macro SYS_rt_sigsuspend	         is 130 end 
-macro SYS_sigaltstack	         is 131 end 
-macro SYS_utime	                 is 132 end 
-macro SYS_mknod	                 is 133 end 
-macro SYS_uselib	             is 134 end 
-macro SYS_personality	         is 135 end 
-macro SYS_ustat	                 is 136 end 
-macro SYS_statfs	             is 137 end 
-macro SYS_fstatfs	             is 138 end 
-macro SYS_sysfs	                 is 139 end 
-macro SYS_getpriority	         is 140 end 
-macro SYS_setpriority	         is 141 end 
-macro SYS_sched_setparam	     is 142 end 
-macro SYS_sched_getparam	     is 143 end 
-macro SYS_sched_setscheduler	 is 144 end 
-macro SYS_sched_getscheduler	 is 145 end 
-macro SYS_sched_get_priority_max is 146 end 
-macro SYS_sched_get_priority_min is 147 end 
-macro SYS_sched_rr_get_interval	 is 148 end 
-macro SYS_mlock	                 is 149 end 
-macro SYS_munlock	             is 150 end 
-macro SYS_mlockall	             is 151 end 
-macro SYS_munlockall			 is 152 end 
-macro SYS_vhangup                is 253 end 
-macro SYS_modify_ldt	         is 154 end 
-macro SYS_pivot_root	         is 155 end 
-macro SYS__sysctl	             is 156 end 
-macro SYS_prctl	                 is 157 end 
-macro SYS_arch_prctl	         is 158 end 
-macro SYS_adjtimex	             is 159 end 
-macro SYS_setrlimit	             is 160 end 
-macro SYS_chroot	             is 161 end 
-macro SYS_sync					 is 162 end 
-macro SYS_acct                   is 163 end 
-macro SYS_settimeofday	         is 164 end 
-macro SYS_mount	                 is 165 end 
-macro SYS_umount2	             is 166 end 
-macro SYS_swapon	             is 167 end 
-macro SYS_swapoff	             is 168 end 
-macro SYS_reboot	             is 169 end 
-macro SYS_sethostname	         is 170 end 
-macro SYS_setdomainname	         is 171 end 
-macro SYS_iopl	                 is 172 end 
-macro SYS_ioperm	             is 173 end 
-macro SYS_create_module	         is 174 end 
-macro SYS_init_module	         is 175 end 
-macro SYS_delete_module	         is 176 end 
-macro SYS_get_kernel_syms	     is 177 end 
-macro SYS_query_module	         is 178 end 
-macro SYS_quotactl	             is 179 end 
-macro SYS_nfsservctl	         is 180 end 
-macro SYS_getpmsg	             is 181 end 
-macro SYS_putpmsg	             is 182 end 
-macro SYS_afs_syscall	         is 183 end 
-macro SYS_tuxcall	             is 184 end 
-macro SYS_security	             is 185 end 
-macro SYS_gettid				 is 186 end 
-macro SYS_readahead              is 187 end 
-macro SYS_setxattr	             is 188 end 
-macro SYS_lsetxattr	             is 189 end 
-macro SYS_fsetxattr	             is 190 end 
-macro SYS_getxattr	             is 191 end 
-macro SYS_lgetxattr	             is 192 end 
-macro SYS_fgetxattr	             is 193 end 
-macro SYS_listxattr	             is 194 end 
-macro SYS_llistxattr	         is 195 end 
-macro SYS_flistxattr	         is 196 end 
-macro SYS_removexattr	         is 197 end 
-macro SYS_lremovexattr	         is 198 end 
-macro SYS_fremovexattr	         is 199 end 
-macro SYS_tkill	                 is 200 end 
-macro SYS_time	                 is 201 end 
-macro SYS_futex	                 is 202 end 
-macro SYS_sched_setaffinity	     is 203 end 
-macro SYS_sched_getaffinity	     is 204 end 
-macro SYS_set_thread_area	     is 205 end 
-macro SYS_io_setup	             is 206 end 
-macro SYS_io_destroy	         is 207 end 
-macro SYS_io_getevents	         is 208 end 
-macro SYS_io_submit	             is 209 end 
-macro SYS_io_cancel	             is 210 end 
-macro SYS_get_thread_area	     is 211 end 
-macro SYS_lookup_dcookie	     is 212 end 
-macro SYS_epoll_create	         is 213 end 
-macro SYS_epoll_ctl_old	         is 214 end 
-macro SYS_epoll_wait_old	     is 215 end 
-macro SYS_remap_file_pages	     is 216 end 
-macro SYS_getdents64	         is 217 end 
-macro SYS_set_tid_address	     is 218 end 
-macro SYS_restart_syscall		 is 219 end 
-macro SYS_semtimedop	         is 220 end 
-macro SYS_fadvise64	             is 221 end 
-macro SYS_timer_create	         is 222 end 
-macro SYS_timer_settime	         is 223 end 
-macro SYS_timer_gettime	         is 224 end 
-macro SYS_timer_getoverrun	     is 225 end 
-macro SYS_timer_delete	         is 226 end 
-macro SYS_clock_settime	         is 227 end 
-macro SYS_clock_gettime	         is 228 end 
-macro SYS_clock_getres	         is 229 end 
-macro SYS_clock_nanosleep	     is 230 end 
-macro SYS_exit_group	         is 231 end 
-macro SYS_epoll_wait	         is 232 end 
-macro SYS_epoll_ctl	             is 233 end 
-macro SYS_tgkill	             is 234 end 
-macro SYS_utimes	             is 235 end 
-macro SYS_vserver	             is 236 end 
-macro SYS_mbind	                 is 237 end 
-macro SYS_set_mempolicy	         is 238 end 
-macro SYS_get_mempolicy	         is 239 end 
-macro SYS_mq_open	             is 240 end 
-macro SYS_mq_unlink	             is 241 end 
-macro SYS_mq_timedsend	         is 242 end 
-macro SYS_mq_timedreceive	     is 243 end 
-macro SYS_mq_notify	             is 244 end 
-macro SYS_mq_getsetattr	         is 245 end 
-macro SYS_kexec_load	         is 246 end 
-macro SYS_waitid	             is 247 end 
-macro SYS_add_key	             is 248 end 
-macro SYS_request_key	         is 249 end 
-macro SYS_keyctl	             is 250 end 
-macro SYS_ioprio_set	         is 251 end 
-macro SYS_ioprio_get	         is 252 end 
-macro SYS_inotify_init			 is 253 end 
-macro SYS_inotify_add_watch      is 254 end 
-macro SYS_inotify_rm_watch	     is 255 end 
-macro SYS_migrate_pages	         is 256 end 
-macro SYS_openat	             is 257 end 
-macro SYS_mkdirat	             is 258 end 
-macro SYS_mknodat	             is 259 end 
-macro SYS_fchownat	             is 260 end 
-macro SYS_futimesat	             is 261 end 
-macro SYS_newfstatat	         is 262 end 
-macro SYS_unlinkat	             is 263 end 
-macro SYS_renameat	             is 264 end 
-macro SYS_linkat	             is 265 end 
-macro SYS_symlinkat	             is 266 end 
-macro SYS_readlinkat	         is 267 end 
-macro SYS_fchmodat	             is 268 end 
-macro SYS_faccessat	             is 269 end 
-macro SYS_pselect6	             is 270 end 
-macro SYS_ppoll	                 is 271 end 
-macro SYS_unshare	             is 272 end 
-macro SYS_set_robust_list	     is 273 end 
-macro SYS_get_robust_list	     is 274 end 
-macro SYS_splice	             is 275 end 
-macro SYS_tee	                 is 276 end 
-macro SYS_sync_file_range	     is 277 end 
-macro SYS_vmsplice	             is 278 end 
-macro SYS_move_pages	         is 279 end 
-macro SYS_utimensat	             is 280 end 
-macro SYS_epoll_pwait	         is 281 end 
-macro SYS_signalfd	             is 282 end 
-macro SYS_timerfd_create	     is 283 end 
-macro SYS_eventfd	             is 284 end 
-macro SYS_fallocate	             is 285 end 
-macro SYS_timerfd_settime	     is 286 end 
-macro SYS_timerfd_gettime	     is 287 end 
-macro SYS_accept4	             is 288 end 
-macro SYS_signalfd4	             is 289 end 
-macro SYS_eventfd2	             is 290 end 
-macro SYS_epoll_create1	         is 291 end 
-macro SYS_dup3	                 is 292 end 
-macro SYS_pipe2	                 is 293 end 
-macro SYS_inotify_init1	         is 294 end 
-macro SYS_preadv	             is 295 end 
-macro SYS_pwritev	             is 296 end 
-macro SYS_rt_tgsigqueueinfo	     is 297 end 
-macro SYS_perf_event_open	     is 298 end 
-macro SYS_recvmmsg	             is 299 end 
-macro SYS_fanotify_init	         is 300 end 
-macro SYS_fanotify_mark	         is 301 end 
-macro SYS_prlimit64	             is 302 end 
-macro SYS_name_to_handle_at	     is 303 end 
-macro SYS_open_by_handle_at	     is 304 end 
-macro SYS_clock_adjtime	         is 305 end 
-macro SYS_syncfs	             is 306 end 
-macro SYS_sendmmsg	             is 307 end 
-macro SYS_setns	                 is 308 end 
-macro SYS_getcpu	             is 309 end 
-macro SYS_process_vm_readv	     is 310 end 
-macro SYS_process_vm_writev	     is 311 end 
-macro SYS_kcmp	                 is 312 end 
-macro SYS_finit_module	         is 313 end 
-macro SYS_sched_setattr	         is 314 end 
-macro SYS_sched_getattr	         is 315 end 
-macro SYS_renameat2	             is 316 end 
-macro SYS_seccomp	             is 317 end 
-macro SYS_getrandom	             is 318 end 
-macro SYS_memfd_create	         is 319 end 
-macro SYS_kexec_file_load	     is 320 end 
-macro SYS_bpf	                 is 321 end 
-macro stub_execveat	             is 322 end 
-macro userfaultfd	             is 323 end 
-macro membarrier	             is 324 end 
-macro mlock2	                 is 325 end 
-macro copy_file_range	         is 326 end 
-macro preadv2	                 is 327 end 
-macro pwritev2	                 is 328 end 
-macro pkey_mprotect				 is 329 end 
-macro pkey_free                  is 330 end 
-macro pkey_free					 is 331 end 
-macro statx                      is 332 end 
-macro io_pgetevents				 is 333 end 
-macro rseq                       is 334 end 
-macro pkey_mprotect	             is 335 end 
+macro SYS_read	                 -> int is 0   end 
+macro SYS_write	                 -> int is 1   end 
+macro SYS_open	                 -> int is 2   end 
+macro SYS_close	                 -> int is 3   end 
+macro SYS_stat	                 -> int is 4   end 
+macro SYS_fstat	                 -> int is 5   end 
+macro SYS_lstat	                 -> int is 6   end 
+macro SYS_poll	                 -> int is 7   end 
+macro SYS_lseek	                 -> int is 8   end 
+macro SYS_mmap	                 -> int is 9   end 
+macro SYS_mprotect	             -> int is 10  end 
+macro SYS_munmap	             -> int is 11  end 
+macro SYS_brk	                 -> int is 12  end 
+macro SYS_rt_sigaction	         -> int is 13  end 
+macro SYS_rt_sigprocmask	     -> int is 14  end 
+macro SYS_rt_sigreturn	         -> int is 15  end 
+macro SYS_ioctl	                 -> int is 16  end 
+macro SYS_pread64	             -> int is 17  end 
+macro SYS_pwrite64	             -> int is 18  end 
+macro SYS_readv	                 -> int is 19  end 
+macro SYS_writev	             -> int is 20  end 
+macro SYS_access	             -> int is 21  end 
+macro SYS_pipe	                 -> int is 22  end 
+macro SYS_select	             -> int is 23  end 
+macro SYS_sched_yield			 -> int is 24  end 
+macro SYS_mremap                 -> int is 25  end 
+macro SYS_msync	                 -> int is 26  end 
+macro SYS_mincore	             -> int is 27  end 
+macro SYS_madvise	             -> int is 28  end 
+macro SYS_shmget	             -> int is 29  end 
+macro SYS_shmat	                 -> int is 30  end 
+macro SYS_shmctl	             -> int is 31  end 
+macro SYS_dup	                 -> int is 32  end 
+macro SYS_dup2	                 -> int is 33  end 
+macro SYS_pause					 -> int is 34  end 
+macro SYS_nanosleep              -> int is 35  end 
+macro SYS_getitimer	             -> int is 36  end 
+macro SYS_alarm	                 -> int is 37  end 
+macro SYS_setitimer	             -> int is 38  end 
+macro SYS_getpid				 -> int is 39  end 
+macro SYS_sendfile               -> int is 40  end 
+macro SYS_socket	             -> int is 41  end 
+macro SYS_connect	             -> int is 42  end 
+macro SYS_accept	             -> int is 43  end 
+macro SYS_sendto	             -> int is 44  end 
+macro SYS_recvfrom	             -> int is 45  end 
+macro SYS_sendmsg	             -> int is 46  end 
+macro SYS_recvmsg	             -> int is 47  end 
+macro SYS_shutdown	             -> int is 48  end 
+macro SYS_bind	                 -> int is 49  end 
+macro SYS_listen	             -> int is 50  end 
+macro SYS_getsockname	         -> int is 51  end 
+macro SYS_getpeername	         -> int is 52  end 
+macro SYS_socketpair	         -> int is 53  end 
+macro SYS_setsockopt	         -> int is 54  end 
+macro SYS_getsockopt	         -> int is 55  end 
+macro SYS_clone	                 -> int is 56  end 
+macro SYS_fork					 -> int is 57  end 
+macro SYS_vfork                  -> int is 58  end 
+macro SYS_execve	             -> int is 59  end 
+macro SYS_exit	                 -> int is 60  end 
+macro SYS_wait4	                 -> int is 61  end 
+macro SYS_kill	                 -> int is 62  end 
+macro SYS_uname	                 -> int is 63  end 
+macro SYS_semget	             -> int is 64  end 
+macro SYS_semop	                 -> int is 65  end 
+macro SYS_semctl	             -> int is 66  end 
+macro SYS_shmdt	                 -> int is 67  end 
+macro SYS_msgget	             -> int is 68  end 
+macro SYS_msgsnd	             -> int is 69  end 
+macro SYS_msgrcv	             -> int is 70  end 
+macro SYS_msgctl	             -> int is 71  end 
+macro SYS_fcntl	                 -> int is 72  end 
+macro SYS_flock	                 -> int is 73  end 
+macro SYS_fsync	                 -> int is 74  end 
+macro SYS_fdatasync	             -> int is 75  end 
+macro SYS_truncate	             -> int is 76  end 
+macro SYS_ftruncate	             -> int is 77  end 
+macro SYS_getdents	             -> int is 78  end 
+macro SYS_getcwd	             -> int is 79  end 
+macro SYS_chdir	                 -> int is 80  end 
+macro SYS_fchdir	             -> int is 81  end 
+macro SYS_rename	             -> int is 82  end 
+macro SYS_mkdir	                 -> int is 83  end 
+macro SYS_rmdir	                 -> int is 84  end 
+macro SYS_creat	                 -> int is 85  end 
+macro SYS_link	                 -> int is 86  end 
+macro SYS_unlink	             -> int is 87  end 
+macro SYS_symlink	             -> int is 88  end 
+macro SYS_readlink	             -> int is 89  end 
+macro SYS_chmod	                 -> int is 90  end 
+macro SYS_fchmod	             -> int is 91  end 
+macro SYS_chown	                 -> int is 92  end 
+macro SYS_fchown	             -> int is 93  end 
+macro SYS_lchown	             -> int is 94  end 
+macro SYS_umask	                 -> int is 95  end 
+macro SYS_gettimeofday	         -> int is 96  end 
+macro SYS_getrlimit	             -> int is 97  end 
+macro SYS_getrusage	             -> int is 98  end 
+macro SYS_sysinfo	             -> int is 99  end 
+macro SYS_times	                 -> int is 100 end 
+macro SYS_ptrace	             -> int is 101 end 
+macro SYS_getuid				 -> int is 102 end 
+macro SYS_getgid                 -> int is 103 end 
+macro SYS_getgid				 -> int is 104 end 
+macro SYS_setuid                 -> int is 105 end 
+macro SYS_setgid	             -> int is 106 end 
+macro SYS_geteuid				 -> int is 107 end 
+macro SYS_getegid                -> int is 108 end 
+macro SYS_setpgid	             -> int is 109 end 
+macro SYS_getppid				 -> int is 110 end 
+macro SYS_getpgrp                -> int is 111 end 
+macro SYS_setsid				 -> int is 112 end 
+macro SYS_setreuid               -> int is 113 end 
+macro SYS_setregid	             -> int is 114 end 
+macro SYS_getgroups	             -> int is 115 end 
+macro SYS_setgroups	             -> int is 116 end 
+macro SYS_setresuid	             -> int is 117 end 
+macro SYS_getresuid	             -> int is 118 end 
+macro SYS_setresgid	             -> int is 119 end 
+macro SYS_getresgid	             -> int is 120 end 
+macro SYS_getpgid	             -> int is 121 end 
+macro SYS_setfsuid	             -> int is 122 end 
+macro SYS_setfsgid	             -> int is 123 end 
+macro SYS_getsid	             -> int is 124 end 
+macro SYS_capget	             -> int is 125 end 
+macro SYS_capset	             -> int is 126 end 
+macro SYS_rt_sigpending	         -> int is 127 end 
+macro SYS_rt_sigtimedwait	     -> int is 128 end 
+macro SYS_rt_sigqueueinfo	     -> int is 129 end 
+macro SYS_rt_sigsuspend	         -> int is 130 end 
+macro SYS_sigaltstack	         -> int is 131 end 
+macro SYS_utime	                 -> int is 132 end 
+macro SYS_mknod	                 -> int is 133 end 
+macro SYS_uselib	             -> int is 134 end 
+macro SYS_personality	         -> int is 135 end 
+macro SYS_ustat	                 -> int is 136 end 
+macro SYS_statfs	             -> int is 137 end 
+macro SYS_fstatfs	             -> int is 138 end 
+macro SYS_sysfs	                 -> int is 139 end 
+macro SYS_getpriority	         -> int is 140 end 
+macro SYS_setpriority	         -> int is 141 end 
+macro SYS_sched_setparam	     -> int is 142 end 
+macro SYS_sched_getparam	     -> int is 143 end 
+macro SYS_sched_setscheduler	 -> int is 144 end 
+macro SYS_sched_getscheduler	 -> int is 145 end 
+macro SYS_sched_get_priority_max -> int is 146 end 
+macro SYS_sched_get_priority_min -> int is 147 end 
+macro SYS_sched_rr_get_interval	 -> int is 148 end 
+macro SYS_mlock	                 -> int is 149 end 
+macro SYS_munlock	             -> int is 150 end 
+macro SYS_mlockall	             -> int is 151 end 
+macro SYS_munlockall			 -> int is 152 end 
+macro SYS_vhangup                -> int is 253 end 
+macro SYS_modify_ldt	         -> int is 154 end 
+macro SYS_pivot_root	         -> int is 155 end 
+macro SYS__sysctl	             -> int is 156 end 
+macro SYS_prctl	                 -> int is 157 end 
+macro SYS_arch_prctl	         -> int is 158 end 
+macro SYS_adjtimex	             -> int is 159 end 
+macro SYS_setrlimit	             -> int is 160 end 
+macro SYS_chroot	             -> int is 161 end 
+macro SYS_sync					 -> int is 162 end 
+macro SYS_acct                   -> int is 163 end 
+macro SYS_settimeofday	         -> int is 164 end 
+macro SYS_mount	                 -> int is 165 end 
+macro SYS_umount2	             -> int is 166 end 
+macro SYS_swapon	             -> int is 167 end 
+macro SYS_swapoff	             -> int is 168 end 
+macro SYS_reboot	             -> int is 169 end 
+macro SYS_sethostname	         -> int is 170 end 
+macro SYS_setdomainname	         -> int is 171 end 
+macro SYS_iopl	                 -> int is 172 end 
+macro SYS_ioperm	             -> int is 173 end 
+macro SYS_create_module	         -> int is 174 end 
+macro SYS_init_module	         -> int is 175 end 
+macro SYS_delete_module	         -> int is 176 end 
+macro SYS_get_kernel_syms	     -> int is 177 end 
+macro SYS_query_module	         -> int is 178 end 
+macro SYS_quotactl	             -> int is 179 end 
+macro SYS_nfsservctl	         -> int is 180 end 
+macro SYS_getpmsg	             -> int is 181 end 
+macro SYS_putpmsg	             -> int is 182 end 
+macro SYS_afs_syscall	         -> int is 183 end 
+macro SYS_tuxcall	             -> int is 184 end 
+macro SYS_security	             -> int is 185 end 
+macro SYS_gettid				 -> int is 186 end 
+macro SYS_readahead              -> int is 187 end 
+macro SYS_setxattr	             -> int is 188 end 
+macro SYS_lsetxattr	             -> int is 189 end 
+macro SYS_fsetxattr	             -> int is 190 end 
+macro SYS_getxattr	             -> int is 191 end 
+macro SYS_lgetxattr	             -> int is 192 end 
+macro SYS_fgetxattr	             -> int is 193 end 
+macro SYS_listxattr	             -> int is 194 end 
+macro SYS_llistxattr	         -> int is 195 end 
+macro SYS_flistxattr	         -> int is 196 end 
+macro SYS_removexattr	         -> int is 197 end 
+macro SYS_lremovexattr	         -> int is 198 end 
+macro SYS_fremovexattr	         -> int is 199 end 
+macro SYS_tkill	                 -> int is 200 end 
+macro SYS_time	                 -> int is 201 end 
+macro SYS_futex	                 -> int is 202 end 
+macro SYS_sched_setaffinity	     -> int is 203 end 
+macro SYS_sched_getaffinity	     -> int is 204 end 
+macro SYS_set_thread_area	     -> int is 205 end 
+macro SYS_io_setup	             -> int is 206 end 
+macro SYS_io_destroy	         -> int is 207 end 
+macro SYS_io_getevents	         -> int is 208 end 
+macro SYS_io_submit	             -> int is 209 end 
+macro SYS_io_cancel	             -> int is 210 end 
+macro SYS_get_thread_area	     -> int is 211 end 
+macro SYS_lookup_dcookie	     -> int is 212 end 
+macro SYS_epoll_create	         -> int is 213 end 
+macro SYS_epoll_ctl_old	         -> int is 214 end 
+macro SYS_epoll_wait_old	     -> int is 215 end 
+macro SYS_remap_file_pages	     -> int is 216 end 
+macro SYS_getdents64	         -> int is 217 end 
+macro SYS_set_tid_address	     -> int is 218 end 
+macro SYS_restart_syscall		 -> int is 219 end 
+macro SYS_semtimedop	         -> int is 220 end 
+macro SYS_fadvise64	             -> int is 221 end 
+macro SYS_timer_create	         -> int is 222 end 
+macro SYS_timer_settime	         -> int is 223 end 
+macro SYS_timer_gettime	         -> int is 224 end 
+macro SYS_timer_getoverrun	     -> int is 225 end 
+macro SYS_timer_delete	         -> int is 226 end 
+macro SYS_clock_settime	         -> int is 227 end 
+macro SYS_clock_gettime	         -> int is 228 end 
+macro SYS_clock_getres	         -> int is 229 end 
+macro SYS_clock_nanosleep	     -> int is 230 end 
+macro SYS_exit_group	         -> int is 231 end 
+macro SYS_epoll_wait	         -> int is 232 end 
+macro SYS_epoll_ctl	             -> int is 233 end 
+macro SYS_tgkill	             -> int is 234 end 
+macro SYS_utimes	             -> int is 235 end 
+macro SYS_vserver	             -> int is 236 end 
+macro SYS_mbind	                 -> int is 237 end 
+macro SYS_set_mempolicy	         -> int is 238 end 
+macro SYS_get_mempolicy	         -> int is 239 end 
+macro SYS_mq_open	             -> int is 240 end 
+macro SYS_mq_unlink	             -> int is 241 end 
+macro SYS_mq_timedsend	         -> int is 242 end 
+macro SYS_mq_timedreceive	     -> int is 243 end 
+macro SYS_mq_notify	             -> int is 244 end 
+macro SYS_mq_getsetattr	         -> int is 245 end 
+macro SYS_kexec_load	         -> int is 246 end 
+macro SYS_waitid	             -> int is 247 end 
+macro SYS_add_key	             -> int is 248 end 
+macro SYS_request_key	         -> int is 249 end 
+macro SYS_keyctl	             -> int is 250 end 
+macro SYS_ioprio_set	         -> int is 251 end 
+macro SYS_ioprio_get	         -> int is 252 end 
+macro SYS_inotify_init			 -> int is 253 end 
+macro SYS_inotify_add_watch      -> int is 254 end 
+macro SYS_inotify_rm_watch	     -> int is 255 end 
+macro SYS_migrate_pages	         -> int is 256 end 
+macro SYS_openat	             -> int is 257 end 
+macro SYS_mkdirat	             -> int is 258 end 
+macro SYS_mknodat	             -> int is 259 end 
+macro SYS_fchownat	             -> int is 260 end 
+macro SYS_futimesat	             -> int is 261 end 
+macro SYS_newfstatat	         -> int is 262 end 
+macro SYS_unlinkat	             -> int is 263 end 
+macro SYS_renameat	             -> int is 264 end 
+macro SYS_linkat	             -> int is 265 end 
+macro SYS_symlinkat	             -> int is 266 end 
+macro SYS_readlinkat	         -> int is 267 end 
+macro SYS_fchmodat	             -> int is 268 end 
+macro SYS_faccessat	             -> int is 269 end 
+macro SYS_pselect6	             -> int is 270 end 
+macro SYS_ppoll	                 -> int is 271 end 
+macro SYS_unshare	             -> int is 272 end 
+macro SYS_set_robust_list	     -> int is 273 end 
+macro SYS_get_robust_list	     -> int is 274 end 
+macro SYS_splice	             -> int is 275 end 
+macro SYS_tee	                 -> int is 276 end 
+macro SYS_sync_file_range	     -> int is 277 end 
+macro SYS_vmsplice	             -> int is 278 end 
+macro SYS_move_pages	         -> int is 279 end 
+macro SYS_utimensat	             -> int is 280 end 
+macro SYS_epoll_pwait	         -> int is 281 end 
+macro SYS_signalfd	             -> int is 282 end 
+macro SYS_timerfd_create	     -> int is 283 end 
+macro SYS_eventfd	             -> int is 284 end 
+macro SYS_fallocate	             -> int is 285 end 
+macro SYS_timerfd_settime	     -> int is 286 end 
+macro SYS_timerfd_gettime	     -> int is 287 end 
+macro SYS_accept4	             -> int is 288 end 
+macro SYS_signalfd4	             -> int is 289 end 
+macro SYS_eventfd2	             -> int is 290 end 
+macro SYS_epoll_create1	         -> int is 291 end 
+macro SYS_dup3	                 -> int is 292 end 
+macro SYS_pipe2	                 -> int is 293 end 
+macro SYS_inotify_init1	         -> int is 294 end 
+macro SYS_preadv	             -> int is 295 end 
+macro SYS_pwritev	             -> int is 296 end 
+macro SYS_rt_tgsigqueueinfo	     -> int is 297 end 
+macro SYS_perf_event_open	     -> int is 298 end 
+macro SYS_recvmmsg	             -> int is 299 end 
+macro SYS_fanotify_init	         -> int is 300 end 
+macro SYS_fanotify_mark	         -> int is 301 end 
+macro SYS_prlimit64	             -> int is 302 end 
+macro SYS_name_to_handle_at	     -> int is 303 end 
+macro SYS_open_by_handle_at	     -> int is 304 end 
+macro SYS_clock_adjtime	         -> int is 305 end 
+macro SYS_syncfs	             -> int is 306 end 
+macro SYS_sendmmsg	             -> int is 307 end 
+macro SYS_setns	                 -> int is 308 end 
+macro SYS_getcpu	             -> int is 309 end 
+macro SYS_process_vm_readv	     -> int is 310 end 
+macro SYS_process_vm_writev	     -> int is 311 end 
+macro SYS_kcmp	                 -> int is 312 end 
+macro SYS_finit_module	         -> int is 313 end 
+macro SYS_sched_setattr	         -> int is 314 end 
+macro SYS_sched_getattr	         -> int is 315 end 
+macro SYS_renameat2	             -> int is 316 end 
+macro SYS_seccomp	             -> int is 317 end 
+macro SYS_getrandom	             -> int is 318 end 
+macro SYS_memfd_create	         -> int is 319 end 
+macro SYS_kexec_file_load	     -> int is 320 end 
+macro SYS_bpf	                 -> int is 321 end 
+macro stub_execveat	             -> int is 322 end 
+macro userfaultfd	             -> int is 323 end 
+macro membarrier	             -> int is 324 end 
+macro mlock2	                 -> int is 325 end 
+macro copy_file_range	         -> int is 326 end 
+macro preadv2	                 -> int is 327 end 
+macro pwritev2	                 -> int is 328 end 
+macro pkey_mprotect				 -> int is 329 end 
+macro pkey_free                  -> int is 330 end 
+macro pkey_free					 -> int is 331 end 
+macro statx                      -> int is 332 end 
+macro io_pgetevents				 -> int is 333 end 
+macro rseq                       -> int is 334 end 
+macro pkey_mprotect	             -> int is 335 end 
 
 
 (constants)
@@ -406,32 +406,22 @@ macro STDERR is 2 end
 macro read
     int ptr int (fd buf bufsiz)
     -> int
-is
-    syscall 3 SYS_read
 end
 
 macro write
     int ptr int (fd string)
     -> int
-is
-    syscall 3 SYS_write
 end
 
 macro open
      ptr int (cstr mode)
      -> int
-is
-    syscall 2 SYS_open
 end
 
 macro close
     int -> int (fd -> err)
-is
-    syscall 1 SYS_close
 end
 
 macro exit
     int -> int (fd -> err)
-is
-    syscall 1 SYS_exit
 end

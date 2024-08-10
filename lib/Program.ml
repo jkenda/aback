@@ -260,4 +260,4 @@ let interpret program =
             let typ_stack = List.map typ_of_data stack in
             raise @@ Error (program.loc.(Array.length program.loc - 1),
                 sprintf "%s left on the stack at the end of program"
-                (print_typ_stack typ_stack))
+                (string_of_typs typ_stack))

@@ -53,7 +53,7 @@ let parse words =
                     parse_typ' (Hashtbl.find output.typs w :: acc) tl
             | (_, Word w) :: _ -> raise @@ Error (loc, "unknown type: " ^ w)
 
-            | (loc, _) :: _ -> raise @@ Error (loc, "unexpected word")
+            | (loc, word) :: _ -> raise @@ Error (loc, sprintf "unexpected word: %s. expected %s" (show_prep word) (show_prep terminator))
             | [] -> raise @@ Error (loc, "unexpected EOF")
         in
         parse_typ' [] words
@@ -116,7 +116,7 @@ let parse words =
                         let nargs = List.length func.types.t_in in
                         let args, tl = parse_args loc name nargs rest in
                         Proc_call { loc; func; args }, tl
-                | End ->
+                | End | Sep ->
                         Empty, words
 
                 | _ -> raise @@ Error (loc, "expected expression")
@@ -130,7 +130,7 @@ let parse words =
             (* invalid arguments *)
             | _ when n < 0 -> raise @@ Error (loc, "Too many arguments for function " ^ name)
             | [] -> raise @@ Error (loc, "Not enough arguments for function " ^ name)
-            | (loc, Sep) :: _ -> raise @@ Error (loc, "Expected argument, got " ^ print_prep Sep)
+            | (loc, Sep) :: _ -> raise @@ Error (loc, "Expected argument, got " ^ string_of_prep Sep)
 
             (* parse next argument *)
             | (loc, _) :: _ as words ->
@@ -164,12 +164,12 @@ let parse words =
     (** add a proc to the table of procs *)
     let rec add_func loc table name words =
         let types, words = extract_types loc words in
-        let _, seq, rest = parse_sequence [|End|] parse_next words in
+        let _, seq, rest = parse_scope [|End|] parse_next words in
         Hashtbl.replace table name { loc; name; types; seq; ncalls = ref 0 };
         rest
 
     (** parse sequence of statements *)
-    and parse_sequence terminators f words =
+    and parse_scope terminators f words =
         scope_entry ();
 
         let rec parse' acc = function
@@ -207,13 +207,6 @@ let parse words =
         let value, rest = parse_polish words in
         Assign_to_var { loc; name; value }, rest
 
-    (** parse syscall *)
-    and parse_syscall loc nargs number words =
-        let args, rest =
-            parse_args loc (sprintf "syscall %d" number) nargs words
-        in
-        Syscall { loc; number; args }, rest
-
     (** parse next statement/expression *)
     and parse_next words =
 
@@ -225,11 +218,11 @@ let parse words =
                 | (_, Then) :: tl -> tl
                 | _ -> raise @@ Error (loc, "expected 'then'")
             in
-            let t, true_branch, rest = parse_sequence [|Else; End|] parse_next rest in
+            let t, true_branch, rest = parse_scope [|Else; End|] parse_next rest in
             let _, false_branch, rest =
                 match t with
                 | End -> End, [], rest
-                | Else -> parse_sequence [|End|] parse_next rest
+                | Else -> parse_scope [|End|] parse_next rest
                 | _ -> raise @@ Error (loc, "expected 'else' or 'end'")
             in
             If_statement { loc; cond; true_branch; false_branch }, rest
@@ -242,7 +235,7 @@ let parse words =
                 | (_, Do) :: words -> words
                 | _ -> raise @@ Error (loc, "expected 'then'")
             in
-            let _, body, rest = parse_sequence [||] parse_next rest in
+            let _, body, rest = parse_scope [||] parse_next rest in
             While_statement { loc; cond; body }, rest
 
         (** parse 'take' and 'peek' *)
@@ -251,7 +244,7 @@ let parse words =
                 | (_, End) :: tl -> List.rev acc, tl
                 | (loc, Word w) :: tl -> parse' ((loc, w) :: acc) tl
                 | (_, word) :: _ -> raise @@ Error (loc,
-                    "Expected name or 'end', got " ^ print_prep word)
+                    "Expected name or 'end', got " ^ string_of_prep word)
                 | [] -> raise @@ Error (loc, "expected 'end'")
             in
             let names, rest = parse' [] words in
@@ -347,19 +340,12 @@ let parse words =
         | (loc, While) :: tl ->
                 parse_while loc tl
 
-        (* parse syscall *)
-        | (loc, Syscall) :: (_, Literal Int nargs) :: (_, Literal Int id) :: tl ->
-                parse_syscall loc nargs id tl
-
-        (* ERROR -- syscall without nargs, id *)
-        | (loc, Syscall) :: _ -> raise @@ Error (loc, "usage: syscall <nargs> <id>")
-
         (* parse literal *)
         | (loc, Literal data) :: tl ->
                 Push_literal { loc; data }, tl
 
         | (loc, word) :: _ ->
-                raise @@ Error (loc, print_prep word ^ ": word not allowed at the toplevel")
+                raise @@ Error (loc, string_of_prep word ^ ": word not allowed at the toplevel")
     in
 
     (** parse top-level program constructs -- global memory and functions *)
@@ -391,7 +377,7 @@ let parse words =
             | (loc, word) :: _ -> raise @@ Error (loc, show_prep word ^ " not allowed in the toplevel")
             | _ -> raise @@ Unreachable "empty list in parse_toplevel"
         in
-        parse_sequence [||] parse_tl' words
+        parse_scope [||] parse_tl' words
         |> ignore
     in
 

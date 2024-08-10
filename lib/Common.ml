@@ -8,12 +8,12 @@ type location = {
     col : int;
 }
 [@@deriving show { with_path = false }]
-let print_location loc = sprintf "'%s':%d:%d" loc.filename loc.row loc.col
+let string_of_location loc = sprintf "'%s':%d:%d" loc.filename loc.row loc.col
 
 exception Error of location * string
 let print_error (loc, msg) =
-    List.iter (fun (loc, name) -> printf "expanded from %s (%s)\n" (print_location loc) name) loc.expanded_from;
-    printf "%s:\n" (print_location loc);
+    List.iter (fun (loc, name) -> printf "expanded from %s (%s)\n" (string_of_location loc) name) loc.expanded_from;
+    printf "%s:\n" (string_of_location loc);
     printf "\t%s\n" msg;
     if List.length loc.included_from > 0 then printf "\n";
     List.iter (fun filename -> printf "included from '%s'\n" filename) loc.included_from;

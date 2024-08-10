@@ -1,2 +1,7 @@
-puts "Hello," ;
-puts " world!\n"
+proc main
+    -> int
+is
+    puts "Hello," ;;
+    puts " world!\n" ;;
+    0
+end

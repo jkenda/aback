@@ -1,20 +1,24 @@
 open Common
 open Program
+open Parser_types
 
-let postprocess program =
+let postprocess { procs; macros; vars; mems; typs } =
     let strings = ref "" in
 
-    (* add a string to the string table *)
-    let _add_string str =
-        (* try to find and reuse existing string *)
-        try
-            let re = Str.regexp_string str in
-            Str.search_forward re !strings 0, String.length str
-        (* if not found, add new string *)
-        with Not_found ->
-            let addr = String.length !strings in
-            strings := !strings ^ str ^ "\x00";
-            addr, String.length str
+    let collect_strings func =
+        (* add a string to the string table *)
+        let add_string str =
+            (* try to find and reuse existing string *)
+            try
+                let re = Str.regexp_string str in
+                Str.search_forward re !strings 0, String.length str
+            (* if not found, add new string *)
+            with Not_found ->
+                let addr = String.length !strings in
+                strings := !strings ^ str ^ "\x00";
+                addr, String.length str
+        in
+        ()
     in
 
     let while_addr = Hashtbl.create 10
@@ -71,7 +75,7 @@ let postprocess program =
         List.fold_left id_to_addr [] instrs
     in
 
-    program
+    procs
     |> collect_jumps
     |> ids_to_addrs
     |> Array.of_list

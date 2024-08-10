@@ -26,12 +26,12 @@ let read_lib_file included_from filename =
 type typ = Int | Float | Char | Bool | Ptr | String | CStr
 [@@deriving show { with_path = false }]
 
-let print_typ = function
+let string_of_typ = function
     | Int -> "int" | Float -> "float" | Char -> "char"
     | Bool -> "bool" | Ptr -> "ptr" | String -> "str" | CStr -> "cstr"
 
-let print_typ_stack =
-    List.fold_left (fun acc typ -> acc ^ print_typ typ ^ " ") ""
+let string_of_typs =
+    List.fold_left (fun acc typ -> acc ^ string_of_typ typ ^ " ") ""
 
 type loc_typ = location * typ
 [@@deriving show { with_path = false }]
@@ -77,8 +77,6 @@ type word =
 
     | Dot_dot_dot
 
-    | Syscall
-
     | Op of operator
 
     | Word of string
@@ -91,7 +89,7 @@ let instr_of_word (loc, word) =
     let word =
         match word with
         | "include" -> Include
-        | ";" -> Sep | "->" -> Return
+        | ";;" -> Sep | "->" -> Return
         | "macro" -> Macro | "proc" -> Proc | "is" -> Is
         | "if" -> If | "then" -> Then | "else" -> Else | "end" -> End
         | "while" -> While | "do" -> Do
@@ -118,8 +116,6 @@ let instr_of_word (loc, word) =
         | "<<" -> Op Lsl  | ">>" -> Op Lsr
         | "&&" -> Op And  | "||" -> Op Or
         | "@"  -> Op Ref  | "."  -> Op Deref
-
-        | "syscall" -> Syscall
 
         | "..." -> Dot_dot_dot
 

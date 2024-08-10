@@ -10,6 +10,14 @@ type data =
     | CStr of string
 [@@deriving show { with_path = false }]
 
+let (typ_of_data : data -> typ) = function
+    | Int _ -> Int
+    | Float _ -> Float
+    | Char _ -> Char
+    | Bool _ -> Bool
+    | String _ -> String
+    | CStr _ -> CStr
+
 type prep =
     | Literal of data
     | Type of typ
@@ -19,7 +27,7 @@ type prep =
     | Macro | Proc | Is
     | If | Then | Else
     | While | Do
-    | Peek | Take
+    | Peek | Take | In
     | Mem | Var
     | End
 
@@ -27,31 +35,27 @@ type prep =
 
     | Dot_dot_dot
 
-    | Syscall
-
     | Op of operator
 
     | Word of string
 [@@deriving show { with_path = false }]
 
-let print_prep = function
+let string_of_prep = function
     | Literal a -> show_data a
-    | Type t -> print_typ t
+    | Type t -> string_of_typ t
 
     | Sep -> ";" | Return -> "->"
 
     | Macro -> "macro" | Proc -> "proc" | Is -> "is"
     | If -> "if" | Then -> "then" | Else -> "else"
     | While -> "while" | Do -> "do"
-    | Peek -> "peek" | Take -> "take"
+    | Peek -> "peek" | Take -> "take" | In -> "in"
     | Mem -> "mem" | Var -> "var"
     | End -> "end"
 
     | Index -> "[]" | Assign -> ":="
 
     | Dot_dot_dot -> "..."
-
-    | Syscall -> "syscall"
 
     | Op Eq -> "=" | Op NEq -> "!=" | Op Lt -> "<" | Op LEq -> "<=" | Op Gt -> ">" | Op GEq -> ">="
 
@@ -71,8 +75,8 @@ let print_prep = function
 
     | Word w -> w
 
-let print_prep_stack =
-    List.fold_left (fun acc typ -> acc ^ print_prep typ ^ " ") ""
+let string_of_preps =
+    List.fold_left (fun acc typ -> acc ^ string_of_prep typ ^ " ") ""
 
 let rec include_file included_from src =
     let text = read_lib_file included_from src in
@@ -116,7 +120,7 @@ and preprocess words =
                 | Macro -> Macro | Proc -> Proc | Is -> Is
                 | If -> If | Then -> Then | Else -> Else
                 | While -> While | Do -> Do
-                | Peek -> Peek | Take -> Take
+                | Peek -> Peek | Take -> Take | In -> In
                 | Mem -> Mem | Var -> Var
                 | End
 

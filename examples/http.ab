@@ -1,0 +1,45 @@
+include "core/socket.ab"
+include "core/io.ab"
+
+macro PORT is 8080 end
+
+var servaddr sockaddr end
+var cliaddr  sockaddr end
+var clilen   int      end
+
+while true do
+    socket 0 SOCK_STREAM AF_INET
+    take fd in
+        if < fd 0 then
+            puts "failed to create socket: " ; puti fd ; putc '\n' ;
+            exit fd
+        end ;
+        puts "socket " ; puti fd ; puts " created!\n"
+
+        bind sizeof servaddr servaddr fd ;
+        take err in
+            if < err 0 then
+                puts "failed to bind socket: " ; puti err ; putc '\n' ;
+                exit - 0 err
+            end
+        end
+
+        listen 5 fd ;
+        take err in
+            if < err 0 then
+                puts "failed to listen on port " ; puti err ; putc '\n' ;
+                exit - 0 err
+            end
+        end
+
+        accept clilen cliaddr sizeof cliaddr ;
+        take connfd in
+            if < connfd 0 then
+                puts "failed to accept connection: " ; puti connfd ; putc '\n' ;
+                exit - 0 connfd
+            end
+
+            puts "accepted connection " ; puti connfd ; puts "\n"
+        end
+    end
+end

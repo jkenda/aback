@@ -1,16 +1,11 @@
 open Format
+open Aback
 
 let print_usage msg =
     printf "%s\n" msg;
     printf "usage: %s [mode] <path>\n" Sys.argv.(0);
     printf "mode: int com print check";
     exit 1
-
-type mode =
-    | Interpret
-    | Compile
-    | Check
-    | Print
 
 let () =
     let mode =
@@ -34,12 +29,4 @@ let () =
 
 
     (* TODO: implement compilation mode (x86_64) *)
-    Aback.read path |>
-    match mode with
-    | Interpret -> Aback.interpret path
-    | Compile -> Aback.compile run path
-    | Check -> Aback.check path
-    | Print -> Aback.print path
-
-
-
+    Aback.exec mode path run

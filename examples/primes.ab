@@ -10,7 +10,7 @@ var   primes.len int end
 macro is_prime?
     int -> bool
 is
-take cand in
+take cand end
     0 true while
         peek i prime in
             &&  prime
@@ -24,7 +24,7 @@ take cand in
             else prime end
         end
     end drop
-end end
+end
 
 (number of primes from 1 to limit)
 macro nprimes
