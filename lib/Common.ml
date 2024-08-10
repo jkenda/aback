@@ -10,6 +10,35 @@ type location = {
 [@@deriving show { with_path = false }]
 let string_of_location loc = sprintf "'%s':%d:%d" loc.filename loc.row loc.col
 
+
+type primitive_typ = Int | Float | Char | Bool | Ptr | String | CStr
+[@@deriving show { with_path = false }]
+
+let string_of_primitive_typ = function
+    | Int -> "int" | Float -> "float" | Char -> "char"
+    | Bool -> "bool" | Ptr -> "ptr" | String -> "str" | CStr -> "cstr"
+
+let string_of_primitive_typs =
+    List.fold_left (fun acc typ -> acc ^ string_of_primitive_typ typ ^ " ") ""
+
+
+type typ =
+    | Primitive of primitive_typ
+    | Struc of (string * typ) list
+    | Union of (string * typ) list
+    | Ptr of typ
+[@@deriving show { with_path = false }]
+
+let rec string_of_typ = function
+    | Primitive t -> string_of_primitive_typ t
+    | Struc tl -> Format.sprintf "struc { %s }" @@ (List.map (fun t -> snd t |> string_of_typ) tl |> List.fold_left (^) "")
+    | Union tl -> Format.sprintf "union { %s }" @@ (List.map (fun t -> snd t |> string_of_typ) tl |> List.fold_left (^) "")
+    | Ptr t -> string_of_typ t
+
+let string_of_typs =
+    List.fold_left (fun acc typ -> acc ^ string_of_typ typ ^ " ") ""
+
+
 exception Error of location * string
 let print_error (loc, msg) =
     List.iter (fun (loc, name) -> printf "expanded from %s (%s)\n" (string_of_location loc) name) loc.expanded_from;

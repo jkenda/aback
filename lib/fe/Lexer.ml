@@ -23,16 +23,6 @@ let read_lib_file included_from filename =
     in
     open_file lib_dirs
 
-type typ = Int | Float | Char | Bool | Ptr | String | CStr
-[@@deriving show { with_path = false }]
-
-let string_of_typ = function
-    | Int -> "int" | Float -> "float" | Char -> "char"
-    | Bool -> "bool" | Ptr -> "ptr" | String -> "str" | CStr -> "cstr"
-
-let string_of_typs =
-    List.fold_left (fun acc typ -> acc ^ string_of_typ typ ^ " ") ""
-
 type loc_typ = location * typ
 [@@deriving show { with_path = false }]
 
@@ -65,7 +55,7 @@ type word =
     | CStr of string
     | True | False
 
-    | Type of typ
+    | Type of primitive_typ
 
     | Sep | Return
 

@@ -1,7 +1,5 @@
 open Format
-
 open Common
-open Lexer
 open Preprocess
 
 type data =
@@ -13,18 +11,18 @@ type data =
 [@@deriving show { with_path = false }]
 
 let typ_of_data = function
-    | Int _       -> (Int : typ)
-    | Bool _      -> Bool
-    | Char _      -> Char
-    | Float _     -> Float
-    | Ptr _ -> Ptr
+    | Int _   -> (Int : primitive_typ)
+    | Bool _  -> Bool
+    | Char _  -> Char
+    | Float _ -> Float
+    | Ptr _   -> Ptr
 
 let prep_of_data = function
-    | Int _       -> Type Int
-    | Bool _      -> Type Bool
-    | Char _      -> Type Char
-    | Float _     -> Type Float
-    | Ptr _ -> Type Ptr
+    | Int _   -> Type Int
+    | Bool _  -> Type Bool
+    | Char _  -> Type Char
+    | Float _ -> Type Float
+    | Ptr _   -> Type Ptr
 
 type ir =
     | PUSH of data
@@ -50,7 +48,7 @@ type ir =
     | WHILE of int | DO of int | END_WHILE of int
     | PEEK of int * int | TAKE of int
     | PUT of int
-    | LOAD of typ | STORE of typ
+    | LOAD of primitive_typ | STORE of primitive_typ
     | FN of string | FN_END
 [@@deriving show { with_path = false }]
 
@@ -58,8 +56,8 @@ type program = {
     ir : ir array;
     loc : location array;
     strings : string;
-    vars : (string, typ) Hashtbl.t;
-    mem : (string, typ * int) Hashtbl.t;
+    vars : (string, primitive_typ) Hashtbl.t;
+    mem : (string, primitive_typ * int) Hashtbl.t;
     storage_size : int
 }
 
@@ -67,7 +65,7 @@ type stack = data list
 [@@deriving show { with_path = false }]
 
 let typ_null = function
-    | (Int : typ) -> Int 0
+    | (Int : primitive_typ) -> Int 0
     | Float -> Float 0.0
     | Char -> Char '\000'
     | Bool -> Bool false
@@ -178,7 +176,7 @@ let interpret program =
 
                 if typ_of_data data = t then ip + 1, data :: stack
                 else raise @@ Error (program.loc.(ip),
-                        sprintf "expected %s, got %s" (show_typ t) (show_data data))
+                        sprintf "expected %s, got %s" (show_primitive_typ t) (show_data data))
         | STORE t ->
                 let space, addr, data, stack =
                     match stack with
@@ -190,7 +188,7 @@ let interpret program =
                     (Hashtbl.find mem space).(addr) <- data;
                     if typ_of_data data = t then ip + 1, stack
                     else raise @@ Error (program.loc.(ip),
-                            sprintf "expected %s, got %s" (show_typ t) (show_data data))
+                            sprintf "expected %s, got %s" (show_primitive_typ t) (show_data data))
 
 
         | PUSH data -> ip + 1, data :: stack
@@ -260,4 +258,4 @@ let interpret program =
             let typ_stack = List.map typ_of_data stack in
             raise @@ Error (program.loc.(Array.length program.loc - 1),
                 sprintf "%s left on the stack at the end of program"
-                (string_of_typs typ_stack))
+                (string_of_primitive_typs typ_stack))

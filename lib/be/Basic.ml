@@ -1,15 +1,14 @@
 open Format
 
 open Common
-open Lexer
 open Program
 
 let str_of_typ = function
-    | (Char : typ) -> "rb"
+    | (Char : primitive_typ) -> "rb"
     | _ -> "rq"
 
 let size_of_typ = function
-    | (Char : typ) -> 1
+    | (Char : primitive_typ) -> 1
     | _ -> 8
 
 let header =
@@ -470,7 +469,7 @@ let to_fasm_x64_linux program =
     (* reserve space for vars *)
     Hashtbl.iter (fun name typ ->
         let typ_to_str = function
-            | (Char : typ) -> "rb"
+            | (Char : primitive_typ) -> "rb"
             | _ -> "rq"
         in
         Buffer.add_string buffer @@ sprintf "var_%s %s %d\n" name (typ_to_str typ) 1;

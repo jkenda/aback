@@ -2,23 +2,6 @@ open Lexer
 open Preprocess
 open Common
 
-type typ =
-    | Primitive of Lexer.typ
-    | Struc of (string * typ) list
-    | Union of (string * typ) list
-    | Ptr of typ
-[@@deriving show { with_path = false }]
-
-let rec string_of_typ = function
-    | Primitive t -> Lexer.string_of_typ t
-    | Struc tl -> Format.sprintf "struc { %s }" @@ (List.map (fun t -> snd t |> string_of_typ) tl |> List.fold_left (^) "")
-    | Union tl -> Format.sprintf "union { %s }" @@ (List.map (fun t -> snd t |> string_of_typ) tl |> List.fold_left (^) "")
-    | Ptr t -> string_of_typ t
-
-let string_of_typs typs =
-    if typs = [] then "()"
-    else List.fold_left (fun acc typ -> acc ^ string_of_typ typ ^ " ") "" typs
-
 type func_format = {
     t_in  : typ list;
     t_out : typ list;

@@ -1,12 +1,11 @@
 open Common
-
 open Lexer
 open Preprocess
 open Parser
 open Check
+open Compile
 (*open Postprocess*)
 (*open Program*)
-(*open Compile*)
 
 type mode =
     | Interpret
@@ -41,6 +40,9 @@ let exec mode path _run =
         | Print ->
                 show_parser_output parsed
                 |> print_string
+        | Compile ->
+                check parsed;
+                compile parsed
         | _ ->
                 failwith @@ show_mode mode ^ " not implemented"
     with Error (loc, msg) ->

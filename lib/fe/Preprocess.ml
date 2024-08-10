@@ -10,7 +10,7 @@ type data =
     | CStr of string * int
 [@@deriving show { with_path = false }]
 
-let (typ_of_data : data -> typ) = function
+let (typ_of_data : data -> primitive_typ) = function
     | Int _ -> Int
     | Float _ -> Float
     | Char _ -> Char
@@ -20,7 +20,7 @@ let (typ_of_data : data -> typ) = function
 
 type prep =
     | Literal of data
-    | Type of typ
+    | Type of primitive_typ
 
     | Sep | Return
 
@@ -42,7 +42,7 @@ type prep =
 
 let string_of_prep = function
     | Literal a -> show_data a
-    | Type t -> string_of_typ t
+    | Type t -> string_of_primitive_typ t
 
     | Sep -> ";" | Return -> "->"
 

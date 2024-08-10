@@ -1,10 +1,7 @@
-open Format
-
 open Common
-open Lexer
 open Preprocess
-
 open Parser_types
+open Format
 
 let show_parser_output = Parser_types.show_parser_output
 
