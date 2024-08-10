@@ -35,9 +35,14 @@ let exec mode path _run =
                 |> parse
         in
         match mode with
-        | Check -> check parsed; print_endline "OK."
-        | Print -> print_string @@ Parser_types.show_parser_output parsed
-        | _ -> failwith @@ show_mode mode ^ " not implemented"
+        | Check ->
+                check parsed;
+                print_endline "OK."
+        | Print ->
+                show_parser_output parsed
+                |> print_string
+        | _ ->
+                failwith @@ show_mode mode ^ " not implemented"
     with Error (loc, msg) ->
         print_error (loc, msg);
         exit 1

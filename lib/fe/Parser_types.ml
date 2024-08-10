@@ -106,37 +106,40 @@ let primitives =
 module Funcs = struct
     type t = (string, func) Hashtbl.t
 
-    let pp ppf values =
+    let pp ppf =
         Hashtbl.iter (fun key data ->
             Format.fprintf ppf "@[<1>%s: %s@]@." key (string_of_func data))
-        values 
 end
 
 module Vars = struct
     type t = (string, typ) Hashtbl.t
 
-    let pp ppf values =
+    let pp ppf =
         Hashtbl.iter (fun key data ->
             Format.fprintf ppf "@[<1>%s: %s@]@." key (show_typ data))
-        values 
 end
 
 module Mems = struct
     type t = (string, typ * int) Hashtbl.t
 
-    let pp ppf values =
+    let pp ppf =
         Hashtbl.iter (fun key data ->
             Format.fprintf ppf "@[<1>%s: %s@]@." key (Format.sprintf "%s %d" (show_typ (fst data)) (snd data)))
-        values 
 end
 
 module Typs = struct
     type t = (string, typ) Hashtbl.t
 
-    let pp ppf values =
+    let pp ppf =
         Hashtbl.iter (fun key data ->
             Format.fprintf ppf "@[<1>%s: %s@]@." key (show_typ data))
-        values 
+end
+
+module Strings = struct
+    type t = string
+
+    let pp ppf =
+        Format.fprintf ppf "@[<1>%s@]@."
 end
 
 type parser_output = {
@@ -144,7 +147,8 @@ type parser_output = {
     macros : Funcs.t;
     vars : Vars.t;
     mems : Mems.t;
-    typs : Typs.t
+    typs : Typs.t;
+    mutable strings : Strings.t;
 }
 [@@deriving show { with_path = false }]
 

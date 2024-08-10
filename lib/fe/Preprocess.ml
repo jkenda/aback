@@ -6,8 +6,8 @@ type data =
     | Float of float
     | Char of char
     | Bool of bool
-    | String of string
-    | CStr of string
+    | String of string * int
+    | CStr of string * int
 [@@deriving show { with_path = false }]
 
 let (typ_of_data : data -> typ) = function
@@ -112,8 +112,8 @@ and preprocess words =
                 | Int i     -> Literal (Int i)
                 | Float f   -> Literal (Float f)
                 | Char c    -> Literal (Char c)
-                | String s  -> Literal (String s)
-                | CStr s    -> Literal (CStr s)
+                | String s  -> Literal (String (s, 0))
+                | CStr s    -> Literal (CStr (s, 0))
                 | True      -> Literal (Bool true)
                 | False     -> Literal (Bool false)
 

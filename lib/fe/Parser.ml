@@ -6,6 +6,8 @@ open Preprocess
 
 open Parser_types
 
+let show_parser_output = Parser_types.show_parser_output
+
 (**
     Parse the preprocessed words into an AST.
 
@@ -20,6 +22,7 @@ let parse words =
         macros  = Hashtbl.create 10;
         vars    = Hashtbl.create 10;
         mems    = Hashtbl.create 10;
+        strings = "";
         typs    = primitives
     } in
 
@@ -38,6 +41,20 @@ let parse words =
         Hashtbl.replace (List.hd !scopes_of_takes) take ()
     and has_take take =
         Hashtbl.mem takes take
+    in
+
+    (* add string literal to strings and return its offset and length *)
+    let parse_literal loc data =
+            match data with
+            | String (str, _) -> (
+                    let addr = String.length output.strings in
+                    output.strings <- output.strings ^ str ^ "\x00";
+                    Push_literal { loc; data = String (str, addr)  })
+            | CStr (str, _) -> (
+                    let addr = String.length output.strings in
+                    output.strings <- output.strings ^ str ^ "\x00";
+                    Push_literal { loc; data = CStr (str, addr)  })
+            | _ -> Push_literal { loc; data }
     in
 
     (** parse multiple subsequent words into a list of types *)
@@ -101,7 +118,7 @@ let parse words =
         | (loc, word : location * prep) :: rest ->
                 match word with
                 | Literal data ->
-                        Push_literal { loc; data }, rest
+                        parse_literal loc data, rest
                 | Op op ->
                         let left , rest = parse_polish rest in
                         let right, rest = parse_polish rest in
@@ -420,6 +437,7 @@ let%test _ =
         vars    = hashtbl_of_list [
             "x", (Primitive Int : typ)
         ];
+        strings = "";
         typs    = primitives
     } in
     test input expected
