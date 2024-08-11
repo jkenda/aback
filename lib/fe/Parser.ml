@@ -1,9 +1,12 @@
 open Common
-open Preprocess
+open Lexer
 open Parser_types
 open Format
 
 let show_parser_output = Parser_types.show_parser_output
+
+let make_const_str_ptr offset =
+    (Ptr (U8, "strs", offset) : data_ll)
 
 (**
     Parse the preprocessed words into an AST.
@@ -41,33 +44,34 @@ let parse words =
     in
 
     (* add string literal to strings and return its offset and length *)
-    let parse_literal loc data =
+    let parse_literal loc (data : data_tok) =
+        let data =
             match data with
-            | String (str, _) -> (
+            | String str | CStr str ->
                     let addr = String.length output.strings in
                     output.strings <- output.strings ^ str ^ "\x00";
-                    Push_literal { loc; data = String (str, addr)  })
-            | CStr (str, _) -> (
-                    let addr = String.length output.strings in
-                    output.strings <- output.strings ^ str ^ "\x00";
-                    Push_literal { loc; data = CStr (str, addr)  })
-            | _ -> Push_literal { loc; data }
+                    make_const_str_ptr addr
+            | _ ->
+                    data_ll_of_data_tok data
+
+        in
+        Push_literal { loc; data }
     in
 
     (** parse multiple subsequent words into a list of types *)
     let parse_typs loc terminator words =
-        let rec parse_typ' acc = function
+        let rec parse_typ' (acc : type_hl list) = function
             | (_, w) :: tl when w = terminator -> List.rev acc, tl
 
             | (loc, Type Ptr) :: tl ->
                     (try parse_typ' (Ptr (List.hd acc) :: List.tl acc) tl
                     with _ -> raise @@ Error (loc, "trying to create a ptr to unknown type"))
-            | (_, Type t) :: tl -> parse_typ' (Primitive t :: acc) tl
+            | (_, Type t) :: tl -> parse_typ' (Primitive (type_ll_of_type_tok t) :: acc) tl
             | (_, Word w) :: tl when Hashtbl.mem output.typs w ->
                     parse_typ' (Hashtbl.find output.typs w :: acc) tl
             | (_, Word w) :: _ -> raise @@ Error (loc, "unknown type: " ^ w)
 
-            | (loc, word) :: _ -> raise @@ Error (loc, sprintf "unexpected word: %s. expected %s" (show_prep word) (show_prep terminator))
+            | (loc, word) :: _ -> raise @@ Error (loc, sprintf "unexpected word: %s. expected %s" (string_of_word word) (string_of_word terminator))
             | [] -> raise @@ Error (loc, "unexpected EOF")
         in
         parse_typ' [] words
@@ -99,9 +103,9 @@ let parse words =
                         with _ -> raise @@ Error (loc, "Unknown value")
                     in
                     match macro with
-                    | { seq = [Push_literal { data = Int size; _ }]; _ } -> size
+                    | { seq = [Push_literal { data = U64 size; _ }]; _ } -> size
                     | _ -> raise @@ Error (loc, "size has to be of constant value"))
-            | Literal Int size -> size
+            | Literal Integer size -> size
             | _ -> raise @@ Error (loc, "usage: mem <name> <type> <size> end")
         in
         Hashtbl.add output.mems name (typ, size);
@@ -112,7 +116,7 @@ let parse words =
     let rec parse_polish words =
         match words with
         | [] -> Empty, []
-        | (loc, word : location * prep) :: rest ->
+        | (loc, word : location * word) :: rest ->
                 match word with
                 | Literal data ->
                         parse_literal loc data, rest
@@ -144,7 +148,7 @@ let parse words =
             (* invalid arguments *)
             | _ when n < 0 -> raise @@ Error (loc, "Too many arguments for function " ^ name)
             | [] -> raise @@ Error (loc, "Not enough arguments for function " ^ name)
-            | (loc, Sep) :: _ -> raise @@ Error (loc, "Expected argument, got " ^ string_of_prep Sep)
+            | (loc, Sep) :: _ -> raise @@ Error (loc, "Expected argument, got " ^ string_of_word Sep)
 
             (* parse next argument *)
             | (loc, _) :: _ as words ->
@@ -258,7 +262,7 @@ let parse words =
                 | (_, End) :: tl -> List.rev acc, tl
                 | (loc, Word w) :: tl -> parse' ((loc, w) :: acc) tl
                 | (_, word) :: _ -> raise @@ Error (loc,
-                    "Expected name or 'end', got " ^ string_of_prep word)
+                    "Expected name or 'end', got " ^ string_of_word word)
                 | [] -> raise @@ Error (loc, "expected 'end'")
             in
             let names, rest = parse' [] words in
@@ -356,21 +360,22 @@ let parse words =
 
         (* parse literal *)
         | (loc, Literal data) :: tl ->
+                let data = data_ll_of_data_tok data in
                 Push_literal { loc; data }, tl
 
         | (loc, word) :: _ ->
-                raise @@ Error (loc, string_of_prep word ^ ": word not allowed at the toplevel")
+                raise @@ Error (loc, string_of_word word ^ ": word not allowed at the toplevel")
     in
 
     (** parse top-level program constructs -- global memory and functions *)
     let parse_toplevel words =
-        let parse_tl' (words : (location * prep) list) =
+        let parse_tl' (words : (location * word) list) =
             match words with
 
             (* parse vars and arrays, don't add anything to the AST *)
             | (_, Var) :: (_, Word name) :: (loc, Is) :: tl ->
                     add_var loc name tl
-            | (_, Mem) :: (_, Word name) :: (_, Is) :: (loc, (Literal Int _ | Word _ as size)) :: tl ->
+            | (_, Mem) :: (_, Word name) :: (_, Is) :: (loc, (Literal Integer _ | Word _ as size)) :: tl ->
                     add_mem loc name size tl
 
             (* ERROR -- invalid var/mem format *)
@@ -379,7 +384,7 @@ let parse words =
 
 
             (* parse functions -- macros ans procs, don't add anyting to the AST *)
-            | (_, (Macro : prep)) :: (loc, Word name) :: tl ->
+            | (_, (Macro : word)) :: (loc, Word name) :: tl ->
                     Empty, add_func loc output.macros name tl
             | (_, Proc ) :: (loc, Word name) :: tl ->
                     Empty, add_func loc output.procs name tl
@@ -388,7 +393,7 @@ let parse words =
             | (loc, Macro) :: _ -> raise @@ Error (loc, "macro: expected name")
             | (loc, Proc)  :: _ -> raise @@ Error (loc, "proc: expected name")
 
-            | (loc, word) :: _ -> raise @@ Error (loc, show_prep word ^ " not allowed in the toplevel")
+            | (loc, word) :: _ -> raise @@ Error (loc, string_of_word word ^ " not allowed in the toplevel")
             | _ -> raise @@ Unreachable "empty list in parse_toplevel"
         in
         parse_scope [||] parse_tl' words
@@ -423,8 +428,8 @@ let test_loc = {
 }
 
 let%test _ =
-    let input : prep list =
-        [Var; Word "x"; Is; Type Int; End]
+    let input : word list =
+        [Var; Word "x"; Is; Type I32; End]
     in
     let input = List.map (fun prep -> (test_loc, prep)) input 
     and expected = {
@@ -432,7 +437,7 @@ let%test _ =
         macros  = hashtbl_of_list [];
         mems    = hashtbl_of_list [];
         vars    = hashtbl_of_list [
-            "x", (Primitive Int : typ)
+            "x", (Primitive I64 : type_hl)
         ];
         strings = "";
         typs    = primitives
@@ -440,7 +445,7 @@ let%test _ =
     test input expected
 
 let%expect_test _ =
-    [(Mem : prep); Word "x"; Is; Type Int; End]
+    [(Mem : word); Word "x"; Is; Type I32; End]
     |> List.map (fun prep -> (test_loc, prep))
     |> parse
     |> ignore;

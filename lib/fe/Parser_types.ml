@@ -1,10 +1,9 @@
 open Lexer
-open Preprocess
 open Common
 
 type func_format = {
-    t_in  : typ list;
-    t_out : typ list;
+    t_in  : type_hl list;
+    t_out : type_hl list;
 }
 [@@deriving show { with_path = false }]
 
@@ -23,13 +22,13 @@ type func = {
 and node =
     | Empty
 
-    | Var of { loc : location; name : string; typ : typ }
-    | Mem of { loc : location; name : string; typ : typ; size : int }
+    | Var of { loc : location; name : string; typ : type_hl }
+    | Mem of { loc : location; name : string; typ : type_hl; size : int }
 
     | Take of { loc : location; vars : string list }
     | Peek of { loc : location; vars : string list }
     | Push_take of { loc : location; name : string }
-    | Push_literal of { loc : location; data : data }
+    | Push_literal of { loc : location; data : data_ll }
 
     | Proc_call of { loc : location; func : func; args : node list }
     | Macro_call of { loc : location; func : func; args : node list}
@@ -40,7 +39,7 @@ and node =
     | If_statement of { loc : location; cond : node; true_branch : node list; false_branch : node list }
     | While_statement of { loc : location; cond : node; body : node list}
 
-    | Op of { loc : location; op : operator; left : node; right : node }
+    | Op of { loc : location; op : operator; t : type_hl; left : node; right : node }
 
     | Unknown_sequence of { loc : location; length : int }
 [@@deriving show { with_path = false }]
@@ -58,7 +57,7 @@ let string_of_node =
             | Empty ->
                     ""
             | Push_literal { data; _ } ->
-                    show_data data ^ "\n"
+                    show_data_ll data ^ "\n"
             | Op { op; left; right; _ } ->
                     show_operator op ^ "\n"
                     ^ str_of_node' (ind + 1) left
@@ -70,21 +69,27 @@ let string_of_node =
     str_of_node' 1
 
 let string_of_func func =
-    (Format.sprintf "\nfunc %s %s -> %s is\n" func.name (string_of_typs func.types.t_in) (string_of_typs func.types.t_out)) ^
+    (Format.sprintf "\nfunc %s %s -> %s is\n" func.name (string_of_types_hl func.types.t_in) (string_of_types_hl func.types.t_out)) ^
     (List.fold_left (fun acc node -> acc ^ string_of_node node) "" func.seq) ^
     "end\n"
 
 let primitives =
-    Hashtbl.of_seq
-    @@ List.to_seq
+    let add_type str =
+        str, typ_ll_of_string str
+    and make_str_type_hl (str, type_ll) =
+        str, type_hl_of_type_ll type_ll
+    in
+
     [
-        "int"   , Primitive Int;
-        "float" , Primitive Float;
-        "char"  , Primitive Char;
-        "bool"  , Primitive Bool;
-        "string", Primitive String;
-        "cstr"  , Primitive CStr;
+        "i8"; "i16"; "i32"; "i64";
+        "u8"; "u16"; "u32"; "u64";
+        "f32"; "f64";
+        "bool"; "str"; "cstr"
     ]
+    |> List.map add_type
+    |> List.map make_str_type_hl
+    |> List.to_seq
+    |> Hashtbl.of_seq
 
 module Funcs = struct
     type t = (string, func) Hashtbl.t
@@ -95,27 +100,27 @@ module Funcs = struct
 end
 
 module Vars = struct
-    type t = (string, typ) Hashtbl.t
+    type t = (string, type_hl) Hashtbl.t
 
     let pp ppf =
         Hashtbl.iter (fun key data ->
-            Format.fprintf ppf "@[<1>%s: %s@]@." key (show_typ data))
+            Format.fprintf ppf "@[<1>%s: %s@]@." key (show_type_hl data))
 end
 
 module Mems = struct
-    type t = (string, typ * int) Hashtbl.t
+    type t = (string, type_hl * int) Hashtbl.t
 
     let pp ppf =
         Hashtbl.iter (fun key data ->
-            Format.fprintf ppf "@[<1>%s: %s@]@." key (Format.sprintf "%s %d" (show_typ (fst data)) (snd data)))
+            Format.fprintf ppf "@[<1>%s: %s@]@." key (Format.sprintf "%s %d" (show_type_hl (fst data)) (snd data)))
 end
 
 module Typs = struct
-    type t = (string, typ) Hashtbl.t
+    type t = (string, type_hl) Hashtbl.t
 
     let pp ppf =
         Hashtbl.iter (fun key data ->
-            Format.fprintf ppf "@[<1>%s: %s@]@." key (show_typ data))
+            Format.fprintf ppf "@[<1>%s: %s@]@." key (show_type_hl data))
 end
 
 module Strings = struct

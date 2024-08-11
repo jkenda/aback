@@ -41,7 +41,7 @@ let exec mode path _run =
                 show_parser_output parsed
                 |> print_string
         | Compile ->
-                check parsed;
+                (*check parsed;*)
                 compile parsed
         | _ ->
                 failwith @@ show_mode mode ^ " not implemented"

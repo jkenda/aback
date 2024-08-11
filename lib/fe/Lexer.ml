@@ -23,39 +23,15 @@ let read_lib_file included_from filename =
     in
     open_file lib_dirs
 
-type loc_typ = location * typ
-[@@deriving show { with_path = false }]
-
-type operator =
-    | Eq | NEq | Lt | LEq | Gt | GEq
-
-    | Add | FAdd
-    | Sub | FSub
-    | Mul | FMul
-    | Div | FDiv
-    | Mod
-
-    | Itof | Ftoi
-
-    | LAnd | LOr | LXor | Lsl | Lsr
-    | And  | Or
-    | Ref | Deref
-
-    | Putc | Puts
+type loc_typ = location * type_tok
 [@@deriving show { with_path = false }]
 
 (* token types *)
 type word =
     | Include
 
-    | Int of int
-    | Float of float
-    | Char of char
-    | String of string
-    | CStr of string
-    | True | False
-
-    | Type of primitive_typ
+    | Literal of data_tok
+    | Type of type_tok
 
     | Sep | Return
 
@@ -72,6 +48,42 @@ type word =
     | Word of string
 [@@deriving show { with_path = false }]
 
+let string_of_word = function
+    | Include -> "include"
+    | Literal a -> string_of_data_tok a
+    | Type t -> string_of_type_tok t
+
+    | Sep -> ";" | Return -> "->"
+
+    | Macro -> "macro" | Proc -> "proc" | Is -> "is"
+    | If -> "if" | Then -> "then" | Else -> "else"
+    | While -> "while" | Do -> "do"
+    | Peek -> "peek" | Take -> "take" | In -> "in"
+    | Mem -> "mem" | Var -> "var"
+    | End -> "end"
+
+    | Index -> "[]" | Assign -> ":="
+
+    | Dot_dot_dot -> "..."
+
+    | Op Eq -> "=" | Op NEq -> "!=" | Op Lt -> "<" | Op LEq -> "<=" | Op Gt -> ">" | Op GEq -> ">="
+
+    | Op Add -> "+" | Op FAdd -> "+."
+    | Op Sub -> "-" | Op FSub -> "-."
+    | Op Mul -> "*" | Op FMul -> "*."
+    | Op Div -> "/" | Op FDiv -> "/."
+    | Op Mod -> "%"
+
+    | Op Itof -> "itof" | Op Ftoi -> "ftoi"
+
+    | Op LAnd -> "&"  | Op LOr -> "|" | Op LXor -> "^" | Op Lsl -> "<<" | Op Lsr -> ">>"
+    | Op And  -> "&&" | Op Or -> "||"
+    | Op Ref -> "@"   | Op Deref -> "."
+
+    | Op Putc -> "putc" | Op Puts -> "puts"
+
+    | Word w -> w
+
 type words = (location * word) list [@@deriving show { with_path = false }]
 
 (* get token from word *)
@@ -86,9 +98,12 @@ let instr_of_word (loc, word) =
         | "peek" -> Peek | "take" -> Take | "in" -> In
         | "mem" -> Mem | "var" -> Var | "[]" -> Index | ":=" -> Assign
 
-        | "int" -> Type Int | "float" -> Type Float
-        | "char" -> Type Char | "ptr" -> Type Ptr
+        | "i8" -> Type I8 | "i16" -> Type I16 | "i32" -> Type I32 | "i64" -> Type I64
+        | "u8" -> Type U8 | "u16" -> Type U16 | "u32" -> Type U32 | "u64" -> Type U64
+        | "f32" -> Type F32 | "f64" -> Type F64
         | "bool" -> Type Bool
+        | "ptr" -> Type Ptr
+        | "str" -> Type String | "cstr" -> Type CStr
 
         | "=" -> Op Eq | "/=" -> Op NEq
         | "<" -> Op Lt | "<=" -> Op LEq
@@ -111,38 +126,38 @@ let instr_of_word (loc, word) =
 
         | "putc" -> Op Putc | "puts" -> Op Puts
 
-        | "true" -> True | "false" -> False
+        | "true" -> Literal (Bool true) | "false" -> Literal (Bool false)
 
         (* chars, strings, numbers and other words *)
         | word ->
                 if String.ends_with ~suffix:{|"|} word then
                     if String.starts_with ~prefix:{|"|} word then
                         let string = String.sub word 1 (String.length word - 2) in
-                        String (Scanf.unescaped @@ string)
+                        Literal (String (Scanf.unescaped @@ string))
                     else if String.starts_with ~prefix:"c\"" word then
                         let string = String.sub word 2 (String.length word - 3) in
-                        CStr (Scanf.unescaped @@ string)
+                        Literal (CStr (Scanf.unescaped @@ string))
                     else
                         Word word
                 else
                     if String.length word = 3
                     && String.starts_with ~prefix:"'" word
                     && String.ends_with   ~suffix:"'" word then
-                        Char word.[1]
+                        Literal (Char word.[1])
                 else
                     if String.length word = 4
                     && String.starts_with ~prefix:"'\\" word
                     && String.ends_with   ~suffix:"'" word then
-                        Char (match word.[2] with
+                        Literal (Char (match word.[2] with
                         | 'n' -> '\n' | 'r' -> '\r' | 't' -> '\t'
                         | 'b' -> '\b' | '\\' -> '\\'
-                        | _ -> raise @@ Error (loc, "invalid escape character"))
+                        | _ -> raise @@ Error (loc, "invalid escape character")))
                 else
                     match int_of_string_opt word with
-                    | Some i -> Int i
+                    | Some i -> Literal (Integer i)
                     | None ->
                             match float_of_string_opt word with
-                            | Some f -> Float f
+                            | Some f -> Literal (Decimal f)
                             | None -> Word word
         in
         loc, word
@@ -220,9 +235,9 @@ let%test _ =
     test (lex "[test]" [] "+ 12 13 'c' 'cc' drop")
     ([
         { loc with col = 1  }, Op Add;
-        { loc with col = 3  }, Int 12;
-        { loc with col = 6  }, Int 13;
-        { loc with col = 9  }, Char 'c';
+        { loc with col = 3  }, Literal (Integer 12);
+        { loc with col = 6  }, Literal (Integer 13);
+        { loc with col = 9  }, Literal (Char 'c');
         { loc with col = 13 }, Word "'cc'";
         { loc with col = 18 }, Word "drop"
     ])
@@ -239,10 +254,10 @@ let%test _ =
     test (lex "[test]" [] "+ 12 13\n'c' 'cc' drop")
     ([
         { loc1 with col = 1 }, Op Add;
-        { loc1 with col = 3 }, Int 12;
-        { loc1 with col = 6 }, Int 13;
+        { loc1 with col = 3 }, Literal (Integer 12);
+        { loc1 with col = 6 }, Literal (Integer 13);
 
-        { loc2 with col = 1  }, Char 'c';
+        { loc2 with col = 1  }, Literal (Char 'c');
         { loc2 with col = 5  }, Word "'cc'";
         { loc2 with col = 10 }, Word "drop"
     ])

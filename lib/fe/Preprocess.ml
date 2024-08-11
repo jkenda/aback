@@ -1,83 +1,6 @@
 open Common
 open Lexer
 
-type data =
-    | Int of int
-    | Float of float
-    | Char of char
-    | Bool of bool
-    | String of string * int
-    | CStr of string * int
-[@@deriving show { with_path = false }]
-
-let (typ_of_data : data -> primitive_typ) = function
-    | Int _ -> Int
-    | Float _ -> Float
-    | Char _ -> Char
-    | Bool _ -> Bool
-    | String _ -> String
-    | CStr _ -> CStr
-
-type prep =
-    | Literal of data
-    | Type of primitive_typ
-
-    | Sep | Return
-
-    | Macro | Proc | Is
-    | If | Then | Else
-    | While | Do
-    | Peek | Take | In
-    | Mem | Var
-    | End
-
-    | Index | Assign
-
-    | Dot_dot_dot
-
-    | Op of operator
-
-    | Word of string
-[@@deriving show { with_path = false }]
-
-let string_of_prep = function
-    | Literal a -> show_data a
-    | Type t -> string_of_primitive_typ t
-
-    | Sep -> ";" | Return -> "->"
-
-    | Macro -> "macro" | Proc -> "proc" | Is -> "is"
-    | If -> "if" | Then -> "then" | Else -> "else"
-    | While -> "while" | Do -> "do"
-    | Peek -> "peek" | Take -> "take" | In -> "in"
-    | Mem -> "mem" | Var -> "var"
-    | End -> "end"
-
-    | Index -> "[]" | Assign -> ":="
-
-    | Dot_dot_dot -> "..."
-
-    | Op Eq -> "=" | Op NEq -> "!=" | Op Lt -> "<" | Op LEq -> "<=" | Op Gt -> ">" | Op GEq -> ">="
-
-    | Op Add -> "+" | Op FAdd -> "+."
-    | Op Sub -> "-" | Op FSub -> "-."
-    | Op Mul -> "*" | Op FMul -> "*."
-    | Op Div -> "/" | Op FDiv -> "/."
-    | Op Mod -> "%"
-
-    | Op Itof -> "itof" | Op Ftoi -> "ftoi"
-
-    | Op LAnd -> "&"  | Op LOr -> "|" | Op LXor -> "^" | Op Lsl -> "<<" | Op Lsr -> ">>"
-    | Op And  -> "&&" | Op Or -> "||"
-    | Op Ref -> "@"   | Op Deref -> "."
-
-    | Op Putc -> "putc" | Op Puts -> "puts"
-
-    | Word w -> w
-
-let string_of_preps =
-    List.fold_left (fun acc typ -> acc ^ string_of_prep typ ^ " ") ""
-
 let rec include_file included_from src =
     let text = read_lib_file included_from src in
     text
@@ -98,7 +21,7 @@ and preprocess words =
         match words with
         | [] -> acc, []
 
-        | (loc, Include) :: (_, String src) :: tl ->
+        | (loc, Include) :: (_, Literal String src) :: tl ->
                 let included_from = loc.filename :: loc.included_from in
                 include_file included_from src @ acc, tl
         | (_, Include) :: (loc, _) :: _
@@ -109,13 +32,7 @@ and preprocess words =
 
         | (loc, word) :: tl ->
                 (loc, match word with
-                | Int i     -> Literal (Int i)
-                | Float f   -> Literal (Float f)
-                | Char c    -> Literal (Char c)
-                | String s  -> Literal (String (s, 0))
-                | CStr s    -> Literal (CStr (s, 0))
-                | True      -> Literal (Bool true)
-                | False     -> Literal (Bool false)
+                | Literal l -> Literal l
 
                 | Macro -> Macro | Proc -> Proc | Is -> Is
                 | If -> If | Then -> Then | Else -> Else

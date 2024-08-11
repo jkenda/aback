@@ -4,11 +4,11 @@ open Common
 open Program
 
 let str_of_typ = function
-    | (Char : primitive_typ) -> "rb"
+    | (U8 | I8 : type_ll) -> "rb"
     | _ -> "rq"
 
 let size_of_typ = function
-    | (Char : primitive_typ) -> 1
+    | (U8 | I8 : type_ll) -> 1
     | _ -> 8
 
 let header =
@@ -189,9 +189,6 @@ let put_op = function
     | PUTC -> [
             ["pop";  "rdi"];
             ["call"; "putc"]]
-    | PUTI -> [
-            ["pop";  "rdi"];
-            ["call"; "puti"]]
 
     | op -> raise @@ Unreachable (show_ir op)
 
@@ -277,7 +274,7 @@ let to_fasm_x64_linux program =
         | LOAD t ->
                 let reg =
                     match t with
-                    | Char -> "dil"
+                    | U8 | I8 -> "dil"
                     | _    -> "rdi"
                 in
                 [["pop"; "rax"];
@@ -287,7 +284,7 @@ let to_fasm_x64_linux program =
         | STORE t ->
                 let reg =
                     match t with
-                    | Char -> "dil"
+                    | U8 | I8 -> "dil"
                     | _    -> "rdi"
                 in
                 [["pop"; "rax"];
@@ -296,13 +293,13 @@ let to_fasm_x64_linux program =
 
         | PUSH d ->
                 (match d with
-                | Int i ->
+                | I8 i | U8 i | I16 i | U16 i | I32 i | U32 i | I64 i | U64 i ->
                         if i > 0xFF then [
                             ["mov"; "rax"; ","; string_of_int i];
                             ["push"; "rax"]]
                         else [
                             ["push"; string_of_int i]]
-                | Float f ->
+                | F32 f | F64 f ->
                         let i = Int64.of_nativeint @@ Obj.raw_field (Obj.repr f) 0 in
                         if i > (Int64.of_int 0xFF) then [
                             [sprintf "mov"; "rax"; ","; (Int64.to_string i)];
@@ -311,8 +308,7 @@ let to_fasm_x64_linux program =
                             [sprintf "push"; Int64.to_string i]]
                 | Bool true -> [["push"; "1"]]
                 | Bool false -> [["push"; "0"]]
-                | Char c -> [["push"; string_of_int @@ int_of_char c]]
-                | Ptr (space, off) ->
+                | Ptr (_, space, off) ->
                         if off = 0 then [
                             ["push"; space]]
                         else [
@@ -325,10 +321,10 @@ let to_fasm_x64_linux program =
                 [["syscall"];
                 ["push"; "rax"]]
 
-        | ITOF -> [
+        | ITOF32 | ITOF64 -> [
                 ["cvtsi2sd xmm0, [rsp]"];
                 ["movsd [rsp], xmm0"]]
-        | FTOI -> [
+        | FTOI32 | FTOI64 -> [
                 ["cvttsd2si rax, [rsp]"];
                 ["mov [rsp], rax"]]
 
@@ -338,7 +334,7 @@ let to_fasm_x64_linux program =
         | LAND | LOR | LXOR | LSL | LSR as op -> int_op op
         | FADD | FSUB | FMUL | FDIV as op -> float_op op
         | AND | OR as op -> bool_op op
-        | (PUTC | PUTS | PUTI) as op -> put_op op) :: acc
+        | (PUTC | PUTS) as op -> put_op op) :: acc
     in
 
     let rec opti passes instrs =
@@ -469,7 +465,7 @@ let to_fasm_x64_linux program =
     (* reserve space for vars *)
     Hashtbl.iter (fun name typ ->
         let typ_to_str = function
-            | (Char : primitive_typ) -> "rb"
+            | (U8 | I8 : type_ll) -> "rb"
             | _ -> "rq"
         in
         Buffer.add_string buffer @@ sprintf "var_%s %s %d\n" name (typ_to_str typ) 1;
@@ -488,7 +484,7 @@ let to_fasm_x64_linux program =
             Hashtbl.add program.mem ("mem_" ^ name) rhs
     );
 
-    Hashtbl.add program.mem "writebuf" (Char, wbsiz);
+    Hashtbl.add program.mem "writebuf" (U8, wbsiz);
 
     let array =
         Array.of_seq @@

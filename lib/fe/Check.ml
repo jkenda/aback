@@ -4,8 +4,6 @@ open Common
 open Lexer
 open Parser_types
 
-let typ_of_data = Preprocess.typ_of_data
-
 (** check whether the function is recursive or not *)
 let is_recursive { name; seq; _ } =
     let rec is_recursive' = function
@@ -60,7 +58,7 @@ let rec check_seq input stack takes seq =
             raise @@ Error (loc, sprintf "take %s not found" name)
 
     and push_literal data =
-        Stack.push (Primitive (typ_of_data data)) stack
+        Stack.push (Primitive (type_of_data_ll data) : type_hl) stack
 
     (* handle a proc call *)
     and handle_proc_call _loc func _args =
@@ -111,30 +109,30 @@ let rec check_seq input stack takes seq =
             | node ->
                     raise @@ Error (loc, sprintf "expected operand, got %s" (string_of_node node))
         and expected_typ i top op =
-            let typ =
+            let (typ : type_lit) =
                 match op with
                 | Eq | NEq | Lt | LEq | Gt | GEq ->
-                        Primitive (if i = 0 then Int else Float) 
+                        (if i = 0 then Integer else Decimal) 
 
                 | Add | Sub | Mul | Div | Mod
                 | LAnd | LOr | LXor | Lsl | Lsr
-                | Itof -> Primitive Int
+                | Itof -> Integer
 
                 | FAdd | FSub | FMul | FDiv
-                | Ftoi -> Primitive Float
+                | Ftoi -> Integer
 
-                | And  | Or -> Primitive Bool
-                | Putc -> Primitive Char
-                | Puts -> Primitive String
+                | And  | Or -> Boolean
+                | Putc -> Character
+                | Puts -> String
                 | Ref -> top
                 | Deref ->
                         match top with
-                        | Ptr t -> t
+                        | Pointer t -> t
                         | _ -> raise @@ Error (loc, "can only deref pointer")
             in
             List.init n_operands (fun _ -> typ)
         and get_typ _ =
-            try Stack.pop stack
+            try Stack.pop stack |> type_lit_of_type_hl
             with Stack.Empty ->
                 raise @@ Error (loc, "not enough elements on the stack")
         in
@@ -154,10 +152,10 @@ let rec check_seq input stack takes seq =
         if expected_0 <> types && expected_1 <> types then
             if expected_0 = expected_1 then
                 raise @@ Error (loc, sprintf "expected %s, got %s"
-                    (string_of_typs expected_0) (string_of_typs types))
+                    (string_of_types_lit expected_0) (string_of_types_lit types))
             else
                 raise @@ Error (loc, sprintf "expected %s or %s, got %s"
-                    (string_of_typs expected_0) (string_of_typs expected_1) (string_of_typs types));
+                    (string_of_types_lit expected_0) (string_of_types_lit expected_1) (string_of_types_lit types));
 
         ()
 

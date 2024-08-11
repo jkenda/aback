@@ -1,31 +1,8 @@
 open Format
 open Common
-open Preprocess
-
-type data =
-    | Int of int
-    | Bool of bool
-    | Char of char
-    | Float of float
-    | Ptr of string * int
-[@@deriving show { with_path = false }]
-
-let typ_of_data = function
-    | Int _   -> (Int : primitive_typ)
-    | Bool _  -> Bool
-    | Char _  -> Char
-    | Float _ -> Float
-    | Ptr _   -> Ptr
-
-let prep_of_data = function
-    | Int _   -> Type Int
-    | Bool _  -> Type Bool
-    | Char _  -> Type Char
-    | Float _ -> Type Float
-    | Ptr _   -> Type Ptr
 
 type ir =
-    | PUSH of data
+    | PUSH of data_ll
 
     | EQ | NE | LT | LE | GT | GE
 
@@ -35,12 +12,13 @@ type ir =
     | DIV | FDIV
     | MOD
 
-    | ITOF | FTOI
+    | ITOF32 | ITOF64
+    | FTOI32 | FTOI64
 
     | LAND | LOR | LXOR | LSL | LSR
     | AND  | OR
 
-    | PUTC | PUTS | PUTI
+    | PUTC | PUTS
 
     | SYSCALL of int
 
@@ -48,7 +26,7 @@ type ir =
     | WHILE of int | DO of int | END_WHILE of int
     | PEEK of int * int | TAKE of int
     | PUT of int
-    | LOAD of primitive_typ | STORE of primitive_typ
+    | LOAD of type_ll | STORE of type_ll
     | FN of string | FN_END
 [@@deriving show { with_path = false }]
 
@@ -56,44 +34,50 @@ type program = {
     ir : ir array;
     loc : location array;
     strings : string;
-    vars : (string, primitive_typ) Hashtbl.t;
-    mem : (string, primitive_typ * int) Hashtbl.t;
+    vars : (string, type_ll) Hashtbl.t;
+    mem : (string, type_ll * int) Hashtbl.t;
     storage_size : int
 }
 
-type stack = data list
+type stack = data_ll list
 [@@deriving show { with_path = false }]
 
-let typ_null = function
-    | (Int : primitive_typ) -> Int 0
-    | Float -> Float 0.0
-    | Char -> Char '\000'
+let (type_null : type_ll -> data_ll) = function
+    | I8 -> I8 0 | I16 -> I16 0 | I32 -> I32 0 | I64 -> I64 0
+    | U8 -> U8 0 | U16 -> U16 0 | U32 -> U32 0 | U64 -> U64 0
+    | F32 -> F32 0.0 | F64 -> F64 0.0
     | Bool -> Bool false
-    | Ptr -> Ptr ("", 0)
-    | String -> Ptr ("", 0)
-    | CStr -> Ptr ("", 0)
+    | Ptr _ -> Ptr (U64, "", 0)
 
 let interpret program =
-    let takes = Array.make program.storage_size (Int 0)
+    let takes = Array.make program.storage_size (I64 0)
     and mem = Hashtbl.create (Hashtbl.length program.mem) in
 
-    Hashtbl.iter (fun space (typ, size) ->
-        Hashtbl.add mem ("mem_" ^ space) (Array.make size (typ_null typ)))
+    Hashtbl.iter (fun space (type_ll, size) ->
+        Hashtbl.add mem ("mem_" ^ space) (Array.make size (type_null type_ll)))
     program.mem;
-    Hashtbl.iter (fun space typ ->
-        Hashtbl.add mem ("var_" ^ space) (Array.make 1 (typ_null typ)))
+    Hashtbl.iter (fun space type_ll ->
+        Hashtbl.add mem ("var_" ^ space) (Array.make 1 (type_null type_ll)))
     program.vars;
 
     let exec' stack ip instr =
         let int_op op = function
-            | Int a :: Int b :: rest -> Int (op a b) :: rest
-            | Char a :: Int b :: rest -> Char (char_of_int (op (int_of_char a) b)) :: rest
-            | Ptr (space, a) :: Int b :: rest ->
-                Ptr (space, a + b) :: rest
-            | Ptr (space, a) :: Ptr (space', b) :: rest when space = space' ->
-                Int (a - b) :: rest
+            | I8  a :: I8  b :: rest -> I8  (op a b) :: rest
+            | I16 a :: I16 b :: rest -> I16 (op a b) :: rest
+            | I32 a :: I32 b :: rest -> I32 (op a b) :: rest
+            | I64 a :: I64 b :: rest -> I64 (op a b) :: rest
+
+            | U8  a :: U8  b :: rest -> U8  (op a b) :: rest
+            | U16 a :: U16 b :: rest -> U16 (op a b) :: rest
+            | U32 a :: U32 b :: rest -> U32 (op a b) :: rest
+            | U64 a :: U64 b :: rest -> U64 (op a b) :: rest
+
+            | Ptr (t, s, a) :: U64 b :: rest ->
+                Ptr (t, s, op a b) :: rest
+            | Ptr (_, s, a) :: Ptr (_, s', b) :: rest when s = s' ->
+                U64 (op a b) :: rest
             | a :: b :: _ -> raise @@ Error (program.loc.(ip),
-                sprintf "expected int int, got %s %s" (show_data a) (show_data b))
+                sprintf "expected int int, got %s %s" (string_of_data_ll a) (string_of_data_ll b))
             | _ -> raise @@ Error (program.loc.(ip),
                 "not enough data on stack")
         and cmp op = function
@@ -101,43 +85,43 @@ let interpret program =
             | stack -> raise @@ Error (program.loc.(ip),
                 sprintf "not enough data on stack : %s" @@ show_stack stack)
         and float_op op = function
-            | Float i :: Float j :: rest -> Float (op i j) :: rest
+            | F32 i :: F32 j :: rest -> F32 (op i j) :: rest
+            | F64 i :: F64 j :: rest -> F64 (op i j) :: rest
             | a :: b :: _ -> raise @@ Error (program.loc.(ip),
-                sprintf "expected float float, got %s %s" (show_data a) (show_data b))
+                sprintf "expected float float, got %s %s" (string_of_data_ll a) (string_of_data_ll b))
             | _ -> raise @@ Error (program.loc.(ip),
                 "not enough data on stack")
         and bool_op op = function
             | Bool i :: Bool j :: rest -> Bool (op i j) :: rest
             | a :: b :: _ -> raise @@ Error (program.loc.(ip),
-                sprintf "expected Bool Bool, got %s %s" (show_data a) (show_data b))
+                sprintf "expected Bool Bool, got %s %s" (string_of_data_ll a) (string_of_data_ll b))
             | _ -> raise @@ Error (program.loc.(ip),
                 "not enough data on stack")
         and put = function
-            | Int  i :: rest when instr = PUTI -> print_int i; rest
-            | Char c :: rest when instr = PUTC -> print_char c; rest
-            | Ptr ("strs", offset) :: Int len :: rest when instr = PUTS ->
+            | U8 c :: rest when instr = PUTC -> print_char (char_of_int c); rest
+            | Ptr (U8, "strs", offset) :: U64 len :: rest when instr = PUTS ->
                     print_string
                     @@ String.sub program.strings offset len;
                     rest
-            | Ptr (space, offset) :: Int len :: rest when instr = PUTS ->
+            | Ptr (U8, space, offset) :: U64 len :: rest when instr = PUTS ->
                     let str =
                         Hashtbl.find mem space
                         |> Array.to_seq
-                        |> Seq.map (function Char c -> c | d -> raise @@ Unreachable (show_data d))
+                        |> Seq.map (function U8 c -> Char.chr c | d -> raise @@ Unreachable (string_of_data_ll d))
                         |> String.of_seq
                     in
                     print_string
                     @@ String.sub str offset len;
                     rest
             | hd :: _ -> raise @@ Error (program.loc.(ip),
-                sprintf "invalid data for %s: %s" (show_ir instr) (show_data hd))
+                sprintf "invalid data for %s: %s" (show_ir instr) (string_of_data_ll hd))
             | [] -> raise @@ Error (program.loc.(ip),
                 sprintf "%s: not enough data on stack" (show_ir instr))
         and cond_jmp t f = function
             | Bool true :: tl -> t, tl
             | Bool false :: tl -> f, tl
             | hd :: _ -> raise @@ Error (program.loc.(ip),
-                sprintf "expected bool, got %s" (show_data hd))
+                sprintf "expected bool, got %s" (string_of_data_ll hd))
             | [] -> raise @@ Error (program.loc.(ip),
                 "not enough data on stack")
         in
@@ -167,28 +151,28 @@ let interpret program =
         | LOAD t ->
                 let space, addr, stack =
                     match stack with
-                    | Ptr (space, addr) :: tl -> space, addr, tl
+                    | Ptr (_, space, addr) :: tl -> space, addr, tl
                     | hd :: _ -> raise @@ Error (program.loc.(ip),
-                            sprintf "expected Ptr, got %s" (show_data hd))
+                            sprintf "expected Ptr, got %s" (string_of_data_ll hd))
                     | _ -> raise @@ Error (program.loc.(ip), "LOAD: stack underflow")
                 in
                 let data = (Hashtbl.find mem space).(addr) in
 
-                if typ_of_data data = t then ip + 1, data :: stack
+                if type_of_data_ll data = t then ip + 1, data :: stack
                 else raise @@ Error (program.loc.(ip),
-                        sprintf "expected %s, got %s" (show_primitive_typ t) (show_data data))
+                        sprintf "expected %s, got %s" (string_of_type_ll t) (string_of_data_ll data))
         | STORE t ->
                 let space, addr, data, stack =
                     match stack with
-                    | Ptr (space, addr) :: data :: tl -> space, addr, data, tl
+                    | Ptr (_, space, addr) :: data :: tl -> space, addr, data, tl
                     | hd :: _ -> raise @@ Error (program.loc.(ip),
-                            sprintf "expected Ptr, got %s" (show_data hd))
+                            sprintf "expected Ptr, got %s" (string_of_data_ll hd))
                     | _ -> raise @@ Error (program.loc.(ip), "stack underflow")
                 in
                     (Hashtbl.find mem space).(addr) <- data;
-                    if typ_of_data data = t then ip + 1, stack
+                    if type_of_data_ll data = t then ip + 1, stack
                     else raise @@ Error (program.loc.(ip),
-                            sprintf "expected %s, got %s" (show_primitive_typ t) (show_data data))
+                            sprintf "expected %s, got %s" (string_of_type_ll t) (string_of_data_ll data))
 
 
         | PUSH data -> ip + 1, data :: stack
@@ -211,17 +195,19 @@ let interpret program =
         | FMUL -> ip + 1, float_op ( *. ) stack
         | FDIV -> ip + 1, float_op ( /. ) stack
 
-        | ITOF ->
+        | ITOF32 | ITOF64 ->
                 (match stack with
-                | Int a :: rest -> ip + 1, Float (float_of_int a) :: rest
+                | I32 a :: rest -> ip + 1, F32 (float_of_int a) :: rest
+                | I64 a :: rest -> ip + 1, F64 (float_of_int a) :: rest
                 | a :: _ -> raise @@ Error (program.loc.(ip),
-                    sprintf "expected int, got %s" (show_data a))
+                    sprintf "expected int, got %s" (show_data_ll a))
                 | _ -> raise @@ Error (program.loc.(ip), "not enough data on stack"))
-        | FTOI ->
+        | FTOI32 | FTOI64 ->
                 (match stack with
-                | Float a :: rest -> ip + 1, Int (int_of_float a) :: rest
+                | F32 a :: rest -> ip + 1, I32 (int_of_float a) :: rest
+                | F64 a :: rest -> ip + 1, I64 (int_of_float a) :: rest
                 | a :: _ -> raise @@ Error (program.loc.(ip),
-                    sprintf "expected float, got %s" (show_data a))
+                    sprintf "expected float, got %s" (show_data_ll a))
                 | _ -> raise @@ Error (program.loc.(ip), "not enough data on stack"))
 
         | AND -> ip + 1, bool_op ( && ) stack
@@ -237,7 +223,7 @@ let interpret program =
                 raise @@ Error (program.loc.(ip),
                     sprintf "syscall %d not implemented" n)
 
-        | PUTC | PUTS | PUTI -> ip + 1, put stack
+        | PUTC | PUTS -> ip + 1, put stack
     in
 
     let rec exec'' ip stack =
@@ -254,8 +240,8 @@ let interpret program =
     match stack with
     | [] -> ()
     | stack ->
-            List.iter (fun d -> print_endline @@ show_data d) stack;
-            let typ_stack = List.map typ_of_data stack in
+            List.iter (fun d -> print_endline @@ show_data_ll d) stack;
+            let typ_stack = List.map type_of_data_ll stack in
             raise @@ Error (program.loc.(Array.length program.loc - 1),
                 sprintf "%s left on the stack at the end of program"
-                (string_of_primitive_typs typ_stack))
+                (string_of_types_ll typ_stack))
