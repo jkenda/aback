@@ -1,4 +1,3 @@
-open Lexer
 open Common
 
 type func_format = {
@@ -18,51 +17,54 @@ type func = {
     types  : func_format;
     ncalls : int ref
 }
-
-and node =
+and node = {
+    l : location;
+    t : type_hl option;
+    n : node_hl
+}
+and node_hl =
     | Empty
+    | Var of { name : string; typ : type_hl }
+    | Mem of { name : string; typ : type_hl; size : int }
 
-    | Var of { loc : location; name : string; typ : type_hl }
-    | Mem of { loc : location; name : string; typ : type_hl; size : int }
+    | Take of { vars : string list }
+    | Peek of { vars : string list }
+    | Push_take of { name : string }
+    | Push_literal of { data : data_ll }
 
-    | Take of { loc : location; vars : string list }
-    | Peek of { loc : location; vars : string list }
-    | Push_take of { loc : location; name : string }
-    | Push_literal of { loc : location; data : data_ll }
+    | Proc_call of { func : func; args : node list }
+    | Macro_call of { func : func; args : node list}
 
-    | Proc_call of { loc : location; func : func; args : node list }
-    | Macro_call of { loc : location; func : func; args : node list}
+    | Index_into    of { name : string; index : node }
+    | Assign_to_mem of { name : string; index : node; value : node }
+    | Assign_to_var of { name : string; value : node }
+    | If_statement  of { cond : node; true_branch : node list; false_branch : node list }
+    | While_statement of { cond : node; body : node list}
 
-    | Index_into of { loc : location; name : string; index : node }
-    | Assign_to_mem of { loc : location; name : string; index : node; value : node }
-    | Assign_to_var of { loc : location; name : string; value : node }
-    | If_statement of { loc : location; cond : node; true_branch : node list; false_branch : node list }
-    | While_statement of { loc : location; cond : node; body : node list}
+    | Op of { op : operator; left : node; right : node }
 
-    | Op of { loc : location; op : operator; t : type_hl; left : node; right : node }
-
-    | Unknown_sequence of { loc : location; length : int }
+    | Unknown_sequence of { length : int }
 [@@deriving show { with_path = false }]
+
+let make_node loc node_hl =
+    { l = loc; t = None; n = node_hl }
 
 let string_of_node =
     let rec str_of_node' ind node =
-        if node = Empty then ""
-        else
         let tabs =
             (Seq.init ind (fun _ -> "\t")
             |> Seq.fold_left (^) "")
         in
         let node_str =
-            match node with
-            | Empty ->
-                    ""
+            match node.n with
             | Push_literal { data; _ } ->
                     show_data_ll data ^ "\n"
-            | Op { op; left; right; _ } ->
+            | Op { op; left; right } ->
                     show_operator op ^ "\n"
                     ^ str_of_node' (ind + 1) left
                     ^ str_of_node' (ind + 1) right ^ tabs ^ ";;\n"
-            | _ -> show_node node
+            | _ ->
+                    show_node node
         in
         tabs ^ node_str
     in
@@ -142,7 +144,7 @@ type parser_output = {
 
 
 let make_proc (loc, func, args) =
-    Proc_call { loc; func; args }
+    { t = None; l = loc; n = Proc_call { func; args } }
 
 let make_macro (loc, func, args) =
-    Macro_call { loc; func; args }
+    { t = None; l = loc; n = Macro_call { func; args } }

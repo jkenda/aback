@@ -1,22 +1,21 @@
 open Format
 
 open Common
-open Lexer
 open Parser_types
 
 (** check whether the function is recursive or not *)
 let is_recursive { name; seq; _ } =
     let rec is_recursive' = function
         | [] -> false
-        | Macro_call { func; _ } :: _
-        | Proc_call { func; _ } :: _
+        | { n = Macro_call { func; _ }; _} :: _
+        | { n = Proc_call { func; _ }; _} :: _
             when func.name = name ->
                 true
-        | Op { left; right; _ } :: _ ->
+        | { n = Op { left; right; _ }; _ } :: _ ->
                 is_recursive' [left] || is_recursive' [right]
-        | If_statement { cond; true_branch; false_branch; _ } :: _ ->
+        | { n = If_statement { cond; true_branch; false_branch; _ }; _ } :: _ ->
                 is_recursive' [cond] || is_recursive' true_branch || is_recursive' false_branch
-        | While_statement { cond; body; _ } :: _ ->
+        | { n = While_statement { cond; body; _ }; _ } :: _ ->
                 is_recursive' [cond] || is_recursive' body
         | _ :: tl -> is_recursive' tl
     in
@@ -104,7 +103,7 @@ let rec check_seq input stack takes seq =
             | _ -> 2
         in
         let check_node' loc = function
-            | (Op _ | Push_literal _ | Proc_call _ | Macro_call _) as node ->
+            | { n = (Op _ | Push_literal _ | Proc_call _ | Macro_call _); _ } as node ->
                     check_node node
             | node ->
                     raise @@ Error (loc, sprintf "expected operand, got %s" (string_of_node node))
@@ -137,20 +136,29 @@ let rec check_seq input stack takes seq =
                 raise @@ Error (loc, "not enough elements on the stack")
         in
 
-        if left == Empty && right == Empty then
+        if left.n = Empty && right.n = Empty then
             raise @@ Error (loc, "expected at least one operand")
-        else if n_operands = 2 && right == Empty then
+        else if n_operands = 2 && right.n == Empty then
             raise @@ Error (loc, "expected 2 operands, got 1");
 
-        if right <> Empty then check_node' loc right;
-        if left  <> Empty then check_node' loc left;
+        if right.n <> Empty then check_node' loc right;
+        if left.n  <> Empty then check_node' loc left;
 
         let types = List.init n_operands get_typ in
         let expected_0 = expected_typ 0 (List.hd types) op
         and expected_1 = expected_typ 1 (List.hd types) op in
 
-        if expected_0 <> types && expected_1 <> types then
-            if expected_0 = expected_1 then
+        let eq a b =
+            let eq' acc = function
+                | CString, Pointer Integer
+                | String, Pointer Integer -> acc
+                | _ -> acc && a = b
+            in
+            List.fold_left eq' true (List.combine a b)
+        in
+
+        if not (eq expected_0 types || eq expected_1 types)   then
+            if eq expected_0 expected_1 then
                 raise @@ Error (loc, sprintf "expected %s, got %s"
                     (string_of_types_lit expected_0) (string_of_types_lit types))
             else
@@ -160,27 +168,27 @@ let rec check_seq input stack takes seq =
         ()
 
     and check_node node =
-        match node with
+        match node.n with
         | Empty ->
                 ()
-        | Take { loc; vars } ->
-                pop_to_takes loc vars
-        | Peek { loc; vars } ->
-                peek_to_takes loc vars
-        | Push_take { loc; name } ->
-                push_take loc name
+        | Take { vars } ->
+                pop_to_takes node.l vars
+        | Peek { vars } ->
+                peek_to_takes node.l vars
+        | Push_take { name } ->
+                push_take node.l name
         | Push_literal { data; _ } ->
                 push_literal data
-        | Proc_call { loc; func; args } ->
-                handle_proc_call loc func args
-        | Macro_call { loc; func; args } ->
-                handle_macro_call loc func args
+        | Proc_call { func; args } ->
+                handle_proc_call node.l func args
+        | Macro_call { func; args } ->
+                handle_macro_call node.l func args
 
-        | If_statement { loc; cond; true_branch; false_branch } ->
-                check_if_statement loc cond true_branch false_branch
+        | If_statement { cond; true_branch; false_branch } ->
+                check_if_statement node.l cond true_branch false_branch
 
-        | Op { loc; op; left; right } ->
-                check_operator loc op left right
+        | Op { op; left; right } ->
+                check_operator node.l op left right
 
         | Var _ | Mem _ ->
                 raise @@ Unreachable "out of place var/mem should be handled in Parser"
@@ -198,10 +206,12 @@ let check input =
         let t_out_actual = check_seq input types.t_in takes seq in
 
         if t_out_actual <> types.t_out then
-            raise @@ Error (loc, "type mismatch")
+            raise @@ Error (loc, sprintf "expected %s, got %s" (string_of_types_hl types.t_out) (string_of_types_hl t_out_actual))
     in
 
     Hashtbl.iter (fun _ f -> check_rec_macro f) input.macros;
     Hashtbl.iter (fun _ f -> check_func f) input.macros;
     Hashtbl.iter (fun _ f -> check_func f) input.procs;
-    ()
+
+    let output = input in
+    output

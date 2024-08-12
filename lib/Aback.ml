@@ -1,3 +1,5 @@
+open Format
+
 open Common
 open Lexer
 open Preprocess
@@ -20,34 +22,46 @@ let exec mode path _run =
         try
             read_src_file path
         with Error (loc, msg) ->
-            print_error (loc, msg);
+            print_error loc msg;
             exit 2
+    and null_loc = {
+        filename = path;
+        included_from = [];
+        expanded_from = [];
+        row = 1;
+        col = 1 }
     in
 
-    let lex = lex path [] in
+    let lex = lex path []
+    and parse = parse null_loc in
     (* compile the program *)
     try
         let parsed =
                 src
                 |> lex
-                |> preprocess
+                |> preprocess 
                 |> parse
         in
         match mode with
         | Check ->
-                check parsed;
+                check parsed |> ignore;
                 print_endline "OK."
         | Print ->
                 show_parser_output parsed
                 |> print_string
         | Compile ->
-                (*check parsed;*)
-                compile parsed
+                parsed 
+                |> check
+                |> compile
         | _ ->
                 failwith @@ show_mode mode ^ " not implemented"
-    with Error (loc, msg) ->
-        print_error (loc, msg);
-        exit 1
+    with ex ->
+        match ex with Error (loc, msg) ->
+            print_error loc msg;
+            printf "%s\n" @@ Printexc.to_string ex;
+            printf "%s\n" @@ Printexc.get_backtrace ();
+            exit 1
+        | _ -> ();
 
 (*
     let write_whole_file path bytes =

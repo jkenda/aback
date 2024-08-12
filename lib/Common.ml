@@ -41,7 +41,7 @@ exception Error of location * string
 exception Not_implemented of location * string
 exception Unreachable of string
 
-let print_error (loc, msg) =
+let print_error loc msg =
     List.iter (fun (loc, name) -> printf "expanded from %s (%s)\n" (string_of_location loc) name) loc.expanded_from;
     printf "%s:\n" (string_of_location loc);
     printf "\t%s\n" msg;
@@ -128,8 +128,8 @@ let typ_ll_of_string = function
     | _ -> raise @@ Unreachable "not primitive"
 
 let (type_ll_of_type_tok : type_tok -> type_ll) = function
-    | I8 -> I8 | I16 -> I16 | I32 -> I16 | I64 -> I16
-    | U8 -> I8 | U16 -> U16 | U32 -> U16 | U64 -> U16
+    | I8 -> I8 | I16 -> I16 | I32 -> I32 | I64 -> I64
+    | U8 -> I8 | U16 -> U16 | U32 -> U32 | U64 -> U32
     | F32 -> F32 | F64 -> F64
     | Bool -> Bool
     | _ -> failwith "type not directly convertible"
@@ -211,16 +211,9 @@ let string_of_data_ll = function
     | Ptr (_, s, i) -> sprintf "&%s[%d]" s i
 
 let (type_of_data_ll : data_ll -> type_ll) = function
-    | I8  _ -> I8
-    | I16 _ -> I16
-    | I32 _ -> I32
-    | I64 _ -> I64
-    | U8  _ -> U8
-    | U16 _ -> U16
-    | U32 _ -> U32
-    | U64 _ -> U64
-    | F32 _ -> F32
-    | F64 _ -> F64
+    | I8  _ -> I8 | I16 _ -> I16 | I32 _ -> I32 | I64 _ -> I64
+    | U8  _ -> U8 | U16 _ -> U16 | U32 _ -> U32 | U64 _ -> U64
+    | F32 _ -> F32 | F64 _ -> F64
     | Bool _ -> Bool
     | Ptr (t, _, _) -> Ptr t
 
