@@ -1,6 +1,7 @@
 proc main
-    ->
+    -> i32
 is
     puts "Hello," ;;
-    puts " world!\n"
+    puts " world!\n" ;;
+    0
 end

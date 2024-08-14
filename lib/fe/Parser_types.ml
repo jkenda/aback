@@ -30,7 +30,7 @@ and node_hl =
     | Take of { vars : string list }
     | Peek of { vars : string list }
     | Push_take of { name : string }
-    | Push_literal of { data : data_ll }
+    | Push_data of { data : data_hl }
 
     | Proc_call of { func : func; args : node list }
     | Macro_call of { func : func; args : node list}
@@ -57,8 +57,8 @@ let string_of_node =
         in
         let node_str =
             match node.n with
-            | Push_literal { data; _ } ->
-                    show_data_ll data ^ "\n"
+            | Push_data { data; _ } ->
+                    show_data_hl data ^ "\n"
             | Op { op; left; right } ->
                     show_operator op ^ "\n"
                     ^ str_of_node' (ind + 1) left
@@ -77,7 +77,7 @@ let string_of_func func =
 
 let primitives =
     let add_type str =
-        str, typ_ll_of_string str
+        str, type_ll_of_string str
     and make_str_type_hl (str, type_ll) =
         str, type_hl_of_type_ll type_ll
     in

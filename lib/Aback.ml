@@ -58,10 +58,12 @@ let exec mode path _run =
     with ex ->
         match ex with Error (loc, msg) ->
             print_error loc msg;
-            printf "%s\n" @@ Printexc.to_string ex;
-            printf "%s\n" @@ Printexc.get_backtrace ();
-            exit 1
         | _ -> ();
+
+        printf "%s\n" @@ Printexc.to_string ex;
+        printf "%s\n" @@ Printexc.get_backtrace ();
+        printf "%!";
+        exit 1
 
 (*
     let write_whole_file path bytes =

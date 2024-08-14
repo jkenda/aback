@@ -15,6 +15,10 @@ type location = {
 let string_of_location loc = sprintf "'%s':%d:%d" loc.filename loc.row loc.col
 
 
+(*
+    operators
+    these intrinsic functions that have one or two arguments
+ *)
 type operator =
     | Eq | NEq | Lt | LEq | Gt | GEq
 
@@ -49,26 +53,28 @@ let print_error loc msg =
     List.iter (fun filename -> printf "included from '%s'\n" filename) loc.included_from;
 
 
-type type_lit =
+type type_gen =
     | Integer
-    | Decimal
+    | Floating
     | Boolean
     | Character
     | String
     | CString
-    | Pointer of type_lit
+    | Pointer of type_gen
+[@@deriving show { with_path = false }]
 
-let rec string_of_type_lit = function
+let rec string_of_type_gen = function
     | Integer -> "integer"
-    | Decimal -> "decimal"
+    | Floating -> "decimal"
     | Boolean -> "boolean"
     | Character -> "character"
     | String -> "string"
     | CString -> "cstring"
-    | Pointer t -> string_of_type_lit t ^ " pointer"
+    | Pointer t -> string_of_type_gen t ^ " pointer"
 
-let string_of_types_lit =
-    List.fold_left (fun acc typ -> acc ^ string_of_type_lit typ ^ " ") ""
+let string_of_types_gen =
+    List.fold_left (fun acc typ -> acc ^ string_of_type_gen typ ^ " ") ""
+
 
 (*
     types produced by the lexer
@@ -96,6 +102,7 @@ let string_of_type_tok = function
 let string_of_types_tok =
     List.fold_left (fun acc typ -> acc ^ string_of_type_tok typ ^ " ") ""
 
+
 (*
    low-level types
  *)
@@ -117,7 +124,7 @@ let rec string_of_type_ll = function
 let string_of_types_ll =
     List.fold_left (fun acc typ -> acc ^ string_of_type_ll typ ^ " ") ""
 
-let typ_ll_of_string = function
+let type_ll_of_string = function
     | "i8" -> I8 | "i16" -> I16 | "i32" -> I32 | "i64" -> I64
     | "u8" -> U8 | "u16" -> U16 | "u32" -> U32 | "u64" -> U64
     | "f32" -> F32 | "f64" -> F64
@@ -132,13 +139,14 @@ let (type_ll_of_type_tok : type_tok -> type_ll) = function
     | U8 -> I8 | U16 -> U16 | U32 -> U32 | U64 -> U32
     | F32 -> F32 | F64 -> F64
     | Bool -> Bool
-    | _ -> failwith "type not directly convertible"
+    | t -> failwith @@ sprintf "%s not directly convertible" (show_type_tok t)
 
-let rec type_lit_of_type_ll = function
+let rec type_gen_of_type_ll = function
     | I8 | I16 | I32 | I64 | U8 | U16 | U32 | U64 -> Integer
-    | F32 | F64 -> Decimal
+    | F32 | F64 -> Floating
     | Bool -> Boolean
-    | Ptr t -> Pointer (type_lit_of_type_ll t)
+    | Ptr t -> Pointer (type_gen_of_type_ll t)
+
 
 (*
    high-level types
@@ -149,6 +157,7 @@ type type_hl =
     | Union of (string * type_hl) list
     | String | CStr
     | Ptr of type_hl
+    | General of type_gen
 [@@deriving show { with_path = false }]
 
 let rec string_of_type_hl = function
@@ -157,6 +166,7 @@ let rec string_of_type_hl = function
     | Union tl -> Format.sprintf "union { %s }" @@ (List.map (fun t -> snd t |> string_of_type_hl) tl |> List.fold_left (^) "")
     | String -> "str" | CStr -> "cstr"
     | Ptr t -> string_of_type_hl t
+    | General t -> string_of_type_gen t
 
 let string_of_types_hl =
     List.fold_left (fun acc typ -> acc ^ string_of_type_hl typ ^ " ") ""
@@ -168,11 +178,21 @@ let type_ll_of_type_hl = function
     | Primitive t -> t
     | _ -> failwith "not directly convertible"
 
-let rec type_lit_of_type_hl = function
-    | Primitive ll -> type_lit_of_type_ll ll
+let rec type_gen_of_type_hl = function
+    | Primitive ll -> type_gen_of_type_ll ll
     | String -> String | CStr -> CString
-    | Ptr t -> Pointer (type_lit_of_type_hl t)
+    | Ptr t -> Pointer (type_gen_of_type_hl t)
+    | General t -> t
     | t -> failwith @@ sprintf "%s not directly convertible" (show_type_hl t)
+
+let (type_hl_of_type_tok : type_tok -> type_hl) = function
+    | (I8 | I16 | I32 | I64
+    | U8 | U16 | U32 | U64
+    | F32 | F64
+    | Bool as t) -> Primitive (type_ll_of_type_tok t)
+    | String -> String | CStr -> CStr
+    | t -> failwith @@ sprintf "%s not directly convertible to type_hl" (show_type_tok t)
+
 
 (*
    data of token
@@ -191,6 +211,44 @@ let string_of_data_tok = function
     | Char c -> String.make 1 c
     | Bool b -> string_of_bool b
     | String s -> sprintf "\"%s\"" s | CStr s -> sprintf "c\"%s\"" s
+
+let (type_of_data_gen : data_tok -> type_gen) = function
+    | Integer _ -> Integer
+    | Decimal _ -> Floating
+    | Char    _ -> Character
+    | Bool    _ -> Boolean
+    | String  _ -> String
+    | CStr    _ -> CString
+
+
+type data_lit =
+    | Integer of int
+    | Decimal of float
+    | Char of char
+    | Bool of bool
+    | Const_str of int
+[@@deriving show { with_path = false }]
+
+let string_of_data_lit = function
+    | Integer i -> string_of_int i
+    | Decimal f -> string_of_float f
+    | Char c -> String.make 1 c
+    | Bool b -> string_of_bool b
+    | Const_str i -> sprintf "strs[%d]" i
+
+let (data_lit_of_data_tok : data_tok -> data_lit) = function
+    | Integer i -> Integer i
+    | Decimal f -> Decimal f
+    | Char c -> Char c
+    | Bool b -> Bool b
+    | String _ | CStr _ -> failwith "not directly convertible"
+
+let (type_gen_of_data_lit : data_lit -> type_gen) = function
+    | Integer   _ -> Integer
+    | Decimal   _ -> Floating
+    | Char      _ -> Character
+    | Bool      _ -> Boolean
+    | Const_str _ -> String
 
 (*
    data of low-level type
@@ -217,22 +275,6 @@ let (type_of_data_ll : data_ll -> type_ll) = function
     | Bool _ -> Bool
     | Ptr (t, _, _) -> Ptr t
 
-let data_ll_of_data_tok = function
-    | Integer i ->
-            if i < 0 then
-                if i > -128 then I8 i
-                else if i > -32768 then I16 i
-                else if i > -2147483648 then I32 i
-                else I64 i
-            else
-                if i < 256 then U8 i
-                else if i < 65536 then U16 i
-                else if i < 4294967296 then U32 i
-                else U64 i
-    | Decimal f -> F32 f
-    | Char c -> U8 (Char.code c)
-    | Bool b -> Bool b
-    | _ -> failwith "types not directly convertible"
 
 (*
    data of high-level type
@@ -243,7 +285,8 @@ type data_hl =
     | Union of (string * data_hl) list
     | String of string * int
     | CStr of string * int
-    | Ptr of data_hl
+    | Ptr of type_hl * string * int
+    | Literal of data_lit
 [@@deriving show { with_path = false }]
 
 let string_of_data_hl data =
@@ -252,11 +295,12 @@ let string_of_data_hl data =
 
     and string_of_data_hl' = function
     | Primitive t -> string_of_data_ll t
-    | Struc tl -> Format.sprintf "struc { %s }" (List.fold_left add_string_of_name_data "" tl)
-    | Union tl -> Format.sprintf "union { %s }" (List.fold_left add_string_of_name_data "" tl)
-    | String _ -> "str"
-    | CStr _ -> "cstr"
-    | Ptr t -> string_of_data_hl' t
+    | Struc tl -> sprintf "struc { %s }" (List.fold_left add_string_of_name_data "" tl)
+    | Union tl -> sprintf "union { %s }" (List.fold_left add_string_of_name_data "" tl)
+    | String (str, off) -> sprintf "%S : str (strs[%d])" str off
+    | CStr (str, off) -> sprintf "%S : cstr (strs[%d])" str off
+    | Ptr (t, s, i) -> sprintf "%s[%d] : %s ptr" s i (string_of_type_hl t)
+    | Literal l -> "(LITERAL) " ^ string_of_data_lit l
     in
     string_of_data_hl' data
 
@@ -270,9 +314,17 @@ let type_of_data_hl data =
         | Union l -> Union (List.map name_type_of_name_data l)
         | String _ -> String
         | CStr  _ -> CStr
-        | Ptr t -> Ptr (type_of_data_hl' t)
+        | Ptr (t, _, _) -> Ptr t
+        | Literal d -> General (type_gen_of_data_lit d)
     in
     type_of_data_hl' data
+
+let data_ll_of_data_hl = function
+    | Primitive data_ll -> data_ll
+    | String (s, i)
+    | CStr (s, i) -> Ptr (U8, s, i)
+    | Ptr (t, s, i) -> Ptr (type_ll_of_type_hl t, s, i)
+    | _ -> failwith "not directly convertible"
 
 
 (* read file from the current dir *)
@@ -285,4 +337,3 @@ let read_src_file filename =
     let s = really_input_string ch (in_channel_length ch) in
     close_in ch;
     s
-

@@ -5,9 +5,6 @@ open Format
 
 let show_parser_output = Parser_types.show_parser_output
 
-let make_const_str_ptr offset =
-    (Ptr (U8, "strs", offset) : data_ll)
-
 (**
     Parse the preprocessed words into an AST.
 
@@ -50,12 +47,13 @@ let parse loc words =
             | String str | CStr str ->
                     let addr = String.length output.strings in
                     output.strings <- output.strings ^ str ^ "\x00";
-                    make_const_str_ptr addr
+                     Const_str addr
             | _ ->
-                    data_ll_of_data_tok data
+                    data_lit_of_data_tok data
 
         in
-        { l; t = None; n = Push_literal { data }}
+        let (data : data_hl) = Literal data in
+        { l; t = None; n = Push_data { data }}
     in
 
     (** parse multiple subsequent words into a list of types *)
@@ -66,7 +64,7 @@ let parse loc words =
             | (loc, Type Ptr) :: tl ->
                     (try parse_typ' (Ptr (List.hd acc) :: List.tl acc) tl
                     with _ -> raise @@ Error (loc, "trying to create a ptr to unknown type"))
-            | (_, Type t) :: tl -> parse_typ' (Primitive (type_ll_of_type_tok t) :: acc) tl
+            | (_, Type t) :: tl -> parse_typ' ((type_hl_of_type_tok t) :: acc) tl
             | (_, Word w) :: tl when Hashtbl.mem output.typs w ->
                     parse_typ' (Hashtbl.find output.typs w :: acc) tl
             | (_, Word w) :: _ -> raise @@ Error (loc, "unknown type: " ^ w)
@@ -103,7 +101,7 @@ let parse loc words =
                         with _ -> raise @@ Error (loc, "Unknown value")
                     in
                     match macro with
-                    | { seq = [{ n = Push_literal { data = U64 size; _ }; _ }]; _ } -> size
+                    | { seq = [{ n = Push_data { data = Literal Integer size; _ }; _ }]; _ } -> size
                     | _ -> raise @@ Error (loc, "size has to be of constant value"))
             | Literal Integer size -> size
             | _ -> raise @@ Error (loc, "usage: mem <name> <type> <size> end")
@@ -360,8 +358,8 @@ let parse loc words =
 
         (* parse literal *)
         | (loc, Literal data) :: tl ->
-                let data = data_ll_of_data_tok data in
-                make_node loc @@ Push_literal { data }, tl
+                let (data : data_hl) = Literal (data_lit_of_data_tok data) in
+                make_node loc @@ Push_data { data }, tl
 
         | (loc, word) :: _ ->
                 raise @@ Error (loc, string_of_word word ^ ": word not allowed at the toplevel")

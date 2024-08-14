@@ -42,8 +42,10 @@ let qbe_string_of_operator op (t_in : type_hl) =
 
     let s = if signed then "s" else "u"
     and t =
-        qbe_string_of_type_basety
-        @@ type_ll_of_type_hl t_in
+        (* TODO: high-level types *)
+        t_in
+        |> type_ll_of_type_hl 
+        |> qbe_string_of_type_basety
     in
 
     match op with
@@ -77,17 +79,37 @@ let generate_qbe_ir f { procs; _ } =
     (* auxiliary functions for outputting different node types *)
     let output_loc loc =
         fprintf f ".loc %d, %d\n" loc.col loc.row
-    and output_data var_num (data : data_ll) =
-        let type_ll = type_of_data_ll data in
+
+    and output_data var_num (data : data_hl) =
+        (* TODO: high-level types *)
+        let type_ll =
+            data
+            |> type_of_data_hl
+            |> type_ll_of_type_hl
+        in
         let preamble = sprintf "%%v%d =%c " var_num (qbe_string_of_type_basety type_ll) in
 
         match data with
-        | Ptr (t, var, off) ->
+        | Ptr (t_hl, var, off) ->
+                (* TODO: high-level types *)
+                let t_qbe =
+                    t_hl
+                    |> type_ll_of_type_hl
+                    |> qbe_string_of_type_signed
+                in
                 fprintf f "\t%%i%d =w add $%s, %d\n" var_num var off;
-                fprintf f "\t%s load%s %%i%d\n" preamble (qbe_string_of_type_signed t) var_num
+                fprintf f "\t%s load%s %%i%d\n" preamble t_qbe var_num
         | _ ->
-                fprintf f "\t%s %s\n" preamble (string_of_data_ll data)
+                (* TODO: high-level data *)
+                let data_qbe =
+                    data
+                    |> data_ll_of_data_hl
+                    |> string_of_data_ll
+                in
+                fprintf f "\t%s %s\n" preamble data_qbe
+
     and output_operator var_num op (t_hl : type_hl) =
+        (* TODO: high-level types *)
         let t_ll = type_ll_of_type_hl t_hl in
         fprintf f "\t%%v%d =%c %s\n" var_num (qbe_string_of_type_basety t_ll) (qbe_string_of_operator op t_hl)
     in
@@ -96,28 +118,29 @@ let generate_qbe_ir f { procs; _ } =
         if node.t = None then
             raise @@ Unreachable ("node has no type: " ^ show_node node)
         else
-            let typ = Option.get node.t in
+            output_loc node.l;
 
+            let type_hl = Option.get node.t in
             match node.n with
             | Empty -> ()
-            | Push_literal { data } -> (
-                output_loc node.l;
-                output_data i data)
-            | Op { op; left; right; _ } -> (
-                output_node i left;
-                output_node i right;
-                output_operator i op typ
-            )
+            | Push_data { data } ->
+                    output_data i data
+            | Op { op; left; right; _ } ->
+                begin
+                    output_node i left;
+                    output_node i right;
+                    output_operator i op type_hl
+                end
+
             | _ -> failwith "not implemented"
     in
     let output_seq base_i =
         List.iteri (fun i node -> output_node (base_i + i) node)
     in
-
-    let output_proc _ { loc; name; types; seq; _ } = (
+    let output_proc _ { loc; name; types; seq; _ } = 
         let varn = ref 0
 
-        (* TODO: multiple return values *)
+        (* TODO: multiple return values, high-level types *)
         and t_out  = type_ll_of_type_hl (List.hd types.t_out)
         and t_in   = List.map type_ll_of_type_hl types.t_in in
 
@@ -129,7 +152,7 @@ let generate_qbe_ir f { procs; _ } =
 
         fprintf f "}\n";
 
-        varn := !varn + List.length seq)
+        varn := !varn + List.length seq
     in
 
     Hashtbl.iter output_proc procs;

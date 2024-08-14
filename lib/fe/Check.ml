@@ -27,7 +27,7 @@ let check_rec_macro ({ loc; _ } as func : func) =
         raise @@ Error (loc, "recursive macro")
 
 let rec check_seq input stack takes seq =
-    let stack = Stack.of_seq @@ List.to_seq stack in
+    let (stack : type_hl Stack.t) = Stack.of_seq @@ List.to_seq stack in
 
     (* pop types from the stack and add them to takes *)
     let pop_to_takes loc names =
@@ -57,7 +57,8 @@ let rec check_seq input stack takes seq =
             raise @@ Error (loc, sprintf "take %s not found" name)
 
     and push_literal data =
-        Stack.push (Primitive (type_of_data_ll data) : type_hl) stack
+        let type_hl = type_of_data_hl data in
+        Stack.push type_hl stack
 
     (* handle a proc call *)
     and handle_proc_call _loc func _args =
@@ -103,15 +104,15 @@ let rec check_seq input stack takes seq =
             | _ -> 2
         in
         let check_node' loc = function
-            | { n = (Op _ | Push_literal _ | Proc_call _ | Macro_call _); _ } as node ->
+            | { n = (Op _ | Push_data _ | Proc_call _ | Macro_call _); _ } as node ->
                     check_node node
             | node ->
                     raise @@ Error (loc, sprintf "expected operand, got %s" (string_of_node node))
         and expected_typ i top op =
-            let (typ : type_lit) =
+            let (typ : type_gen) =
                 match op with
                 | Eq | NEq | Lt | LEq | Gt | GEq ->
-                        (if i = 0 then Integer else Decimal) 
+                        (if i = 0 then Integer else Floating) 
 
                 | Add | Sub | Mul | Div | Mod
                 | LAnd | LOr | LXor | Lsl | Lsr
@@ -131,7 +132,7 @@ let rec check_seq input stack takes seq =
             in
             List.init n_operands (fun _ -> typ)
         and get_typ _ =
-            try Stack.pop stack |> type_lit_of_type_hl
+            try Stack.pop stack |> type_gen_of_type_hl
             with Stack.Empty ->
                 raise @@ Error (loc, "not enough elements on the stack")
         in
@@ -141,29 +142,20 @@ let rec check_seq input stack takes seq =
         else if n_operands = 2 && right.n == Empty then
             raise @@ Error (loc, "expected 2 operands, got 1");
 
-        if right.n <> Empty then check_node' loc right;
-        if left.n  <> Empty then check_node' loc left;
+        if left.n   <> Empty then check_node' loc left;
+        if right.n  <> Empty then check_node' loc right;
 
         let types = List.init n_operands get_typ in
         let expected_0 = expected_typ 0 (List.hd types) op
         and expected_1 = expected_typ 1 (List.hd types) op in
 
-        let eq a b =
-            let eq' acc = function
-                | CString, Pointer Integer
-                | String, Pointer Integer -> acc
-                | _ -> acc && a = b
-            in
-            List.fold_left eq' true (List.combine a b)
-        in
-
-        if not (eq expected_0 types || eq expected_1 types)   then
-            if eq expected_0 expected_1 then
+        if not (expected_0 = types || expected_1 = types)   then
+            if expected_0 = expected_1 then
                 raise @@ Error (loc, sprintf "expected %s, got %s"
-                    (string_of_types_lit expected_0) (string_of_types_lit types))
+                    (string_of_types_gen expected_0) (string_of_types_gen types))
             else
                 raise @@ Error (loc, sprintf "expected %s or %s, got %s"
-                    (string_of_types_lit expected_0) (string_of_types_lit expected_1) (string_of_types_lit types));
+                    (string_of_types_gen expected_0) (string_of_types_gen expected_1) (string_of_types_gen types));
 
         ()
 
@@ -177,8 +169,8 @@ let rec check_seq input stack takes seq =
                 peek_to_takes node.l vars
         | Push_take { name } ->
                 push_take node.l name
-        | Push_literal { data; _ } ->
-                push_literal data
+        | Push_data { data; _ } ->
+                push_literal  data
         | Proc_call { func; args } ->
                 handle_proc_call node.l func args
         | Macro_call { func; args } ->
@@ -202,11 +194,23 @@ let rec check_seq input stack takes seq =
 
 let check input =
     let check_func { loc; seq; types; ncalls = _; _ } =
+        let compare t_exp t_act =
+            let compare acc = function
+                | t_exp, General t_act ->
+                        acc && type_gen_of_type_hl t_exp = t_act
+                | t_exp, t_act ->
+                        acc && t_exp = t_act
+            in
+            List.fold_left compare true @@ List.combine t_exp t_act
+        in
+
         let takes = Hashtbl.create 0 in
         let t_out_actual = check_seq input types.t_in takes seq in
 
-        if t_out_actual <> types.t_out then
+        if not (compare types.t_out t_out_actual) then
             raise @@ Error (loc, sprintf "expected %s, got %s" (string_of_types_hl types.t_out) (string_of_types_hl t_out_actual))
+        else
+            print_endline @@ string_of_types_hl t_out_actual
     in
 
     Hashtbl.iter (fun _ f -> check_rec_macro f) input.macros;
