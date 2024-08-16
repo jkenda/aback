@@ -5,6 +5,25 @@ open Format
 
 let show_parser_output = Parser_types.show_parser_output
 
+let raise_unexpected_word loc expected actual =
+    let expected_string =
+        match expected with
+        | [] -> raise @@ Unreachable "why are you calling this"
+        | [word] -> sprintf "'%s'" (string_of_word word)
+        | _ -> List.fold_left
+            (fun acc word -> sprintf "%s or '%s'" acc (string_of_word word))
+            (sprintf "'%s'" (string_of_word @@ List.hd expected))
+            (List.tl expected)
+    in
+    raise @@ Error (loc, sprintf "expected %s, got '%s'" expected_string (string_of_word actual))
+
+let raise_unreachable_eof = function
+    | Some loc -> raise @@ Error (loc, "sequence not ended in EOF. this shouldn't happen")
+    | None -> raise @@ Unreachable "sequence not ended in EOF. this shouldn't happen"
+
+let raise_unexpected_eof loc =
+    raise @@ Error (loc, "unexpected EOF")
+
 (**
     Parse the preprocessed words into an AST.
 
@@ -190,31 +209,26 @@ let parse loc words =
         scope_entry ();
 
         let rec parse' acc = function
-            | [] -> raise @@ Unreachable "sequence not ended in EOF"
+            | [] -> raise_unreachable_eof None
+            | [loc, EOF] -> raise_unexpected_eof loc
 
             | (_, word) :: tl when Array.mem word terminators ->
                     word, List.rev acc, tl
-            | [_, EOF] -> raise @@ Error (loc, "unexpected EOF")
 
             | words ->
                     let node, words = f words in
 
                     match words with
-                    | [] -> raise @@ Unreachable "sequence not ended in EOF"
+                    | [] -> raise_unreachable_eof None
+                    | [loc, EOF] -> raise_unexpected_eof loc
 
                     | (_, word) :: _ when separators = [||] || Array.mem word terminators ->
                             parse' (node :: acc) words
                     | (_, word) :: tl when Array.mem word separators ->
                             parse' (node :: acc) tl
                     | (loc, word) :: _ ->
-                            let expected_words =
-                                terminators
-                                |> Array.to_list 
-                                |> List.fold_left
-                                    (fun acc t -> sprintf "%s or '%s'" acc (string_of_word t))
-                                    (sprintf "'%s'" @@ string_of_word Sep)
-                            in
-                            raise @@ Error (loc, sprintf "expected %s, got '%s'" expected_words (string_of_word word))
+                            let terminators = Array.to_list terminators in
+                            raise_unexpected_word loc terminators word
 
         in
 
@@ -247,15 +261,18 @@ let parse loc words =
             let cond, rest = parse_polish words in
             let rest =
                 match rest with
+                | [] -> raise_unreachable_eof None
+                | [loc, EOF] -> raise_unexpected_eof loc
+
                 | (_, Then) :: tl -> tl
-                | _ -> raise @@ Error (loc, sprintf "expected '%s'" (string_of_word Then))
+                | (loc, word) :: _ -> raise_unexpected_word loc [Then] word
             in
             let t, true_branch, rest = parse_scope [|Else; End|] [|Sep|] parse_next rest in
             let _, false_branch, rest =
                 match t with
                 | End -> End, [], rest
                 | Else -> parse_scope [|End|] [|Sep|] parse_next rest
-                | _ -> raise @@ Error (loc, sprintf "expected '%s' or '%s'" (string_of_word Else) (string_of_word End))
+                | word -> raise_unexpected_word loc [Else; End] word
             in
             make_node loc @@ If_statement { cond; true_branch; false_branch }, rest
 
@@ -264,8 +281,11 @@ let parse loc words =
             let cond, rest = parse_polish words in
             let rest =
                 match rest with
+                | [] -> raise_unreachable_eof @@ Some loc
+                | [loc, EOF] -> raise_unexpected_eof loc
+
                 | (_, Do) :: words -> words
-                | _ -> raise @@ Error (loc, sprintf"expected '%s'" (string_of_word Do))
+                | (loc, word) :: _ -> raise_unexpected_word loc [Do] word
             in
             let _, body, rest = parse_scope [|End|] [|Sep|] parse_next rest in
             make_node loc @@ While_statement { cond; body }, rest
@@ -273,11 +293,13 @@ let parse loc words =
         (** parse 'take' and 'peek' *)
         and parse_take loc words =
             let rec parse' acc = function
+                | [] -> raise_unreachable_eof @@ Some loc
+                | [loc, EOF] -> raise_unexpected_eof loc
+
+                | (_, In) :: _ -> raise @@ Not_implemented (loc, "scoped 'take' not yet implemented")
                 | (_, End) :: tl -> List.rev acc, tl
                 | (loc, Word w) :: tl -> parse' ((loc, w) :: acc) tl
-                | (_, word) :: _ -> raise @@ Error (loc,
-                    sprintf "Expected name or 'end', got '%s'" (string_of_word word))
-                | [] -> raise @@ Error (loc, sprintf "expected name or '%s'" (string_of_word End))
+                | (loc, word) :: _ -> raise_unexpected_word loc [End] word
             in
             let names, rest = parse' [] words in
             List.iter (fun (_, t) -> add_take t) names;

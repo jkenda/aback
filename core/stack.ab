@@ -1,5 +1,6 @@
 macro drop a' -> is
-    take _ end
+    take _ in
+    end
 end
 
 macro nip a' b' -> a' is

@@ -56,10 +56,17 @@ let exec mode path _run =
         | _ ->
                 failwith @@ show_mode mode ^ " not implemented"
     with ex ->
-        match ex with Error (loc, msg) ->
-            print_error loc msg;
-        | _ -> ();
+        begin
+            match ex with
+            | Error (loc, msg) ->
+                print_error loc msg;
+            | Not_implemented (loc, msg) ->
+                printf "(NOT IMPLEMENTED)\n";
+                print_error loc msg;
+            | _ -> ()
+        end;
 
+        printf "\n";
         printf "%s\n" @@ Printexc.to_string ex;
         printf "%s\n" @@ Printexc.get_backtrace ();
         printf "%!";
