@@ -39,7 +39,7 @@ and preprocess words =
                 | While -> While | Do -> Do
                 | Peek -> Peek | Take -> Take | In -> In
                 | Mem -> Mem | Var -> Var
-                | End
+                | End -> End
 
                 | Sep -> Sep
 
@@ -53,7 +53,6 @@ and preprocess words =
 
                 | Word w -> Word w
                 | _ -> raise @@ Not_implemented (loc, show_word word)) :: acc, tl
-
 
     in
     let rec preprocess' ((acc, words) as data) =

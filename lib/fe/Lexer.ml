@@ -46,6 +46,7 @@ type word =
     | Op of operator
 
     | Word of string
+    | EOF
 [@@deriving show { with_path = false }]
 
 let string_of_word = function
@@ -53,7 +54,7 @@ let string_of_word = function
     | Literal a -> string_of_data_tok a
     | Type t -> string_of_type_tok t
 
-    | Sep -> ";" | Return -> "->"
+    | Sep -> ";;" | Return -> "->"
 
     | Macro -> "macro" | Proc -> "proc" | Is -> "is"
     | If -> "if" | Then -> "then" | Else -> "else"
@@ -68,10 +69,10 @@ let string_of_word = function
 
     | Op Eq -> "=" | Op NEq -> "!=" | Op Lt -> "<" | Op LEq -> "<=" | Op Gt -> ">" | Op GEq -> ">="
 
-    | Op Add -> "+" | Op FAdd -> "+."
-    | Op Sub -> "-" | Op FSub -> "-."
-    | Op Mul -> "*" | Op FMul -> "*."
-    | Op Div -> "/" | Op FDiv -> "/."
+    | Op Add -> "+"
+    | Op Sub -> "-"
+    | Op Mul -> "*"
+    | Op Div -> "/"
     | Op Mod -> "%"
 
     | Op Itof -> "itof" | Op Ftoi -> "ftoi"
@@ -80,11 +81,16 @@ let string_of_word = function
     | Op And  -> "&&" | Op Or -> "||"
     | Op Ref -> "@"   | Op Deref -> "."
 
-    | Op Putc -> "putc" | Op Puts -> "puts"
-
     | Word w -> w
+    | EOF -> "EOF"
 
 type words = (location * word) list [@@deriving show { with_path = false }]
+
+let string_of_words =
+    List.fold_left (fun s w -> s ^ " " ^ string_of_word w) ""
+
+let string_of_something_words list =
+    List.fold_left (fun s (_, w) -> s ^ " " ^ string_of_word w) "" list
 
 (* get token from word *)
 let instr_of_word (loc, word) =
@@ -109,10 +115,8 @@ let instr_of_word (loc, word) =
         | "<" -> Op Lt | "<=" -> Op LEq
         | ">" -> Op Gt | ">=" -> Op GEq
 
-        | "+" -> Op Add | "+." -> Op FAdd
-        | "-" -> Op Sub | "-." -> Op FSub
-        | "*" -> Op Mul | "*." -> Op FMul
-        | "/" -> Op Div | "/." -> Op FDiv
+        | "+" -> Op Add | "-" -> Op Sub
+        | "*" -> Op Mul | "/" -> Op Div
         | "%" -> Op Mod
 
         | "itof" -> Op Itof | "ftoi" -> Op Ftoi
@@ -123,8 +127,6 @@ let instr_of_word (loc, word) =
         | "@"  -> Op Ref  | "."  -> Op Deref
 
         | "..." -> Dot_dot_dot
-
-        | "putc" -> Op Putc | "puts" -> Op Puts
 
         | "true" -> Literal (Bool true) | "false" -> Literal (Bool false)
 

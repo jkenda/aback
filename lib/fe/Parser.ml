@@ -53,7 +53,7 @@ let parse loc words =
 
         in
         let (data : data_hl) = Literal data in
-        { l; t = None; n = Push_data { data }}
+        { l; t = Some (type_of_data_hl data); n = Push_data { data }}
     in
 
     (** parse multiple subsequent words into a list of types *)
@@ -67,7 +67,8 @@ let parse loc words =
             | (_, Type t) :: tl -> parse_typ' ((type_hl_of_type_tok t) :: acc) tl
             | (_, Word w) :: tl when Hashtbl.mem output.typs w ->
                     parse_typ' (Hashtbl.find output.typs w :: acc) tl
-            | (_, Word w) :: _ -> raise @@ Error (loc, "unknown type: " ^ w)
+            | (_, Word w) :: tl ->
+                    parse_typ' ((Generic w) :: acc) tl
 
             | (loc, word) :: _ -> raise @@ Error (loc, sprintf "unexpected word: %s. expected %s" (string_of_word word) (string_of_word terminator))
             | [] -> raise @@ Error (loc, "unexpected EOF")
@@ -114,28 +115,28 @@ let parse loc words =
     let rec parse_polish words =
         match words with
         | [] -> { l = loc; t = None; n = Empty }, []
-        | (l, word : location * word) :: rest ->
+        | (loc, word : location * word) :: rest ->
                 match word with
                 | Literal data ->
-                        parse_literal l data, rest
+                        parse_literal loc data, rest
                 | Op op ->
                         let left , rest = parse_polish rest in
                         let right, rest = parse_polish rest in
-                        { t = None; l; n = Op { op; left; right }}, rest
+                        make_node loc @@ Op { op; left; right }, rest
                 | Word name when Hashtbl.mem output.macros name ->
                         let func = Hashtbl.find output.macros name in
                         let nargs = List.length func.types.t_in in
-                        let args, tl = parse_args l name nargs rest in
-                        { t = None; l; n = Macro_call { func; args }}, tl
+                        let args, tl = parse_args loc name nargs rest in
+                        make_node loc @@ Macro_call { func; args }, tl
                 | Word name when Hashtbl.mem output.procs name ->
                         let func = Hashtbl.find output.procs name in
                         let nargs = List.length func.types.t_in in
-                        let args, tl = parse_args l name nargs rest in
-                        { t = None; l; n = Proc_call { func; args }}, tl
+                        let args, tl = parse_args loc name nargs rest in
+                        make_node loc @@ Proc_call { func; args }, tl
                 | End | Sep ->
-                        { t = None; l; n = Empty }, words
+                        make_node loc @@ Empty, words
 
-                | _ -> raise @@ Error (l, "expected expression")
+                | _ -> raise @@ Error (loc, "expected expression")
 
     (** parse function arguments *)
     and parse_args loc name n words =
@@ -180,26 +181,35 @@ let parse loc words =
     (** add a proc to the table of procs *)
     let rec add_func loc table name words =
         let types, words = extract_types loc words in
-        let _, seq, rest = parse_scope [|End|] parse_next words in
+        let _, seq, rest = parse_scope [|End|] [|Sep|] parse_next words in
         Hashtbl.replace table name { loc; name; types; seq; ncalls = ref 0 };
         rest
 
     (** parse sequence of statements *)
-    and parse_scope terminators f words =
+    and parse_scope terminators separators f words =
         scope_entry ();
 
-        let rec parse' acc = function
-            | [] when terminators = [||] -> End, List.rev acc, []
-            | (_, t') :: tl when Array.mem t' terminators ->
-                    t', List.rev acc, tl
-            | words ->
-                    let node, rest = f words in
+        let rec parse' acc words =
+            let node, words = f words in
 
-                    (* make sure sequence is delimited by ';' *)
-                    match rest with
-                            | [] -> End, List.rev acc, []
-                            | (_, (Sep | End)) :: tl -> parse' (node :: acc) tl
-                            | (loc, _) :: _ -> raise @@ Error (loc, "expected ';;'")
+            match words with
+            | [] when terminators = [||] -> End, List.rev acc, []
+            | [] -> raise @@ Error (loc, "unexpected EOF")
+            | (_, word) :: tl when Array.mem word terminators ->
+                    word, List.rev acc, tl
+            | words when separators = [||] ->
+                    parse' (node :: acc) words
+            | (_, word) :: tl when Array.mem word separators ->
+                    parse' (node :: acc) tl
+
+            | (loc, word) :: _ ->
+                    let expected_terminators =
+                        Array.to_list terminators
+                        |> List.fold_left
+                            (fun acc t -> sprintf "%s or '%s'" acc (string_of_word t))
+                            (sprintf "'%s'" @@ string_of_word Sep)
+                    in
+                    raise @@ Error (loc, sprintf "expected %s, got '%s'" expected_terminators (string_of_word word))
         in
 
         let ret = parse' [] words in
@@ -232,14 +242,14 @@ let parse loc words =
             let rest =
                 match rest with
                 | (_, Then) :: tl -> tl
-                | _ -> raise @@ Error (loc, "expected 'then'")
+                | _ -> raise @@ Error (loc, sprintf "expected '%s'" (string_of_word Then))
             in
-            let t, true_branch, rest = parse_scope [|Else; End|] parse_next rest in
+            let t, true_branch, rest = parse_scope [|Else; End|] [|Sep|] parse_next rest in
             let _, false_branch, rest =
                 match t with
                 | End -> End, [], rest
-                | Else -> parse_scope [|End|] parse_next rest
-                | _ -> raise @@ Error (loc, "expected 'else' or 'end'")
+                | Else -> parse_scope [|End|] [|Sep|] parse_next rest
+                | _ -> raise @@ Error (loc, sprintf "expected '%s' or '%s'" (string_of_word Else) (string_of_word End))
             in
             make_node loc @@ If_statement { cond; true_branch; false_branch }, rest
 
@@ -249,9 +259,9 @@ let parse loc words =
             let rest =
                 match rest with
                 | (_, Do) :: words -> words
-                | _ -> raise @@ Error (loc, "expected 'then'")
+                | _ -> raise @@ Error (loc, sprintf"expected '%s'" (string_of_word Do))
             in
-            let _, body, rest = parse_scope [||] parse_next rest in
+            let _, body, rest = parse_scope [|End|] [|Sep|] parse_next rest in
             make_node loc @@ While_statement { cond; body }, rest
 
         (** parse 'take' and 'peek' *)
@@ -260,8 +270,8 @@ let parse loc words =
                 | (_, End) :: tl -> List.rev acc, tl
                 | (loc, Word w) :: tl -> parse' ((loc, w) :: acc) tl
                 | (_, word) :: _ -> raise @@ Error (loc,
-                    "Expected name or 'end', got " ^ string_of_word word)
-                | [] -> raise @@ Error (loc, "expected 'end'")
+                    sprintf "Expected name or 'end', got '%s'" (string_of_word word))
+                | [] -> raise @@ Error (loc, sprintf "expected name or '%s'" (string_of_word End))
             in
             let names, rest = parse' [] words in
             List.iter (fun (_, t) -> add_take t) names;
@@ -323,7 +333,7 @@ let parse loc words =
 
         (* ERROR -- unexpected separator ; *)
         | (loc, Sep) :: _ ->
-                raise @@ Error (loc, "unexpected ';'")
+                raise @@ Error (loc, sprintf "unexpected '%s'" (string_of_word Sep))
 
         (* index into arrays to get the value or assign to it *)
         | (loc, Index) :: (_, Word name) :: tl when Hashtbl.mem output.mems name ->
@@ -359,7 +369,10 @@ let parse loc words =
         (* parse literal *)
         | (loc, Literal data) :: tl ->
                 let (data : data_hl) = Literal (data_lit_of_data_tok data) in
-                make_node loc @@ Push_data { data }, tl
+                let l = loc
+                and t = Some (type_of_data_hl data)
+                and n = Push_data { data } in
+                { l; t; n }, tl
 
         | (loc, word) :: _ ->
                 raise @@ Error (loc, string_of_word word ^ ": word not allowed at the toplevel")
@@ -394,7 +407,7 @@ let parse loc words =
             | (loc, word) :: _ -> raise @@ Error (loc, string_of_word word ^ " not allowed in the toplevel")
             | _ -> raise @@ Unreachable "empty list in parse_toplevel"
         in
-        parse_scope [||] parse_tl' words
+        parse_scope [|EOF|] [||] parse_tl' words
         |> ignore
     in
 

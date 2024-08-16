@@ -94,12 +94,12 @@ let rec check_seq input stack takes seq =
         List.iter (fun typ -> Stack.push typ stack) @@ List.rev t_stack_after_true
     in
 
-    let rec check_operator loc op left right =
+    let rec check_operator node op left right =
+        let loc = node.l in
         let n_operands =
             match op with
             | Itof | Ftoi
             | Ref  | Deref
-            | Putc | Puts
                 -> 1
             | _ -> 2
         in
@@ -108,33 +108,21 @@ let rec check_seq input stack takes seq =
                     check_node node
             | node ->
                     raise @@ Error (loc, sprintf "expected operand, got %s" (string_of_node node))
-        and expected_typ i top op =
-            let (typ : type_gen) =
-                match op with
-                | Eq | NEq | Lt | LEq | Gt | GEq ->
-                        (if i = 0 then Integer else Floating) 
+        and t_in_exp top = function
+            | Eq | NEq | Lt | LEq | Gt | GEq -> Numeric
 
-                | Add | Sub | Mul | Div | Mod
-                | LAnd | LOr | LXor | Lsl | Lsr
-                | Itof -> Integer
+            | Add | Sub | Mul | Div | Mod
+            | LAnd | LOr | LXor | Lsl | Lsr
+            | Itof -> Integer
 
-                | FAdd | FSub | FMul | FDiv
-                | Ftoi -> Integer
+            | Ftoi -> Floating
 
-                | And  | Or -> Boolean
-                | Putc -> Character
-                | Puts -> String
-                | Ref -> top
-                | Deref ->
-                        match top with
-                        | Pointer t -> t
-                        | _ -> raise @@ Error (loc, "can only deref pointer")
-            in
-            List.init n_operands (fun _ -> typ)
-        and get_typ _ =
-            try Stack.pop stack |> type_gen_of_type_hl
-            with Stack.Empty ->
-                raise @@ Error (loc, "not enough elements on the stack")
+            | And | Or -> Boolean
+            | Ref -> top
+            | Deref ->
+                    match top with
+                    | Pointer t -> t
+                    | _ -> raise @@ Error (loc, "can only deref pointer")
         in
 
         if left.n = Empty && right.n = Empty then
@@ -142,22 +130,41 @@ let rec check_seq input stack takes seq =
         else if n_operands = 2 && right.n == Empty then
             raise @@ Error (loc, "expected 2 operands, got 1");
 
-        if left.n   <> Empty then check_node' loc left;
-        if right.n  <> Empty then check_node' loc right;
+        if left.n  <> Empty then check_node' loc left;
+        if right.n <> Empty then check_node' loc right;
 
-        let types = List.init n_operands get_typ in
-        let expected_0 = expected_typ 0 (List.hd types) op
-        and expected_1 = expected_typ 1 (List.hd types) op in
+        if left.n <> Empty && right.n <> Empty && left.t <> right.t then
+            raise @@ Error (loc, "operands must have the same type");
 
-        if not (expected_0 = types || expected_1 = types)   then
-            if expected_0 = expected_1 then
+        let t_in_act =
+            try Stack.pop stack
+            with Stack.Empty ->
+                raise @@ Error (loc, "not enough elements on the stack")
+        in
+        let t_in_gen = type_gen_of_type_hl t_in_act in
+        let t_in_exp = t_in_exp t_in_gen op in
+        if t_in_gen <> t_in_exp  then
                 raise @@ Error (loc, sprintf "expected %s, got %s"
-                    (string_of_types_gen expected_0) (string_of_types_gen types))
-            else
-                raise @@ Error (loc, sprintf "expected %s or %s, got %s"
-                    (string_of_types_gen expected_0) (string_of_types_gen expected_1) (string_of_types_gen types));
+                    (string_of_type_gen t_in_exp) (string_of_type_hl t_in_act));
 
-        ()
+        let (t_out : type_hl option) =
+            match op with
+            | Eq | NEq | Lt | LEq | Gt | GEq -> Some (Primitive Bool)
+            | Add | Sub | Mul | Div | Mod -> Some (t_in_act)
+            | Itof -> Some (Primitive (if t_in_act = Primitive I32 then F32 else F64))
+            | Ftoi -> Some (Primitive (if t_in_act = Primitive F32 then I32 else I64))
+            | LAnd | LOr | LXor | Lsl | Lsr -> Some t_in_act
+            | And | Or -> Some (Primitive Bool)
+            | Ref -> Some (Ptr (t_in_act))
+            | Deref ->
+                    match t_in_act with Ptr t -> Some t
+                    | _ -> raise @@ Error (loc, sprintf "cannot deref %s" (string_of_type_hl t_in_act))
+        in
+
+        match t_out with Some t -> Stack.push t stack
+        | None ->();
+
+        node.t <- t_out
 
     and check_node node =
         match node.n with
@@ -180,7 +187,7 @@ let rec check_seq input stack takes seq =
                 check_if_statement node.l cond true_branch false_branch
 
         | Op { op; left; right } ->
-                check_operator node.l op left right
+                check_operator node op left right
 
         | Var _ | Mem _ ->
                 raise @@ Unreachable "out of place var/mem should be handled in Parser"
@@ -195,13 +202,16 @@ let rec check_seq input stack takes seq =
 let check input =
     let check_func { loc; seq; types; ncalls = _; _ } =
         let compare t_exp t_act =
-            let compare acc = function
-                | t_exp, General t_act ->
-                        acc && type_gen_of_type_hl t_exp = t_act
-                | t_exp, t_act ->
-                        acc && t_exp = t_act
-            in
-            List.fold_left compare true @@ List.combine t_exp t_act
+            if List.length t_exp <> List.length t_act then
+                false
+            else
+                let compare acc = function
+                    | t_exp, General t_act ->
+                            acc && type_gen_of_type_hl t_exp = t_act
+                    | t_exp, t_act ->
+                            acc && t_exp = t_act
+                in
+                List.fold_left compare true @@ List.combine t_exp t_act
         in
 
         let takes = Hashtbl.create 0 in

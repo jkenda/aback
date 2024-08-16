@@ -21,20 +21,13 @@ let string_of_location loc = sprintf "'%s':%d:%d" loc.filename loc.row loc.col
  *)
 type operator =
     | Eq | NEq | Lt | LEq | Gt | GEq
-
-    | Add | FAdd
-    | Sub | FSub
-    | Mul | FMul
-    | Div | FDiv
-    | Mod
+    | Add | Sub | Mul | Div | Mod
 
     | Itof | Ftoi
 
     | LAnd | LOr | LXor | Lsl | Lsr
     | And  | Or
     | Ref | Deref
-
-    | Putc | Puts
 [@@deriving show { with_path = false }]
 
 
@@ -54,6 +47,7 @@ let print_error loc msg =
 
 
 type type_gen =
+    | Numeric
     | Integer
     | Floating
     | Boolean
@@ -64,6 +58,7 @@ type type_gen =
 [@@deriving show { with_path = false }]
 
 let rec string_of_type_gen = function
+    | Numeric -> "numeric"
     | Integer -> "integer"
     | Floating -> "decimal"
     | Boolean -> "boolean"
@@ -158,6 +153,7 @@ type type_hl =
     | String | CStr
     | Ptr of type_hl
     | General of type_gen
+    | Generic of string
 [@@deriving show { with_path = false }]
 
 let rec string_of_type_hl = function
@@ -167,6 +163,7 @@ let rec string_of_type_hl = function
     | String -> "str" | CStr -> "cstr"
     | Ptr t -> string_of_type_hl t
     | General t -> string_of_type_gen t
+    | Generic s -> s
 
 let string_of_types_hl =
     List.fold_left (fun acc typ -> acc ^ string_of_type_hl typ ^ " ") ""
@@ -212,7 +209,7 @@ let string_of_data_tok = function
     | Bool b -> string_of_bool b
     | String s -> sprintf "\"%s\"" s | CStr s -> sprintf "c\"%s\"" s
 
-let (type_of_data_gen : data_tok -> type_gen) = function
+let (type_of_data_tok : data_tok -> type_gen) = function
     | Integer _ -> Integer
     | Decimal _ -> Floating
     | Char    _ -> Character

@@ -1,3 +1,5 @@
+include "core/io.ab"
+
 proc main
     -> i32
 is

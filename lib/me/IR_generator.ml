@@ -53,14 +53,9 @@ let qbe_string_of_operator op (t_in : type_hl) =
     | Lt -> "c" ^ s ^ "lt" ^ Char.escaped t | LEq -> "c" ^ s ^ "le" ^ Char.escaped t
     | Gt -> "c" ^ s ^ "gt" ^ Char.escaped t | GEq -> "c" ^ s ^ "ge" ^ Char.escaped t
 
-    | Add | FAdd -> "add"
-    | Sub | FSub -> "sub"
-    | Mul | FMul -> "mul"
-    | Div | FDiv -> "div"
+    | Add -> "add" | Sub -> "sub"
+    | Mul -> "mul" | Div -> "div"
     | Mod -> if signed then "mod" else "umod"
-
-    | Putc -> "call $puts\n"
-    | Puts -> "call $putc\n"
 
     | Itof | Ftoi
 

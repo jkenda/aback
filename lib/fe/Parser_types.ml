@@ -18,9 +18,9 @@ type func = {
     ncalls : int ref
 }
 and node = {
-    l : location;
-    t : type_hl option;
-    n : node_hl
+    l         : location;
+    mutable t : type_hl option;
+    n         : node_hl
 }
 and node_hl =
     | Empty
@@ -57,16 +57,17 @@ let string_of_node =
         in
         let node_str =
             match node.n with
+            | Empty -> ""
             | Push_data { data; _ } ->
-                    show_data_hl data ^ "\n"
+                    show_data_hl data
             | Op { op; left; right } ->
                     show_operator op ^ "\n"
                     ^ str_of_node' (ind + 1) left
-                    ^ str_of_node' (ind + 1) right ^ tabs ^ ";;\n"
+                    ^ str_of_node' (ind + 1) right ^ ";;"
             | _ ->
                     show_node node
         in
-        tabs ^ node_str
+        tabs ^ node_str ^ ": " ^ (match node.t with Some t -> string_of_type_hl t | None -> "Unknown") ^ "\n"
     in
     str_of_node' 1
 

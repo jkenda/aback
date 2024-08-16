@@ -5,6 +5,9 @@ macro $INT_BUFSIZ$ is 64 end
 mem $int_buf$ char $INT_BUFSIZ$ end
 var $int_len$ int end
 
+proc putc u8  -> end
+proc puts str -> end
+
 macro $puti$
     int int ->
 is
