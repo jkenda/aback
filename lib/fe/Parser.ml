@@ -189,27 +189,33 @@ let parse loc words =
     and parse_scope terminators separators f words =
         scope_entry ();
 
-        let rec parse' acc words =
-            let node, words = f words in
+        let rec parse' acc = function
+            | [] -> raise @@ Unreachable "sequence not ended in EOF"
 
-            match words with
-            | [] when terminators = [||] -> End, List.rev acc, []
-            | [] -> raise @@ Error (loc, "unexpected EOF")
             | (_, word) :: tl when Array.mem word terminators ->
                     word, List.rev acc, tl
-            | words when separators = [||] ->
-                    parse' (node :: acc) words
-            | (_, word) :: tl when Array.mem word separators ->
-                    parse' (node :: acc) tl
+            | [_, EOF] -> raise @@ Error (loc, "unexpected EOF")
 
-            | (loc, word) :: _ ->
-                    let expected_terminators =
-                        Array.to_list terminators
-                        |> List.fold_left
-                            (fun acc t -> sprintf "%s or '%s'" acc (string_of_word t))
-                            (sprintf "'%s'" @@ string_of_word Sep)
-                    in
-                    raise @@ Error (loc, sprintf "expected %s, got '%s'" expected_terminators (string_of_word word))
+            | words ->
+                    let node, words = f words in
+
+                    match words with
+                    | [] -> raise @@ Unreachable "sequence not ended in EOF"
+
+                    | (_, word) :: _ when separators = [||] || Array.mem word terminators ->
+                            parse' (node :: acc) words
+                    | (_, word) :: tl when Array.mem word separators ->
+                            parse' (node :: acc) tl
+                    | (loc, word) :: _ ->
+                            let expected_words =
+                                terminators
+                                |> Array.to_list 
+                                |> List.fold_left
+                                    (fun acc t -> sprintf "%s or '%s'" acc (string_of_word t))
+                                    (sprintf "'%s'" @@ string_of_word Sep)
+                            in
+                            raise @@ Error (loc, sprintf "expected %s, got '%s'" expected_words (string_of_word word))
+
         in
 
         let ret = parse' [] words in
@@ -460,6 +466,7 @@ let%test "types" =
             Var; Word "i"; Is; Type F32; End;
             Var; Word "j"; Is; Type F64; End;
             Var; Word "k"; Is; Type Bool; End;
+            EOF
         ]
     in
     let input = List.map (fun prep -> (test_loc, prep)) input 
@@ -486,7 +493,7 @@ let%test "types" =
     test_vars input expected
 
 let%expect_test _ =
-    [(Mem : word); Word "x"; Is; Type I32; End]
+    [(Mem : word); Word "x"; Is; Type I32; End; EOF]
     |> List.map (fun prep -> (test_loc, prep))
     |> parse null_loc
     |> ignore;
