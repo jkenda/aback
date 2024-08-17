@@ -41,7 +41,7 @@ type word =
     | Peek | Take | In (* peek ... end, take ... end *)
     | Mem | Var | Index | Assign
 
-    | Dot_dot_dot
+    | Dot_dot
 
     | Op of operator
 
@@ -65,7 +65,7 @@ let string_of_word = function
 
     | Index -> "[]" | Assign -> ":="
 
-    | Dot_dot_dot -> "..."
+    | Dot_dot -> ".."
 
     | Op Eq -> "=" | Op NEq -> "!=" | Op Lt -> "<" | Op LEq -> "<=" | Op Gt -> ">" | Op GEq -> ">="
 
@@ -126,7 +126,7 @@ let instr_of_word (loc, word) =
         | "&&" -> Op And  | "||" -> Op Or
         | "@"  -> Op Ref  | "."  -> Op Deref
 
-        | "..." -> Dot_dot_dot
+        | ".." -> Dot_dot
 
         | "true" -> Literal (Bool true) | "false" -> Literal (Bool false)
 

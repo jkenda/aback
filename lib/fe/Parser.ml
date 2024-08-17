@@ -111,19 +111,20 @@ let parse loc words =
         make_node loc @@ Empty, words
 
     (** add array to the table *)
-    and add_mem loc name size words =
+    and add_mem loc name words =
         let typ, words = parse_typ loc words in
-        let size =
-            match size with
-            | Word size -> (
+        let size, words =
+            match words with
+            | (_, Word size) :: tl -> (
                     let macro =
                         try Hashtbl.find output.macros size
                         with _ -> raise @@ Error (loc, "Unknown value")
                     in
                     match macro with
-                    | { seq = [{ n = Push_data { data = Literal Integer size; _ }; _ }]; _ } -> size
+                    | { seq = [{ n = Push_data { data = Literal Integer size; _ }; _ }]; _ } -> size, tl
                     | _ -> raise @@ Error (loc, "size has to be of constant value"))
-            | Literal Integer size -> size
+            | (_, Literal Integer size) :: tl -> size, tl
+            | (_, w) :: _ -> raise @@ Error (loc, sprintf "expected size, got '%s'\nusage: mem <name> <type> <size> end" (string_of_word w))
             | _ -> raise @@ Error (loc, "usage: mem <name> <type> <size> end")
         in
         Hashtbl.add output.mems name (typ, size);
@@ -138,6 +139,9 @@ let parse loc words =
                 match word with
                 | Literal data ->
                         parse_literal loc data, rest
+                | Word name when Hashtbl.mem takes name ->
+                        Hashtbl.find takes name;
+                        make_node loc @@ Push_take { name }, rest
                 | Op op ->
                         let left , rest = parse_polish rest in
                         let right, rest = parse_polish rest in
@@ -152,10 +156,12 @@ let parse loc words =
                         let nargs = List.length func.types.t_in in
                         let args, tl = parse_args loc name nargs rest in
                         make_node loc @@ Proc_call { func; args }, tl
+                | Dot_dot ->
+                        make_node loc @@ Unknown_sequence { length = 1 }, rest
                 | End | Sep ->
                         make_node loc @@ Empty, words
 
-                | _ -> raise @@ Error (loc, "expected expression")
+                | word -> raise @@ Error (loc, sprintf "expected expression, got '%s'" (string_of_word word))
 
     (** parse function arguments *)
     and parse_args loc name n words =
@@ -209,16 +215,19 @@ let parse loc words =
         scope_entry ();
 
         let rec parse' (top, rest) = function
-            | [] -> raise_unreachable_eof None
-            | [loc, EOF] -> raise_unexpected_eof loc
-
             | (_, word) :: tl when Array.mem word terminators ->
                     word, top :: rest, tl
+
+            | [] -> raise_unreachable_eof None
+            | [loc, EOF] -> raise_unexpected_eof loc
 
             | words ->
                     let node, words = f words in
 
                     match words with
+                    | _ when separators = [||] ->
+                            parse' (top, rest) words
+
                     | [] -> raise_unreachable_eof None
                     | [loc, EOF] -> raise_unexpected_eof loc
 
@@ -439,12 +448,12 @@ let parse loc words =
             (* parse vars and arrays, don't add anything to the AST *)
             | (_, Var) :: (_, Word name) :: (loc, Is) :: tl ->
                     add_var loc name tl
-            | (_, Mem) :: (_, Word name) :: (_, Is) :: (loc, (Literal Integer _ | Word _ as size)) :: tl ->
-                    add_mem loc name size tl
+            | (_, Mem) :: (_, Word name) :: (_, Is) :: tl ->
+                    add_mem loc name tl
 
             (* ERROR -- invalid var/mem format *)
-            | (loc, Mem) :: _ -> raise @@ Error (loc, sprintf "usage: mem <name> is <type> <size> end")
-            | (loc, Var) :: _ -> raise @@ Error (loc, sprintf "usage: var <name> is <type> end")
+            | (loc, Var) :: _ -> raise @@ Error (loc, "usage: var <name> is <type> end")
+            | (loc, Mem) :: _ -> raise @@ Error (loc, "usage: mem <name> is <type> <size> end")
 
 
             (* parse functions -- macros ans procs, don't add anyting to the AST *)
@@ -499,7 +508,7 @@ let test_loc = {
     row = 1; col = 1
 }
 
-let%test "types" =
+let%test "toplevel" =
     let input : word list =
         [
             Var; Word "a"; Is; Type I8; End;

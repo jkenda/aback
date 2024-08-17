@@ -1,9 +1,9 @@
 include "core/stack.ab"
 include "core/math.ab"
 
-macro $INT_BUFSIZ$ is 64 end
-mem $int_buf$ char $INT_BUFSIZ$ end
-var $int_len$ int end
+macro $INT_BUFSIZ$ -> u64 is 64 end
+mem $int_buf$ is u8 $INT_BUFSIZ$ end
+var $int_len$ is u64 end
 
 proc putc u8  -> end
 proc puts str -> end

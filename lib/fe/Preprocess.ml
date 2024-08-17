@@ -45,7 +45,7 @@ and preprocess words =
 
                 | Type t -> Type t
 
-                | Dot_dot_dot -> Dot_dot_dot
+                | Dot_dot -> Dot_dot
 
                 | Assign -> Assign | Index -> Index | Return -> Return
 
@@ -54,21 +54,11 @@ and preprocess words =
                 | Word w -> Word w
                 | _ -> raise @@ Not_implemented (loc, show_word word)) :: acc, tl
 
+
     in
-    let prepend_eof words =
-        let loc =
-            match words with
-            | ((loc, _) :: _) ->
-                    { loc with col = loc.col; row = 0 }
-            | [] ->
-                    { filename = ""; included_from = []; expanded_from = []; row = 1; col = 1 }
-        in
-        loc, EOF
-    in
-    let eof = prepend_eof words in
     let rec preprocess' ((acc, words) as data) =
         match words with
-        | [] -> List.rev (eof :: acc), end_stack
+        | [] -> List.rev acc, end_stack
         | _ -> preprocess' @@ preprocess'' data
     in
     let acc, end_stack = preprocess' ([], words) in

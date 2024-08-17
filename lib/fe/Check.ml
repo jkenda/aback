@@ -10,6 +10,7 @@ let list_of_stack stack =
 
 let stack_of_list list =
     list
+    |> List.rev
     |> List.to_seq
     |> Stack.of_seq
 
@@ -19,6 +20,7 @@ let replace_stack stack types_hl =
     |> List.rev
     |> List.to_seq
     |> Stack.add_seq stack
+
 
 (** check whether the function is recursive or not *)
 let is_recursive { name; seq; _ } =
@@ -44,7 +46,7 @@ let check_rec_macro ({ loc; _ } as func : func) =
         raise @@ Error (loc, "recursive macro")
 
 let rec check_seq input stack takes seq =
-    let (stack : type_hl Stack.t) = stack_of_list stack in
+    let stack = stack_of_list stack in
 
     (* pop types from the stack and add them to takes *)
     let pop_to_takes loc names =
@@ -57,14 +59,17 @@ let rec check_seq input stack takes seq =
 
     (* peek types from the stack and add them to takes *)
     and peek_to_takes loc names =
-        let pop_to_takes' stack name =
-            match Seq.uncons stack with
-            | None -> raise @@ Error (loc, "not enough elements on the stack")
-            | Some (typ, tl) -> Hashtbl.add takes name typ; tl
+        let peek_to_takes' (name, typ) =
+            Hashtbl.add takes name typ
         in
-        let stack = Stack.to_seq stack in
-        List.fold_left pop_to_takes' stack names ()
-        |> ignore
+        let stack = Stack.to_seq stack
+        and names = List.to_seq names in
+        if Seq.length stack < Seq.length names then
+            raise @@ Error (loc, "not enough elements on the stack");
+
+        Seq.zip names stack
+        |> Seq.iter peek_to_takes'
+
 
     (* push a type from takes to stack *)
     and push_take loc name =
@@ -80,26 +85,27 @@ let rec check_seq input stack takes seq =
     (* handle a proc call *)
     and handle_proc_call _loc func _args =
         (* TODO: handle arguments *)
-        let t_out_actual = check_seq input func.types.t_in takes seq in
-        List.iter (fun typ -> Stack.push typ stack) t_out_actual
+        let t_out_actual = check_seq input (list_of_stack stack) takes func.seq in
+        replace_stack stack t_out_actual
 
     (* handle a macro call *)
     and handle_macro_call _loc func _args =
         (* TODO: handle arguments *)
-        let t_out_actual = check_seq input func.types.t_in takes seq in
-        List.iter (fun typ -> Stack.push typ stack) t_out_actual
+        let t_out_actual = check_seq input (list_of_stack stack) takes func.seq in
+        replace_stack stack t_out_actual
 
     (* check an if statement *)
     and check_if_statement loc cond true_branch false_branch =
-        let t_stack_before = list_of_stack stack
-        and seq = [cond] in
+        let t_stack_before = list_of_stack stack in
 
-        let t_stack_after = check_seq input t_stack_before takes seq in
+        (* check that condition returns only bool *)
+        let t_stack_after = check_seq input t_stack_before takes [cond] in
         if t_stack_after <> Primitive Bool :: t_stack_before then
             raise @@ Error (loc, "condition must only return bool");
 
         let t_stack_before = t_stack_after in
 
+        (* check that true and false branches leave the same stack *)
         let t_stack_after_true  = check_seq input t_stack_before takes true_branch
         and t_stack_after_false = check_seq input t_stack_before takes false_branch in
         if t_stack_after_true <> t_stack_after_false then
@@ -238,13 +244,11 @@ let check input =
                 List.fold_left compare true @@ List.combine t_exp t_act
         in
 
-        let takes = Hashtbl.create 0 in
+        let takes = Hashtbl.create 10 in
         let t_out_actual = check_seq input types.t_in takes seq in
 
         if not (compare types.t_out t_out_actual) then
             raise @@ Error (loc, sprintf "expected %s, got %s" (string_of_types_hl types.t_out) (string_of_types_hl t_out_actual))
-        else
-            print_endline @@ string_of_types_hl t_out_actual
     in
 
     Hashtbl.iter (fun _ f -> check_rec_macro f) input.macros;
@@ -253,3 +257,31 @@ let check input =
 
     let output = input in
     output
+
+
+type ints = int list
+[@@deriving show { with_path = false }]
+
+let%test "list -> stack -> list" =
+    let expect_eq a b =
+        if a <> b then
+            printf "expected %s, got %s\n" (show_ints a) (show_ints b);
+        a = b
+    in
+
+    let list = [1; 2; 3; 4; 5; 6; 7; 8; 9] in
+    expect_eq
+    list
+    (list |> stack_of_list |> list_of_stack)
+
+let%test "stack -> list -> stack" =
+    let stack = Stack.of_seq @@ List.to_seq [1; 2; 3; 4; 5; 6; 7; 8; 9] in
+    stack |> list_of_stack |> stack_of_list = stack
+
+let%test "stack -> list; replace_stack" =
+    let expected = Stack.of_seq @@ List.to_seq [1; 2; 3; 4; 5; 6; 7; 8; 9]
+    and actual = Stack.create () in
+
+    let list = list_of_stack expected in
+    replace_stack actual list;
+    expected = actual

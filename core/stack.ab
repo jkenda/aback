@@ -46,7 +46,8 @@ macro -rot a' b' c' -> c' a' b' is
 end
 
 macro 2drop a' b' -> is
-    drop drop
+    take a b in
+    end
 end
 
 macro 2over a' b' c' d' -> c' d' a' b' c' d' is
@@ -68,5 +69,7 @@ macro 2nip a' b' c' d' -> a' b' is
 end
 
 macro 2dup a' b' -> a' b' a' b' is
-    over over
+    peek a b in
+        a b
+    end
 end

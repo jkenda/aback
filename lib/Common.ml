@@ -179,6 +179,9 @@ type type_hl =
     | Generic of string
 [@@deriving show { with_path = false }]
 
+type types_hl = type_hl list
+[@@deriving show { with_path = false }]
+
 let rec string_of_type_hl = function
     | Primitive t -> string_of_type_ll t
     | Struc tl -> Format.sprintf "struc { %s }" @@ (List.map (fun t -> snd t |> string_of_type_hl) tl |> List.fold_left (^) "")
