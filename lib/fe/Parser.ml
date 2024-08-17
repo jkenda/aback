@@ -183,8 +183,8 @@ let parse loc words =
     in
 
     (** parse function call *)
-    let parse_func_call f loc name words =
-        let proc = Hashtbl.find output.procs name in
+    let parse_func_call table f loc name words =
+        let proc = Hashtbl.find table name in
         let nargs = List.length proc.types.t_in in
         let args, rest = parse_args loc name nargs words in
         f (loc, proc, args), rest
@@ -208,12 +208,12 @@ let parse loc words =
     and parse_scope terminators separators f words =
         scope_entry ();
 
-        let rec parse' acc = function
+        let rec parse' (top, rest) = function
             | [] -> raise_unreachable_eof None
             | [loc, EOF] -> raise_unexpected_eof loc
 
             | (_, word) :: tl when Array.mem word terminators ->
-                    word, List.rev acc, tl
+                    word, top :: rest, tl
 
             | words ->
                     let node, words = f words in
@@ -222,20 +222,23 @@ let parse loc words =
                     | [] -> raise_unreachable_eof None
                     | [loc, EOF] -> raise_unexpected_eof loc
 
-                    | (_, word) :: _ when separators = [||] || Array.mem word terminators ->
-                            parse' (node :: acc) words
                     | (_, word) :: tl when Array.mem word separators ->
-                            parse' (node :: acc) tl
-                    | (loc, word) :: _ ->
-                            let terminators = Array.to_list terminators in
-                            raise_unexpected_word loc terminators word
+                            parse' ([], (node :: top) :: rest) tl
+                    | _ ->
+                            parse' (node :: top, rest) words
 
         in
 
-        let ret = parse' [] words in
+        let terminator, nodes, rest = parse' ([], []) words in
 
         scope_exit ();
-        ret
+
+        let nodes =
+            nodes
+            |> List.rev
+            |> List.flatten
+        in
+        terminator, nodes, rest
 
     (** parse array indexing *)
     and parse_indexing loc name words =
@@ -291,20 +294,44 @@ let parse loc words =
             make_node loc @@ While_statement { cond; body }, rest
 
         (** parse 'take' and 'peek' *)
-        and parse_take loc words =
+        and parse_take (word : word) loc words =
             let rec parse' acc = function
                 | [] -> raise_unreachable_eof @@ Some loc
                 | [loc, EOF] -> raise_unexpected_eof loc
 
-                | (_, In) :: _ -> raise @@ Not_implemented (loc, "scoped 'take' not yet implemented")
-                | (_, End) :: tl -> List.rev acc, tl
-                | (loc, Word w) :: tl -> parse' ((loc, w) :: acc) tl
-                | (loc, word) :: _ -> raise_unexpected_word loc [End] word
-            in
-            let names, rest = parse' [] words in
-            List.iter (fun (_, t) -> add_take t) names;
-            List.map snd names, rest
+                | (_, In) :: tl ->
+                        let vars =
+                            acc
+                            |> List.rev
+                            |> List.map snd
+                        in
 
+                        scope_entry ();
+                        List.iter add_take vars;
+                        let _, body, rest = parse_scope [|End|] [|Sep|] parse_next tl in
+                        scope_exit ();
+
+                        if word = Take then
+                            make_node loc @@ Scoped_take {vars; body }, rest
+                        else
+                            make_node loc @@ Scoped_peek {vars; body }, rest
+                | (_, End) :: tl ->
+                        let vars =
+                            acc
+                            |> List.rev
+                            |> List.map snd
+                        in
+                        List.iter add_take vars;
+
+                        if word = Take then
+                            make_node loc @@ Take { vars }, tl
+                        else
+                            make_node loc @@ Peek { vars }, tl
+
+                | (loc, Word w) :: tl -> parse' ((loc, w) :: acc) tl
+                | (loc, word) :: _ -> raise_unexpected_word loc [Is; In; End] word
+            in
+            parse' [] words
         in
 
         match words with
@@ -322,9 +349,9 @@ let parse loc words =
 
         (* parse function/macro call *)
         | (loc, Word name) :: tl when Hashtbl.mem output.macros name ->
-                parse_func_call make_macro loc name tl
+                parse_func_call output.macros make_macro loc name tl
         | (loc, Word name) :: tl when Hashtbl.mem output.procs name ->
-                parse_func_call make_proc loc name tl
+                parse_func_call output.procs make_proc loc name tl
 
         (* parse operator *)
         | (_, Op _) :: _ ->
@@ -353,11 +380,9 @@ let parse loc words =
 
 
         | (loc, Take) :: tl ->
-                let vars, tl = parse_take loc tl in
-                make_node loc @@ Take { vars }, tl
+                parse_take Take loc tl
         | (loc, Peek) :: tl ->
-                let vars, tl = parse_take loc tl in
-                make_node loc @@ Peek { vars }, tl
+                parse_take Peek loc tl
 
         (* ERROR -- unexpected separator ; *)
         | (loc, Sep) :: _ ->

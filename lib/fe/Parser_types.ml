@@ -1,3 +1,5 @@
+open Format
+
 open Common
 
 type func_format = {
@@ -29,11 +31,14 @@ and node_hl =
 
     | Take of { vars : string list }
     | Peek of { vars : string list }
+    | Scoped_take of { vars : string list; body : node list }
+    | Scoped_peek of { vars : string list; body : node list }
+
     | Push_take of { name : string }
     | Push_data of { data : data_hl }
 
     | Proc_call of { func : func; args : node list }
-    | Macro_call of { func : func; args : node list}
+    | Macro_call of { func : func; args : node list }
 
     | Index_into    of { name : string; index : node }
     | Assign_to_mem of { name : string; index : node; value : node }
@@ -49,8 +54,10 @@ and node_hl =
 let make_node loc node_hl =
     { l = loc; t = None; n = node_hl }
 
-let string_of_node =
-    let rec str_of_node' ind node =
+let string_of_node node =
+    let rec string_of_nodes' ind nodes =
+        List.fold_left (fun acc node -> acc ^ string_of_node' ind node) "" nodes
+    and string_of_node' ind node =
         let tabs =
             (Seq.init ind (fun _ -> "\t")
             |> Seq.fold_left (^) "")
@@ -62,19 +69,36 @@ let string_of_node =
                     show_data_hl data
             | Op { op; left; right } ->
                     show_operator op ^ "\n"
-                    ^ str_of_node' (ind + 1) left
-                    ^ str_of_node' (ind + 1) right ^ ";;"
+                    ^ string_of_node' (ind + 1) left
+                    ^ string_of_node' (ind + 1) right ^ ";;"
+            | Scoped_take { vars; body }
+            | Scoped_peek { vars; body } ->
+                    sprintf "%s %s in\n%s%send\n"
+                        (match node.n with Scoped_take _ -> "take" | _ -> "peek")
+                        (List.fold_left (sprintf "%s %s") "" vars)
+                        (string_of_nodes' (ind + 1) body)
+                        tabs
+            | Push_take { name } -> name ^ "\n"
+
+            | Proc_call  { func; args }
+            | Macro_call { func; args } ->
+                    func.name ^ "\n"
+                    ^ string_of_nodes' (ind + 1) args
+
             | _ ->
                     show_node node
         in
-        tabs ^ node_str ^ ": " ^ (match node.t with Some t -> string_of_type_hl t | None -> "Unknown") ^ "\n"
+        tabs ^ node_str 
     in
-    str_of_node' 1
+    string_of_node' 2 node
+
+let string_of_nodes =
+    List.fold_left (fun acc node -> acc ^ string_of_node node) ""
 
 let string_of_func func =
-    (Format.sprintf "\nfunc %s %s -> %s is\n" func.name (string_of_types_hl func.types.t_in) (string_of_types_hl func.types.t_out)) ^
-    (List.fold_left (fun acc node -> acc ^ string_of_node node) "" func.seq) ^
-    "end\n"
+    (Format.sprintf "\n\tfunc %s %s -> %s is\n" func.name (string_of_types_hl func.types.t_in) (string_of_types_hl func.types.t_out))
+    ^ string_of_nodes func.seq
+    ^ "\tend\n"
 
 let primitives =
     let add_type str =

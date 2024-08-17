@@ -3,6 +3,23 @@ open Format
 open Common
 open Parser_types
 
+let list_of_stack stack =
+    stack
+    |> Stack.to_seq
+    |> List.of_seq
+
+let stack_of_list list =
+    list
+    |> List.to_seq
+    |> Stack.of_seq
+
+let replace_stack stack types_hl =
+    Stack.clear stack;
+    types_hl
+    |> List.rev
+    |> List.to_seq
+    |> Stack.add_seq stack
+
 (** check whether the function is recursive or not *)
 let is_recursive { name; seq; _ } =
     let rec is_recursive' = function
@@ -27,7 +44,7 @@ let check_rec_macro ({ loc; _ } as func : func) =
         raise @@ Error (loc, "recursive macro")
 
 let rec check_seq input stack takes seq =
-    let (stack : type_hl Stack.t) = Stack.of_seq @@ List.to_seq stack in
+    let (stack : type_hl Stack.t) = stack_of_list stack in
 
     (* pop types from the stack and add them to takes *)
     let pop_to_takes loc names =
@@ -74,7 +91,7 @@ let rec check_seq input stack takes seq =
 
     (* check an if statement *)
     and check_if_statement loc cond true_branch false_branch =
-        let t_stack_before = List.of_seq @@ Stack.to_seq stack
+        let t_stack_before = list_of_stack stack
         and seq = [cond] in
 
         let t_stack_after = check_seq input t_stack_before takes seq in
@@ -90,8 +107,7 @@ let rec check_seq input stack takes seq =
         if List.length t_stack_after_true < List.length t_stack_before then
             raise @@ Error (loc, "branches must not drain the stack");
 
-        Stack.clear stack;
-        List.iter (fun typ -> Stack.push typ stack) @@ List.rev t_stack_after_true
+        replace_stack stack t_stack_after_true
     in
 
     let rec check_operator node op left right =
@@ -170,10 +186,19 @@ let rec check_seq input stack takes seq =
         match node.n with
         | Empty ->
                 ()
-        | Take { vars } ->
-                pop_to_takes node.l vars
-        | Peek { vars } ->
-                peek_to_takes node.l vars
+        | Take { vars } -> pop_to_takes node.l vars
+        | Peek { vars } -> peek_to_takes node.l vars
+        | Scoped_take { vars; body }
+        | Scoped_peek { vars; body } ->
+                (match node.n with
+                | Scoped_take _ ->
+                        pop_to_takes node.l vars
+                | _ ->
+                        peek_to_takes node.l vars);
+
+                check_seq input (list_of_stack stack) takes body
+                |> replace_stack stack
+
         | Push_take { name } ->
                 push_take node.l name
         | Push_data { data; _ } ->
@@ -192,11 +217,10 @@ let rec check_seq input stack takes seq =
         | Var _ | Mem _ ->
                 raise @@ Unreachable "out of place var/mem should be handled in Parser"
         (* TEMPORARY *)
-        | _ -> failwith @@ sprintf "checking %s not implemented yet" (string_of_node node)
+        | _ -> failwith @@ sprintf "checking %s not implemented yet" (show_node_hl node.n)
     in
     List.iter check_node seq;
-    Stack.to_seq stack
-    |> List.of_seq
+    list_of_stack stack
 
 
 let check input =

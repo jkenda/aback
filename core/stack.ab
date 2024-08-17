@@ -49,19 +49,9 @@ macro 2drop a' b' -> is
     drop drop
 end
 
-macro 2nip a' b' c' d' -> c' d' is
-    take _ _ c d in
-        c d
-    end
-end
-
-macro 2dup a' b' -> a' b' a' b' is
-    over over
-end
-
-macro 2over a' b' c' d' -> a' b' c' d' a' b' is
+macro 2over a' b' c' d' -> c' d' a' b' c' d' is
     peek a b c d in
-        a b
+        c d
     end
 end
 
@@ -71,3 +61,12 @@ macro 2tuck a' b' c' d' -> c' d' a' b' c' d' is
     end
 end
 
+macro 2nip a' b' c' d' -> a' b' is
+    take a b c d in
+        a b
+    end
+end
+
+macro 2dup a' b' -> a' b' a' b' is
+    over over
+end
