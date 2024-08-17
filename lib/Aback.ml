@@ -44,10 +44,13 @@ let exec mode path _run =
         in
         match mode with
         | Check ->
-                check parsed |> ignore;
+                parsed
+                |> check
+                |> ignore;
                 print_endline "OK."
         | Print ->
-                show_parser_output parsed
+                parsed
+                |> show_parser_output
                 |> print_string
         | Compile ->
                 parsed 
