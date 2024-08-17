@@ -16,22 +16,6 @@ let string_of_location loc = sprintf "'%s':%d:%d" loc.filename loc.row loc.col
 
 
 (*
-    operators
-    these intrinsic functions that have one or two arguments
- *)
-type operator =
-    | Eq | NEq | Lt | LEq | Gt | GEq
-    | Add | Sub | Mul | Div | Mod
-
-    | Itof | Ftoi
-
-    | LAnd | LOr | LXor | Lsl | Lsr
-    | And  | Or
-    | Ref | Deref
-[@@deriving show { with_path = false }]
-
-
-(*
     custom exceptions
  *)
 exception Error of location * string
@@ -44,6 +28,45 @@ let print_error loc msg =
     printf "\t%s\n" msg;
     if List.length loc.included_from > 0 then printf "\n";
     List.iter (fun filename -> printf "included from '%s'\n" filename) loc.included_from;
+
+
+(*
+   terminal colors
+ *)
+type color =
+    | Red
+    | Green
+    | Yellow
+    | Blue
+    | Magenta
+    | Cyan
+
+let print_in_color color text =
+    printf "\o033[%dm%s\o033[39m"
+    (match color with
+    | Red     -> 31
+    | Green   -> 32
+    | Yellow  -> 33
+    | Blue    -> 34
+    | Magenta -> 35
+    | Cyan    -> 36)
+    text
+
+
+(*
+    operators
+    intrinsic functions that have one or two arguments
+ *)
+type operator =
+    | Eq | NEq | Lt | LEq | Gt | GEq
+    | Add | Sub | Mul | Div | Mod
+
+    | Itof | Ftoi
+
+    | LAnd | LOr | LXor | Lsl | Lsr
+    | And  | Or
+    | Ref | Deref
+[@@deriving show { with_path = false }]
 
 
 type type_gen =

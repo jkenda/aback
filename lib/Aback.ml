@@ -61,7 +61,7 @@ let exec mode path _run =
             | Error (loc, msg) ->
                 print_error loc msg;
             | Not_implemented (loc, msg) ->
-                printf "(NOT IMPLEMENTED)\n";
+                print_in_color Yellow "(NOT IMPLEMENTED)\n\n";
                 print_error loc msg;
             | _ -> ()
         end;
@@ -71,45 +71,3 @@ let exec mode path _run =
         printf "%s\n" @@ Printexc.get_backtrace ();
         printf "%!";
         exit 1
-
-(*
-    let write_whole_file path bytes =
-        let ch = open_out_bin path in
-        output_bytes ch bytes;
-        close_out ch
-    and filename =
-        let rec last = function
-            | [el; _] -> el
-            | _ :: t -> last t
-            | _ -> raise @@ Unreachable "empty path"
-        in
-        path
-        |> Str.split (Str.regexp "[/.]")
-        |> last
-    in
-
-    (* define "global" variables *)
-    let procs = Hashtbl.create 10
-    and macros = Hashtbl.create 10 in
-    (* specialize functions *)
-    let lex = lex path [] in
-    (* compile the program *)
-    let loc, ir =
-        try
-            src
-            |> lex
-            |> preprocess
-            |> parse
-            |> check
-            |> postprocess
-            |> compile
-            |> output_binary filename
-        with Error (loc, msg) ->
-            print_error (loc, msg);
-            exit 6
-    in
-
-    if run then
-        Sys.command ("./" ^ filename)
-        |> exit
-*)
