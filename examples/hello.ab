@@ -1,4 +1,4 @@
-include "core/io.ab"
+proc puts str -> end
 
 proc main
     -> i32

@@ -33,6 +33,9 @@ let raise_unexpected_eof loc =
     on the toplevel are global memory declarations and functions.
 *)
 let parse loc words =
+    let current_proc = ref ""
+    and func_callers = Hashtbl.create 10 in
+
     let output = {
         procs   = Hashtbl.create 10;
         macros  = Hashtbl.create 10;
@@ -59,26 +62,44 @@ let parse loc words =
         Hashtbl.mem takes take
     in
 
+    let add_func table loc name types seq =
+        let is_prototype = false and is_unused = false in
+        Hashtbl.replace table name { loc; name; types; seq; is_prototype; is_unused };
+    and add_prototype table loc name types =
+        let seq = [] and is_prototype = true and is_unused = false in
+        Hashtbl.replace table name { loc; name; types; seq; is_prototype; is_unused };
+    in
+
+    let make_proc_call l func args =
+        Hashtbl.add func_callers func.name !current_proc;
+        { l; t = Some func.types.t_out; n = Proc_call { func; args } }
+    in
+
+
     (* add string literal to strings and return its offset and length *)
     let parse_literal l (data : data_tok) =
         let data =
             match data with
             | String str | CStr str ->
-                    let addr = String.length output.strings in
+                    let off = String.length output.strings
+                    and len = String.length str in
                     output.strings <- output.strings ^ str ^ "\x00";
-                     Const_str addr
+                    Const_str (off, len)
             | _ ->
                     data_lit_of_data_tok data
 
         in
         let (data : data_hl) = Literal data in
-        { l; t = Some (type_of_data_hl data); n = Push_data { data }}
+        { l; t = Some [type_of_data_hl data]; n = Push_data { data }}
     in
 
     (** parse multiple subsequent words into a list of types *)
-    let parse_typs loc terminator words =
+    let parse_types loc terminators words =
         let rec parse_typ' (acc : type_hl list) = function
-            | (_, w) :: tl when w = terminator -> List.rev acc, tl
+            | [] -> raise_unreachable_eof @@ Some loc
+            | (loc, EOF) :: _ -> raise_unexpected_eof loc
+
+            | (_, w) :: tl when Array.mem w terminators -> w, List.rev acc, tl
 
             | (loc, Type Ptr) :: tl ->
                     (try parse_typ' (Ptr (List.hd acc) :: List.tl acc) tl
@@ -89,30 +110,30 @@ let parse loc words =
             | (_, Word w) :: tl ->
                     parse_typ' ((Generic w) :: acc) tl
 
-            | (loc, word) :: _ -> raise @@ Error (loc, sprintf "unexpected word: %s. expected %s" (string_of_word word) (string_of_word terminator))
-            | [] -> raise @@ Error (loc, "unexpected EOF")
+            | (loc, word) :: _ ->
+                    let expected_words = Array.to_list terminators in
+                    raise_unexpected_word loc expected_words word
         in
         parse_typ' [] words
     in
 
     (** parse a list of words into one single type *)
-    let parse_typ loc words =
-        let typs, words = parse_typs loc End words in
-        match typs with
+    let parse_type terminators loc words =
+        let _, types, words = parse_types loc terminators words in
+        match types with
             | [t] -> t, words
             | [] -> raise @@ Error (loc, "usage: var <name> is <type> end")
-            | _ -> raise @@ Error (loc, "only one type allowed")
+            | _ -> raise @@ Error (loc, sprintf "expected one type, got %s" (string_of_types_hl types))
     in
 
     (** add a variable to the table *)
     let add_var loc name words =
-        let typ, words = parse_typ loc words in
+        let typ, words = parse_type [|End|] loc words in
         Hashtbl.add output.vars name typ;
         make_node loc @@ Empty, words
 
     (** add array to the table *)
     and add_mem loc name words =
-        let typ, words = parse_typ loc words in
         let size, words =
             match words with
             | (_, Word size) :: tl -> (
@@ -127,6 +148,7 @@ let parse loc words =
             | (_, w) :: _ -> raise @@ Error (loc, sprintf "expected size, got '%s'\nusage: mem <name> <type> <size> end" (string_of_word w))
             | _ -> raise @@ Error (loc, "usage: mem <name> <type> <size> end")
         in
+        let typ, words = parse_type [|End|] loc words in
         Hashtbl.add output.mems name (typ, size);
         make_node loc @@ Empty, words
     in
@@ -152,10 +174,10 @@ let parse loc words =
                         let args, tl = parse_args loc name nargs rest in
                         make_node loc @@ Macro_call { func; args }, tl
                 | Word name when Hashtbl.mem output.procs name ->
-                        let func = Hashtbl.find output.procs name in
-                        let nargs = List.length func.types.t_in in
+                        let proc = Hashtbl.find output.procs name in
+                        let nargs = List.length proc.types.t_in in
                         let args, tl = parse_args loc name nargs rest in
-                        make_node loc @@ Proc_call { func; args }, tl
+                        make_proc_call loc proc args, tl
                 | Dot_dot ->
                         make_node loc @@ Unknown_sequence { length = 1 }, rest
                 | End | Sep ->
@@ -190,25 +212,30 @@ let parse loc words =
 
     (** parse function call *)
     let parse_func_call table f loc name words =
-        let proc = Hashtbl.find table name in
-        let nargs = List.length proc.types.t_in in
+        let func = Hashtbl.find table name in
+        let nargs = List.length func.types.t_in in
         let args, rest = parse_args loc name nargs words in
-        f (loc, proc, args), rest
+        f loc func args, rest
     in
 
     (** get input and output types of function *)
     let extract_types loc words =
-        let t_in , rest = parse_typs loc Return words in
-        let t_out, rest = parse_typs loc Is rest in
-        { t_in; t_out }, rest
+        let _, t_in , rest = parse_types loc [|Return|] words in
+        let term, t_out, rest = parse_types loc [|Is; End|] rest in
+        term, { t_in; t_out }, rest
     in
 
     (** add a proc to the table of procs *)
-    let rec add_func loc table name words =
-        let types, words = extract_types loc words in
-        let _, seq, rest = parse_scope [|End|] [|Sep|] parse_next words in
-        Hashtbl.replace table name { loc; name; types; seq; ncalls = ref 0 };
-        rest
+    let rec parse_func loc table name words =
+        let term, types, words = extract_types loc words in
+        if term = End then
+            (add_prototype table loc name types;
+            words)
+        else
+            (current_proc := name;
+            let _, seq, words = parse_scope [|End|] [|Sep|] parse_next words in
+            add_func table loc name types seq;
+            words)
 
     (** parse sequence of statements *)
     and parse_scope terminators separators f words =
@@ -358,9 +385,9 @@ let parse loc words =
 
         (* parse function/macro call *)
         | (loc, Word name) :: tl when Hashtbl.mem output.macros name ->
-                parse_func_call output.macros make_macro loc name tl
+                parse_func_call output.macros make_macro_call loc name tl
         | (loc, Word name) :: tl when Hashtbl.mem output.procs name ->
-                parse_func_call output.procs make_proc loc name tl
+                parse_func_call output.procs make_proc_call loc name tl
 
         (* parse operator *)
         | (_, Op _) :: _ ->
@@ -432,7 +459,7 @@ let parse loc words =
         | (loc, Literal data) :: tl ->
                 let (data : data_hl) = Literal (data_lit_of_data_tok data) in
                 let l = loc
-                and t = Some (type_of_data_hl data)
+                and t = Some [type_of_data_hl data]
                 and n = Push_data { data } in
                 { l; t; n }, tl
 
@@ -446,9 +473,9 @@ let parse loc words =
             match words with
 
             (* parse vars and arrays, don't add anything to the AST *)
-            | (_, Var) :: (_, Word name) :: (loc, Is) :: tl ->
+            | (loc, Var) :: (_, Word name) :: (_, Is) :: tl ->
                     add_var loc name tl
-            | (_, Mem) :: (_, Word name) :: (_, Is) :: tl ->
+            | (loc, Mem) :: (_, Word name) :: (_, Is) :: tl ->
                     add_mem loc name tl
 
             (* ERROR -- invalid var/mem format *)
@@ -458,9 +485,9 @@ let parse loc words =
 
             (* parse functions -- macros ans procs, don't add anyting to the AST *)
             | (_, (Macro : word)) :: (loc, Word name) :: tl ->
-                    make_node loc @@ Empty, add_func loc output.macros name tl
+                    make_node loc @@ Empty, parse_func loc output.macros name tl
             | (_, Proc ) :: (loc, Word name) :: tl ->
-                    make_node loc @@ Empty, add_func loc output.procs name tl
+                    make_node loc @@ Empty, parse_func loc output.procs name tl
 
             (* ERROR -- missing the name of the function *)
             | (loc, Macro) :: _ -> raise @@ Error (loc, "macro: expected name")
@@ -473,7 +500,21 @@ let parse loc words =
         |> ignore
     in
 
+    let mark_unused _ func =
+        let rec is_called_from_main func_name =
+            let callers = Hashtbl.find_all func_callers func_name in
+            if List.mem "main" callers then
+                true
+            else
+                List.exists is_called_from_main callers
+        in
+        if (not @@ is_called_from_main func.name) && func.name <> "main" then
+            func.is_unused <- true
+    in
+
     parse_toplevel words;
+    Hashtbl.iter mark_unused output.procs;
+
     output
 
 

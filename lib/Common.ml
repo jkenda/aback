@@ -29,6 +29,9 @@ let print_error loc msg =
     if List.length loc.included_from > 0 then printf "\n";
     List.iter (fun filename -> printf "included from '%s'\n" filename) loc.included_from;
 
+type strings = string list
+[@@deriving show { with_path = false }]
+
 
 (*
    terminal colors
@@ -197,9 +200,12 @@ let string_of_types_hl =
 let type_hl_of_type_ll type_ll =
     Primitive type_ll
 
-let type_ll_of_type_hl = function
+let rec type_ll_of_type_hl = function
     | Primitive t -> t
-    | _ -> failwith "not directly convertible"
+    | Ptr t -> Ptr (type_ll_of_type_hl t)
+    | General Boolean -> Bool
+    | General Character -> U8
+    | t -> failwith @@ sprintf "%s not directly convertible to type_ll" (show_type_hl t)
 
 let rec type_gen_of_type_hl = function
     | Primitive ll -> type_gen_of_type_ll ll
@@ -249,7 +255,8 @@ type data_lit =
     | Decimal of float
     | Char of char
     | Bool of bool
-    | Const_str of int
+    | Const_str of int * int
+    | Const_cstr of int
 [@@deriving show { with_path = false }]
 
 let string_of_data_lit = function
@@ -257,7 +264,8 @@ let string_of_data_lit = function
     | Decimal f -> string_of_float f
     | Char c -> String.make 1 c
     | Bool b -> string_of_bool b
-    | Const_str i -> sprintf "strs[%d]" i
+    | Const_str (off, len) -> sprintf "(strs[%d], %d)" off len
+    | Const_cstr off -> sprintf "strs[%d]" off 
 
 let (data_lit_of_data_tok : data_tok -> data_lit) = function
     | Integer i -> Integer i
@@ -272,6 +280,7 @@ let (type_gen_of_data_lit : data_lit -> type_gen) = function
     | Char      _ -> Character
     | Bool      _ -> Boolean
     | Const_str _ -> String
+    | Const_cstr _ -> CString
 
 (*
    data of low-level type
@@ -306,7 +315,7 @@ type data_hl =
     | Primitive of data_ll
     | Struc of (string * data_hl) list
     | Union of (string * data_hl) list
-    | String of string * int
+    | String of string * int * int
     | CStr of string * int
     | Ptr of type_hl * string * int
     | Literal of data_lit
@@ -320,7 +329,7 @@ let string_of_data_hl data =
     | Primitive t -> string_of_data_ll t
     | Struc tl -> sprintf "struc { %s }" (List.fold_left add_string_of_name_data "" tl)
     | Union tl -> sprintf "union { %s }" (List.fold_left add_string_of_name_data "" tl)
-    | String (str, off) -> sprintf "%S : str (strs[%d])" str off
+    | String (str, off, len) -> sprintf "%S : str (strs[%d], %d)" str off len
     | CStr (str, off) -> sprintf "%S : cstr (strs[%d])" str off
     | Ptr (t, s, i) -> sprintf "%s[%d] : %s ptr" s i (string_of_type_hl t)
     | Literal l -> "(LITERAL) " ^ string_of_data_lit l
@@ -344,8 +353,8 @@ let type_of_data_hl data =
 
 let data_ll_of_data_hl = function
     | Primitive data_ll -> data_ll
-    | String (s, i)
-    | CStr (s, i) -> Ptr (U8, s, i)
+    | String (_, off, _)
+    | CStr (_, off) -> Ptr (U8, "strs", off)
     | Ptr (t, s, i) -> Ptr (type_ll_of_type_hl t, s, i)
     | _ -> failwith "not directly convertible"
 

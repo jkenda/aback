@@ -40,6 +40,7 @@ let exec mode path _run =
                 src
                 |> lex
                 |> preprocess 
+                |> (fun l -> l @ [null_loc, EOF])
                 |> parse
         in
         match mode with
@@ -55,7 +56,7 @@ let exec mode path _run =
         | Compile ->
                 parsed 
                 |> check
-                |> compile
+                |> compile path
         | _ ->
                 failwith @@ show_mode mode ^ " not implemented"
     with ex ->

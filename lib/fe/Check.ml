@@ -186,7 +186,7 @@ let rec check_seq input stack takes seq =
         match t_out with Some t -> Stack.push t stack
         | None ->();
 
-        node.t <- t_out
+        node.t <- Option.map (fun t -> [t]) t_out
 
     and check_node node =
         match node.n with
@@ -230,25 +230,27 @@ let rec check_seq input stack takes seq =
 
 
 let check input =
-    let check_func { loc; seq; types; ncalls = _; _ } =
-        let compare t_exp t_act =
-            if List.length t_exp <> List.length t_act then
-                false
-            else
-                let compare acc = function
-                    | t_exp, General t_act ->
-                            acc && type_gen_of_type_hl t_exp = t_act
-                    | t_exp, t_act ->
-                            acc && t_exp = t_act
-                in
-                List.fold_left compare true @@ List.combine t_exp t_act
-        in
+    let check_func { loc; seq; types; is_prototype; _ } =
+        if is_prototype then ()
+        else
+            let compare t_exp t_act =
+                if List.length t_exp <> List.length t_act then
+                    false
+                else
+                    let compare acc = function
+                        | t_exp, General t_act ->
+                                acc && type_gen_of_type_hl t_exp = t_act
+                        | t_exp, t_act ->
+                                acc && t_exp = t_act
+                    in
+                    List.fold_left compare true @@ List.combine t_exp t_act
+            in
 
-        let takes = Hashtbl.create 10 in
-        let t_out_actual = check_seq input types.t_in takes seq in
+            let takes = Hashtbl.create 10 in
+            let t_out_actual = check_seq input types.t_in takes seq in
 
-        if not (compare types.t_out t_out_actual) then
-            raise @@ Error (loc, sprintf "expected %s, got %s" (string_of_types_hl types.t_out) (string_of_types_hl t_out_actual))
+            if not (compare types.t_out t_out_actual) then
+                raise @@ Error (loc, sprintf "expected %s, got %s" (string_of_types_hl types.t_out) (string_of_types_hl t_out_actual))
     in
 
     Hashtbl.iter (fun _ f -> check_rec_macro f) input.macros;

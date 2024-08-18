@@ -17,11 +17,12 @@ type func = {
     name   : string;
     seq    : node list;
     types  : func_format;
-    ncalls : int ref
+    is_prototype : bool;
+    mutable is_unused : bool
 }
 and node = {
     l         : location;
-    mutable t : type_hl option;
+    mutable t : type_hl list option;
     n         : node_hl
 }
 and node_hl =
@@ -88,7 +89,10 @@ let string_of_node node =
             | _ ->
                     show_node node
         in
-        tabs ^ node_str 
+        if node.n <> Empty then
+            tabs ^ node_str ^ ";;\n"
+        else
+            ""
     in
     string_of_node' 2 node
 
@@ -96,9 +100,15 @@ let string_of_nodes =
     List.fold_left (fun acc node -> acc ^ string_of_node node) ""
 
 let string_of_func func =
-    (Format.sprintf "\n\tfunc %s %s -> %s is\n" func.name (string_of_types_hl func.types.t_in) (string_of_types_hl func.types.t_out))
-    ^ string_of_nodes func.seq
-    ^ "\tend\n"
+    let unused = if func.is_unused then "(unused) " else "" in
+    let t_in = string_of_types_hl func.types.t_in
+    and t_out = string_of_types_hl func.types.t_out in
+    if func.is_prototype then
+        Format.sprintf "\n\t%s(prototype) func %s %s -> %s end\n" unused func.name t_in t_out
+    else
+        Format.sprintf "\n\t%sfunc %s %s -> %s is\n" unused func.name t_in t_out
+        ^ string_of_nodes func.seq
+        ^ "\tend\n"
 
 let primitives =
     let add_type str =
@@ -168,8 +178,5 @@ type parser_output = {
 [@@deriving show { with_path = false }]
 
 
-let make_proc (loc, func, args) =
-    { t = None; l = loc; n = Proc_call { func; args } }
-
-let make_macro (loc, func, args) =
+let make_macro_call loc func args =
     { t = None; l = loc; n = Macro_call { func; args } }
