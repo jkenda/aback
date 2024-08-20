@@ -545,10 +545,16 @@ let null_loc = {
 let test_vars input expected =
     let parsed = parse null_loc input in
     let matches = parsed.vars = expected.vars in
-    if matches then
-        print_endline "OK"
-    else
-        failwith (Format.asprintf "%s\n!=\n%s" (show_parser_output expected) (show_parser_output parsed));
+    if not matches then
+        begin
+            print_endline "expected:";
+            Hashtbl.iter (fun key data ->
+                printf "%s: %s\n" key (show_type_hl data)) expected.vars;
+
+            print_endline "\nactual";
+            Hashtbl.iter (fun key data ->
+                printf "%s: %s\n" key (show_type_hl data)) parsed.vars;
+        end;
     matches
 
 let hashtbl_of_list l =
@@ -601,7 +607,7 @@ let%test "toplevel" =
     } in
     test_vars input expected
 
-let%expect_test _ =
+let%expect_test "mem" =
     [(Mem : word); Word "x"; Is; Type I32; End; EOF]
     |> List.map (fun prep -> (test_loc, prep))
     |> parse null_loc
