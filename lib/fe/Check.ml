@@ -21,6 +21,22 @@ let replace_stack stack types_hl =
     |> List.to_seq
     |> Stack.add_seq stack
 
+let take_top n stack =
+    Stack.to_seq stack
+    |> Seq.take n
+    |> List.of_seq
+
+let compare t_exp t_act =
+    if List.length t_exp <> List.length t_act then
+        false
+    else
+        let compare acc = function
+            | t_exp, General t_act ->
+                    acc && type_gen_of_type_hl t_exp = t_act
+            | t_exp, t_act ->
+                    acc && t_exp = t_act
+        in
+        List.fold_left compare true @@ List.combine t_exp t_act
 
 (** check whether the function is recursive or not *)
 let is_recursive { name; seq; _ } =
@@ -82,11 +98,35 @@ let rec check_seq input stack takes seq =
         let type_hl = type_of_data_hl data in
         Stack.push type_hl stack
 
+    in
+
     (* handle a proc call *)
-    and handle_proc_call _loc func _args =
-        (* TODO: handle arguments *)
+    let rec handle_proc_call loc func args =
+        let stack_before = list_of_stack stack in
+
+        (* only check the inside of the function of it has generic arguments *)
+        (* TODO: type specialization (a' -> int) *)
+        (* TODO: type specialization (integer -> i32, string -> str) *)
+        List.iter check_node args;
+
+        let t_in_act = take_top (List.length func.types.t_in) stack in
+
+        if not @@ compare func.types.t_in t_in_act then
+            raise @@ Error (loc, sprintf "input: expected %s, got %s" (string_of_types_hl func.types.t_in) (string_of_types_hl t_in_act));
+
+        (*
         let t_out_actual = check_seq input (list_of_stack stack) takes func.seq in
-        replace_stack stack t_out_actual
+        replace_stack stack t_out_actual;
+        *)
+
+        if Stack.length stack < List.length func.types.t_out then
+            raise @@ Error (loc, "not enough elements on the stack");
+
+        let t_out_act = take_top (List.length func.types.t_out) stack in
+        if t_out_act <> func.types.t_out then
+            raise @@ Error (loc, sprintf "output: expected %s, got %s" (string_of_types_hl func.types.t_out) (string_of_types_hl t_out_act));
+
+        replace_stack stack stack_before
 
     (* handle a macro call *)
     and handle_macro_call _loc func _args =
@@ -114,9 +154,11 @@ let rec check_seq input stack takes seq =
             raise @@ Error (loc, "branches must not drain the stack");
 
         replace_stack stack t_stack_after_true
-    in
 
-    let rec check_operator node op left right =
+    and check_operator node op left right =
+        (* add stack offset *)
+        node.id <- Some (Stack.length stack);
+
         let loc = node.l in
         let n_operands =
             match op with
@@ -152,6 +194,7 @@ let rec check_seq input stack takes seq =
         else if n_operands = 2 && right.n == Empty then
             raise @@ Error (loc, "expected 2 operands, got 1");
 
+        (* check operands *)
         if left.n  <> Empty then check_node' loc left;
         if right.n <> Empty then check_node' loc right;
 
@@ -189,6 +232,8 @@ let rec check_seq input stack takes seq =
         node.t <- Option.map (fun t -> [t]) t_out
 
     and check_node node =
+        node.id <- Some (Stack.length stack);
+
         match node.n with
         | Empty ->
                 ()
@@ -208,7 +253,7 @@ let rec check_seq input stack takes seq =
         | Push_take { name } ->
                 push_take node.l name
         | Push_data { data; _ } ->
-                push_literal  data
+                push_literal data
         | Proc_call { func; args } ->
                 handle_proc_call node.l func args
         | Macro_call { func; args } ->
@@ -225,6 +270,7 @@ let rec check_seq input stack takes seq =
         (* TEMPORARY *)
         | _ -> failwith @@ sprintf "checking %s not implemented yet" (show_node_hl node.n)
     in
+
     List.iter check_node seq;
     list_of_stack stack
 
@@ -233,23 +279,10 @@ let check input =
     let check_func { loc; seq; types; is_prototype; _ } =
         if is_prototype then ()
         else
-            let compare t_exp t_act =
-                if List.length t_exp <> List.length t_act then
-                    false
-                else
-                    let compare acc = function
-                        | t_exp, General t_act ->
-                                acc && type_gen_of_type_hl t_exp = t_act
-                        | t_exp, t_act ->
-                                acc && t_exp = t_act
-                    in
-                    List.fold_left compare true @@ List.combine t_exp t_act
-            in
-
             let takes = Hashtbl.create 10 in
             let t_out_actual = check_seq input types.t_in takes seq in
 
-            if not (compare types.t_out t_out_actual) then
+            if not @@ compare types.t_out t_out_actual then
                 raise @@ Error (loc, sprintf "expected %s, got %s" (string_of_types_hl types.t_out) (string_of_types_hl t_out_actual))
     in
 

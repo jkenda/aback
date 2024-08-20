@@ -45,6 +45,9 @@ let parse loc words =
         typs    = primitives
     } in
 
+    Hashtbl.add output.typs "str" Str;
+    Hashtbl.add output.typs "cstr" CStr;
+
     (* take care of the scope of takes *)
     let takes = Hashtbl.create 10
     and scopes_of_takes = ref [] in
@@ -70,27 +73,35 @@ let parse loc words =
         Hashtbl.replace table name { loc; name; types; seq; is_prototype; is_unused };
     in
 
-    let make_proc_call l func args =
+    let make_proc_call loc func args =
         Hashtbl.add func_callers func.name !current_proc;
-        { l; t = Some func.types.t_out; n = Proc_call { func; args } }
+        let node = make_node loc @@ Proc_call { func; args } in
+        node.t <- Some func.types.t_out;
+        node
     in
 
 
     (* add string literal to strings and return its offset and length *)
-    let parse_literal l (data : data_tok) =
+    let parse_literal loc (data : data_tok) =
         let data =
             match data with
-            | String str | CStr str ->
+            | String str ->
                     let off = String.length output.strings
                     and len = String.length str in
+                    output.strings <- output.strings ^ str;
+                    Const_str (str, off, len)
+            | CString str ->
+                    let off = String.length output.strings in
                     output.strings <- output.strings ^ str ^ "\x00";
-                    Const_str (off, len)
+                    Const_cstr (str, off)
             | _ ->
                     data_lit_of_data_tok data
 
         in
         let (data : data_hl) = Literal data in
-        { l; t = Some [type_of_data_hl data]; n = Push_data { data }}
+        let node = make_node loc @@ Push_data { data } in
+        node.t <- Some [type_of_data_hl data];
+        node
     in
 
     (** parse multiple subsequent words into a list of types *)
@@ -156,7 +167,7 @@ let parse loc words =
     (** parse Polish notation starting from the root *)
     let rec parse_polish words =
         match words with
-        | [] -> { l = loc; t = None; n = Empty }, []
+        | [] -> make_node loc @@ Empty, []
         | (loc, word : location * word) :: rest ->
                 match word with
                 | Literal data ->
@@ -200,7 +211,9 @@ let parse loc words =
             | (l, _) :: _ as words ->
                     let node, rest = parse_polish words in
                     match node.n with
-                    | Empty -> List.rev ({ l; t = None; n = Unknown_sequence { length = n }} :: acc), rest
+                    | Empty ->
+                            let length = n in
+                            List.rev ((make_node l @@ Unknown_sequence { length }) :: acc), rest
                     | Proc_call { func; _ } | Macro_call { func; _ } ->
                             let nargs = List.length func.types.t_in in
                             parse' (n - nargs) (node :: acc) rest
@@ -458,10 +471,9 @@ let parse loc words =
         (* parse literal *)
         | (loc, Literal data) :: tl ->
                 let (data : data_hl) = Literal (data_lit_of_data_tok data) in
-                let l = loc
-                and t = Some [type_of_data_hl data]
-                and n = Push_data { data } in
-                { l; t; n }, tl
+                let node = make_node loc @@ Push_data { data } in
+                node.t <- Some [type_of_data_hl data];
+                node, tl
 
         | (loc, word) :: _ ->
                 raise @@ Error (loc, string_of_word word ^ ": word not allowed at the toplevel")

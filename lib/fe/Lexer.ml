@@ -138,7 +138,7 @@ let instr_of_word (loc, word) =
                         Literal (String (Scanf.unescaped @@ string))
                     else if String.starts_with ~prefix:"c\"" word then
                         let string = String.sub word 2 (String.length word - 3) in
-                        Literal (CStr (Scanf.unescaped @@ string))
+                        Literal (CString (Scanf.unescaped @@ string))
                     else
                         Word word
                 else

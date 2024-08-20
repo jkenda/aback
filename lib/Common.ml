@@ -150,8 +150,6 @@ let type_ll_of_string = function
     | "u8" -> U8 | "u16" -> U16 | "u32" -> U32 | "u64" -> U64
     | "f32" -> F32 | "f64" -> F64
     | "bool" -> Bool
-    | "str" -> Ptr U8
-    | "cstr" -> Ptr U8
 
     | _ -> raise @@ Unreachable "not primitive"
 
@@ -176,7 +174,7 @@ type type_hl =
     | Primitive of type_ll
     | Struc of (string * type_hl) list
     | Union of (string * type_hl) list
-    | String | CStr
+    | Str | CStr
     | Ptr of type_hl
     | General of type_gen
     | Generic of string
@@ -189,7 +187,7 @@ let rec string_of_type_hl = function
     | Primitive t -> string_of_type_ll t
     | Struc tl -> Format.sprintf "struc { %s }" @@ (List.map (fun t -> snd t |> string_of_type_hl) tl |> List.fold_left (^) "")
     | Union tl -> Format.sprintf "union { %s }" @@ (List.map (fun t -> snd t |> string_of_type_hl) tl |> List.fold_left (^) "")
-    | String -> "str" | CStr -> "cstr"
+    | Str -> "str" | CStr -> "cstr"
     | Ptr t -> string_of_type_hl t
     | General t -> string_of_type_gen t
     | Generic s -> s
@@ -209,7 +207,7 @@ let rec type_ll_of_type_hl = function
 
 let rec type_gen_of_type_hl = function
     | Primitive ll -> type_gen_of_type_ll ll
-    | String -> String | CStr -> CString
+    | Str -> String | CStr -> CString
     | Ptr t -> Pointer (type_gen_of_type_hl t)
     | General t -> t
     | t -> failwith @@ sprintf "%s not directly convertible" (show_type_hl t)
@@ -219,7 +217,7 @@ let (type_hl_of_type_tok : type_tok -> type_hl) = function
     | U8 | U16 | U32 | U64
     | F32 | F64
     | Bool as t) -> Primitive (type_ll_of_type_tok t)
-    | String -> String | CStr -> CStr
+    | String -> Str | CStr -> CStr
     | t -> failwith @@ sprintf "%s not directly convertible to type_hl" (show_type_tok t)
 
 
@@ -231,7 +229,7 @@ type data_tok =
     | Decimal of float
     | Char of char
     | Bool of bool
-    | String of string | CStr of string
+    | String of string | CString of string
 [@@deriving show { with_path = false }]
 
 let string_of_data_tok = function
@@ -239,7 +237,7 @@ let string_of_data_tok = function
     | Decimal f -> string_of_float f
     | Char c -> String.make 1 c
     | Bool b -> string_of_bool b
-    | String s -> sprintf "\"%s\"" s | CStr s -> sprintf "c\"%s\"" s
+    | String s -> sprintf "\"%s\"" (String.escaped s) | CString s -> sprintf "c\"%s\"" (String.escaped s)
 
 let (type_of_data_tok : data_tok -> type_gen) = function
     | Integer _ -> Integer
@@ -247,7 +245,7 @@ let (type_of_data_tok : data_tok -> type_gen) = function
     | Char    _ -> Character
     | Bool    _ -> Boolean
     | String  _ -> String
-    | CStr    _ -> CString
+    | CString    _ -> CString
 
 
 type data_lit =
@@ -255,8 +253,8 @@ type data_lit =
     | Decimal of float
     | Char of char
     | Bool of bool
-    | Const_str of int * int
-    | Const_cstr of int
+    | Const_str of string * int * int
+    | Const_cstr of string * int
 [@@deriving show { with_path = false }]
 
 let string_of_data_lit = function
@@ -264,15 +262,15 @@ let string_of_data_lit = function
     | Decimal f -> string_of_float f
     | Char c -> String.make 1 c
     | Bool b -> string_of_bool b
-    | Const_str (off, len) -> sprintf "(strs[%d], %d)" off len
-    | Const_cstr off -> sprintf "strs[%d]" off 
+    | Const_str (str, off, len) -> sprintf "\"%s\" (strs[%d], %d)" (String.escaped str) off len
+    | Const_cstr (str, off) -> sprintf "\"%s\" (strs[%d])" (String.escaped str) off 
 
 let (data_lit_of_data_tok : data_tok -> data_lit) = function
     | Integer i -> Integer i
     | Decimal f -> Decimal f
     | Char c -> Char c
     | Bool b -> Bool b
-    | String _ | CStr _ -> failwith "not directly convertible"
+    | String _ | CString _ -> failwith "not directly convertible"
 
 let (type_gen_of_data_lit : data_lit -> type_gen) = function
     | Integer   _ -> Integer
@@ -315,7 +313,7 @@ type data_hl =
     | Primitive of data_ll
     | Struc of (string * data_hl) list
     | Union of (string * data_hl) list
-    | String of string * int * int
+    | Str of string * int * int
     | CStr of string * int
     | Ptr of type_hl * string * int
     | Literal of data_lit
@@ -329,8 +327,8 @@ let string_of_data_hl data =
     | Primitive t -> string_of_data_ll t
     | Struc tl -> sprintf "struc { %s }" (List.fold_left add_string_of_name_data "" tl)
     | Union tl -> sprintf "union { %s }" (List.fold_left add_string_of_name_data "" tl)
-    | String (str, off, len) -> sprintf "%S : str (strs[%d], %d)" str off len
-    | CStr (str, off) -> sprintf "%S : cstr (strs[%d])" str off
+    | Str (str, off, len) -> sprintf "%S : str (strs[%d], %d)" (String.escaped str) off len
+    | CStr (str, off) -> sprintf "%S : cstr (strs[%d])" (String.escaped str) off
     | Ptr (t, s, i) -> sprintf "%s[%d] : %s ptr" s i (string_of_type_hl t)
     | Literal l -> "(LITERAL) " ^ string_of_data_lit l
     in
@@ -344,7 +342,7 @@ let type_of_data_hl data =
         | Primitive t -> Primitive (type_of_data_ll t)
         | Struc l -> Struc (List.map name_type_of_name_data l)
         | Union l -> Union (List.map name_type_of_name_data l)
-        | String _ -> String
+        | Str _ -> Str
         | CStr  _ -> CStr
         | Ptr (t, _, _) -> Ptr t
         | Literal d -> General (type_gen_of_data_lit d)
@@ -353,10 +351,37 @@ let type_of_data_hl data =
 
 let data_ll_of_data_hl = function
     | Primitive data_ll -> data_ll
-    | String (_, off, _)
+    | Str (_, off, _)
     | CStr (_, off) -> Ptr (U8, "strs", off)
     | Ptr (t, s, i) -> Ptr (type_ll_of_type_hl t, s, i)
     | _ -> failwith "not directly convertible"
+
+let data_hl_of_data_lit loc (t : type_hl) data =
+    match data, t with
+    | Integer i, Primitive p ->
+            Primitive
+            (match p with
+            | I8 -> I8 i | I16 -> I16 i | I32 -> I32 i | I64 -> I64 i
+            | U8 -> U8 i | U16 -> U16 i | U32 -> U32 i | U64 -> U64 i
+            | _ -> raise @@ Error (loc,
+                sprintf "cannot concretize %s with type %s"
+                (string_of_type_gen @@ type_gen_of_data_lit data)
+                (string_of_type_hl t)))
+
+    | Decimal d, Primitive p ->
+            Primitive
+            (match p with
+            | F32 -> F32 d | F64 -> F64 d
+            | _ -> raise @@ Error (loc,
+                sprintf "cannot concretize %s with type %s"
+                (string_of_type_gen @@ type_gen_of_data_lit data)
+                (string_of_type_hl t)))
+
+    | Char c, Primitive U8 -> Primitive (U8 (Char.code c))
+    | Bool b, Primitive Bool -> Primitive (Bool b)
+    | Const_str (str, off, len), Str -> Str (str, off, len)
+    | Const_cstr (str, off), CStr -> CStr (str, off)
+    | _ -> raise @@ Error (loc, sprintf "cannot concretize %s with type %s" (string_of_data_lit data) (string_of_type_hl t))
 
 
 (* read file from the current dir *)

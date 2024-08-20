@@ -21,9 +21,10 @@ type func = {
     mutable is_unused : bool
 }
 and node = {
-    l         : location;
-    mutable t : type_hl list option;
-    n         : node_hl
+    l          : location;
+    n          : node_hl;
+    mutable t  : type_hl list option;
+    mutable id : int option
 }
 and node_hl =
     | Empty
@@ -53,7 +54,10 @@ and node_hl =
 [@@deriving show { with_path = false }]
 
 let make_node loc node_hl =
-    { l = loc; t = None; n = node_hl }
+    { l = loc; t = None; n = node_hl; id = None }
+
+let make_macro_call loc func args =
+    make_node loc @@ Macro_call { func; args }
 
 let string_of_node node =
     let rec string_of_nodes' ind nodes =
@@ -62,6 +66,8 @@ let string_of_node node =
         let tabs =
             (Seq.init ind (fun _ -> "\t")
             |> Seq.fold_left (^) "")
+        and var_id =
+            sprintf "[%s] " (try string_of_int @@ Option.get node.id with _ -> "??")
         in
         let node_str =
             match node.n with
@@ -90,7 +96,7 @@ let string_of_node node =
                     show_node node
         in
         if node.n <> Empty then
-            tabs ^ node_str ^ ";;\n"
+            tabs ^ var_id ^ node_str ^ ";;\n"
         else
             ""
     in
@@ -121,7 +127,7 @@ let primitives =
         "i8"; "i16"; "i32"; "i64";
         "u8"; "u16"; "u32"; "u64";
         "f32"; "f64";
-        "bool"; "str"; "cstr"
+        "bool"
     ]
     |> List.map add_type
     |> List.map make_str_type_hl
@@ -176,7 +182,3 @@ type parser_output = {
     mutable strings : Strings.t;
 }
 [@@deriving show { with_path = false }]
-
-
-let make_macro_call loc func args =
-    { t = None; l = loc; n = Macro_call { func; args } }
