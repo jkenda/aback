@@ -1,4 +1,4 @@
-open IR_generator
+open Ir_generator
 
 let compile path parser_output = 
     generate_qbe_ir stdout path parser_output;
