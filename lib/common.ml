@@ -106,7 +106,7 @@ type type_tok =
     | F32 | F64
     | Bool
     | Ptr
-    | String | CStr
+    | Str | CStr
     | Generic of string
 [@@deriving show { with_path = false }]
 
@@ -116,7 +116,7 @@ let string_of_type_tok = function
     | F32 -> "f32" | F64 -> "f64"
     | Bool -> "bool"
     | Ptr -> "ptr"
-    | String -> "string"
+    | Str -> "str"
     | CStr -> "cstr"
     | Generic s -> s
 
@@ -217,7 +217,7 @@ let (type_hl_of_type_tok : type_tok -> type_hl) = function
     | U8 | U16 | U32 | U64
     | F32 | F64
     | Bool as t) -> Primitive (type_ll_of_type_tok t)
-    | String -> Str | CStr -> CStr
+    | Str -> Str | CStr -> CStr
     | t -> failwith @@ sprintf "%s not directly convertible to type_hl" (show_type_tok t)
 
 

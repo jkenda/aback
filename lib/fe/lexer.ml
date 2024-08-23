@@ -109,7 +109,7 @@ let instr_of_word (loc, word) =
         | "f32" -> Type F32 | "f64" -> Type F64
         | "bool" -> Type Bool
         | "ptr" -> Type Ptr
-        | "str" -> Type String | "cstr" -> Type CStr
+        | "str" -> Type Str | "cstr" -> Type CStr
 
         | "=" -> Op Eq | "/=" -> Op NEq
         | "<" -> Op Lt | "<=" -> Op LEq
@@ -136,7 +136,7 @@ let instr_of_word (loc, word) =
                     if String.starts_with ~prefix:{|"|} word then
                         let string = String.sub word 1 (String.length word - 2) in
                         Literal (String (Scanf.unescaped @@ string))
-                    else if String.starts_with ~prefix:"c\"" word then
+                    else if String.starts_with ~prefix:{|c"|} word then
                         let string = String.sub word 2 (String.length word - 3) in
                         Literal (CString (Scanf.unescaped @@ string))
                     else
@@ -202,6 +202,9 @@ let lex filename included_from text =
                     lex' acc (skip_whitespace i loc)
             | '"' ->
                     let next, next_loc = get_string (i + 1) { loc with col = loc.col + 2 } in
+                    lex' ((loc, String.sub text i (next - i + 1)) :: acc) (next + 1, next_loc)
+            | 'c' when String.length text > (i + 2) && text.[i + 1] = '"' ->
+                    let next, next_loc = get_string (i + 2) { loc with col = loc.col + 2 } in
                     lex' ((loc, String.sub text i (next - i + 1)) :: acc) (next + 1, next_loc)
             | '\'' ->
                     let next, next_loc = get_char (i + 1) { loc with col = loc.col + 2 } in

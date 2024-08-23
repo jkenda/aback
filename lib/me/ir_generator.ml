@@ -97,7 +97,7 @@ let generate_qbe_ir f path { procs; strings; _ } =
         | Literal Const_str (_, off, len)
         | Str (_, off, len) ->
                 fprintf f "\t%%v%d.off =l add $strs, %d\n" var_id off;
-                fprintf f "\t%%v%d.len =l %d\n" var_id len;
+                fprintf f "\t%%v%d.len =l copy %d\n" var_id len;
 
         | Literal Const_cstr (_, off)
         | CStr (_, off) ->
@@ -108,8 +108,9 @@ let generate_qbe_ir f path { procs; strings; _ } =
                     try Option.get node.t |> List.hd
                     with _ -> raise @@ Not_implemented (node.l, sprintf "node has no concrete type: %s" (show_node_hl node.n))
                 in
-                let data_hl = data_hl_of_data_lit node.l type_hl l in
-                fprintf f "\t%%v%d =w %s\n" var_id (string_of_data_hl data_hl)
+                let data_hl = data_hl_of_data_lit node.l type_hl l
+                and char_type = qbe_string_of_type_basety @@ type_ll_of_type_hl type_hl in
+                fprintf f "\t%%v%d =%c copy %s\n" var_id char_type (string_of_data_hl data_hl)
 
         | Ptr (t_hl, var, off) ->
                 output_data node @@ Primitive (Ptr (type_ll_of_type_hl t_hl, var, off))
@@ -130,7 +131,7 @@ let generate_qbe_ir f path { procs; strings; _ } =
                         |> data_ll_of_data_hl
                         |> string_of_data_ll
                     in
-                    fprintf f "\t%s %s\n" preamble data_qbe)
+                    fprintf f "\t%s copy %s\n" preamble data_qbe)
 
         | d -> raise @@ Not_implemented (node.l, sprintf "IR generation not implemented for %s" (show_data_hl d))
 
@@ -147,7 +148,9 @@ let generate_qbe_ir f path { procs; strings; _ } =
         output_loc node.l;
         fprintf f "\t%%v%d =%c %s\n" var_id (qbe_string_of_type_basety t_ll) op
 
-    and output_proc_call node types func =
+    and output_proc_call node types_hl func =
+        output_loc node.l;
+
         let var_id =
             try Option.get node.id
             with _ -> raise @@ Not_implemented (node.l, sprintf "node has no stack offset: %s" (show_node_hl node.n))
@@ -165,9 +168,7 @@ let generate_qbe_ir f path { procs; strings; _ } =
             | [] -> 0, ""
             | hd :: tl -> List.fold_left (fun (i, acc) t -> i + 1, sprintf "%s, %s" acc (type_arg t i)) (1, type_arg hd 0) tl
         in
-
-        output_loc node.l;
-        match types with
+        match types_hl with
         | [] -> fprintf f "\tcall $%s(%s)\n" func.name args
         | l -> raise @@ Not_implemented (node.l, sprintf "procs with return types not yet implemented. len: %s" (show_types_hl l))
     in
@@ -224,4 +225,4 @@ let generate_qbe_ir f path { procs; strings; _ } =
     fprintf f "dbgfile \"%s\"\n\n" path;
     Hashtbl.iter output_proc procs;
 
-    fprintf f "data $strs = { b %s }\n" (String.escaped strings)
+    fprintf f "data $strs = { b \"%s\" }\n" (String.escaped strings)
