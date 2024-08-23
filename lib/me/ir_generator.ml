@@ -96,15 +96,20 @@ let generate_qbe_ir f path { procs; strings; _ } =
         match data with
         | Literal Const_str (_, off, len)
         | Str (_, off, len) ->
-                fprintf f "\t%%v%d.off =w add $strs, %d\n" var_id off;
-                fprintf f "\t%%v%d.len =w %d\n" var_id len;
+                fprintf f "\t%%v%d.off =l add $strs, %d\n" var_id off;
+                fprintf f "\t%%v%d.len =l %d\n" var_id len;
 
         | Literal Const_cstr (_, off)
         | CStr (_, off) ->
-                fprintf f "\t%%v%d.off =w add $strs, %d\n" var_id off;
+                fprintf f "\t%%v%d.off =l add $strs, %d\n" var_id off;
 
-        | Literal Integer d ->
-                fprintf f "\t%%v%d =w %d\n" var_id d;
+        | Literal l ->
+                let type_hl =
+                    try Option.get node.t |> List.hd
+                    with _ -> raise @@ Not_implemented (node.l, sprintf "node has no concrete type: %s" (show_node_hl node.n))
+                in
+                let data_hl = data_hl_of_data_lit node.l type_hl l in
+                fprintf f "\t%%v%d =w %s\n" var_id (string_of_data_hl data_hl)
 
         | Ptr (t_hl, var, off) ->
                 output_data node @@ Primitive (Ptr (type_ll_of_type_hl t_hl, var, off))
@@ -114,7 +119,7 @@ let generate_qbe_ir f path { procs; strings; _ } =
                     (* TODO: high-level types *)
                     let t_q = qbe_string_of_type_basety t_ll
                     and t_s = qbe_string_of_type_signed t_ll in
-                    fprintf f "\t%%i%d =w add $%s, %d\n" var_id var off;
+                    fprintf f "\t%%i%d =l add $%s, %d\n" var_id var off;
                     fprintf f "\t%%v%d =%c load%s %%i%d\n" var_id t_q t_s var_id
                 | _ ->
                     let type_ll = type_of_data_ll d_ll in
@@ -150,8 +155,8 @@ let generate_qbe_ir f path { procs; strings; _ } =
         let _, args =
             let type_arg (t : type_hl) arg_n =
                 match t with
-                | Str -> sprintf "w %%v%d.off, w %%v%d.len" arg_n arg_n
-                | CStr -> sprintf "w %%v%d.off" arg_n
+                | Str  -> sprintf "l %%v%d.off, l %%v%d.len" arg_n arg_n
+                | CStr -> sprintf "l %%v%d.off" arg_n
                 | _ ->
                         let t = type_ll_of_type_hl t in
                         sprintf "%c %%v%d.arg%d" (qbe_string_of_type_extty t) var_id arg_n

@@ -356,32 +356,33 @@ let data_ll_of_data_hl = function
     | Ptr (t, s, i) -> Ptr (type_ll_of_type_hl t, s, i)
     | _ -> failwith "not directly convertible"
 
-let data_hl_of_data_lit loc (t : type_hl) data =
-    match data, t with
+let data_hl_of_data_lit loc (t_hl : type_hl) data =
+    match data, t_hl with
     | Integer i, Primitive p ->
             Primitive
             (match p with
             | I8 -> I8 i | I16 -> I16 i | I32 -> I32 i | I64 -> I64 i
             | U8 -> U8 i | U16 -> U16 i | U32 -> U32 i | U64 -> U64 i
             | _ -> raise @@ Error (loc,
-                sprintf "cannot concretize %s with type %s"
+                sprintf "cannot specialize %s with type %s"
                 (string_of_type_gen @@ type_gen_of_data_lit data)
-                (string_of_type_hl t)))
+                (string_of_type_hl t_hl)))
 
     | Decimal d, Primitive p ->
             Primitive
             (match p with
             | F32 -> F32 d | F64 -> F64 d
             | _ -> raise @@ Error (loc,
-                sprintf "cannot concretize %s with type %s"
+                sprintf "cannot specialize %s with type %s"
                 (string_of_type_gen @@ type_gen_of_data_lit data)
-                (string_of_type_hl t)))
+                (string_of_type_hl t_hl)))
 
     | Char c, Primitive U8 -> Primitive (U8 (Char.code c))
     | Bool b, Primitive Bool -> Primitive (Bool b)
     | Const_str (str, off, len), Str -> Str (str, off, len)
     | Const_cstr (str, off), CStr -> CStr (str, off)
-    | _ -> raise @@ Error (loc, sprintf "cannot concretize %s with type %s" (string_of_data_lit data) (string_of_type_hl t))
+    | _, General _ -> raise @@ Error (loc, sprintf "cannot specialize a general type: %s" (string_of_type_hl t_hl))
+    | _ -> raise @@ Error (loc, sprintf "cannot specialize %s with type %s" (string_of_data_lit data) (string_of_type_hl t_hl))
 
 
 (* read file from the current dir *)

@@ -31,9 +31,12 @@ let compare t_exp t_act =
         false
     else
         let compare acc = function
-            | t_exp, General t_act ->
+            | t_exp, (General t_act, node_opt) ->
+                    (match node_opt with
+                    | Some node -> node.t <- Some [t_exp]
+                    | None -> ());
                     acc && type_gen_of_type_hl t_exp = t_act
-            | t_exp, t_act ->
+            | t_exp, (t_act, _) ->
                     acc && t_exp = t_act
         in
         List.fold_left compare true @@ List.combine t_exp t_act
@@ -69,14 +72,14 @@ let rec check_seq input stack takes seq =
         let pop_to_takes' name =
             match Stack.pop_opt stack with
             | None -> raise @@ Error (loc, "not enough elements on the stack")
-            | Some typ -> Hashtbl.add takes name typ
+            | Some type_src -> Hashtbl.add takes name type_src
         in
         List.iter pop_to_takes' names
 
     (* peek types from the stack and add them to takes *)
     and peek_to_takes loc names =
-        let peek_to_takes' (name, typ) =
-            Hashtbl.add takes name typ
+        let peek_to_takes' (name, type_source) =
+            Hashtbl.add takes name type_source
         in
         let stack = Stack.to_seq stack
         and names = List.to_seq names in
@@ -94,9 +97,9 @@ let rec check_seq input stack takes seq =
         with Not_found ->
             raise @@ Error (loc, sprintf "take %s not found" name)
 
-    and push_literal data =
+    and push_literal data node =
         let type_hl = type_of_data_hl data in
-        Stack.push type_hl stack
+        Stack.push (type_hl, Some node) stack
 
     in
 
@@ -106,13 +109,17 @@ let rec check_seq input stack takes seq =
 
         (* only check the inside of the function of it has generic arguments *)
         (* TODO: type specialization (a' -> int) *)
-        (* TODO: type specialization (integer -> i32, string -> str) *)
+
         List.iter check_node args;
 
-        let t_in_act = take_top (List.length func.types.t_in) stack in
+        let t_in_exp = func.types.t_in
+        and t_in_act = take_top (List.length func.types.t_in) stack in
 
-        if not @@ compare func.types.t_in t_in_act then
-            raise @@ Error (loc, sprintf "input: expected %s, got %s" (string_of_types_hl func.types.t_in) (string_of_types_hl t_in_act));
+        if not @@ compare t_in_exp t_in_act then
+        begin
+            let t_in_act = fst @@ List.split t_in_act in
+            raise @@ Error (loc, sprintf "input: expected %s, got %s" (string_of_types_hl t_in_exp) (string_of_types_hl t_in_act));
+        end;
 
         (*
         let t_out_actual = check_seq input (list_of_stack stack) takes func.seq in
@@ -122,9 +129,14 @@ let rec check_seq input stack takes seq =
         if Stack.length stack < List.length func.types.t_out then
             raise @@ Error (loc, "not enough elements on the stack");
 
-        let t_out_act = take_top (List.length func.types.t_out) stack in
-        if t_out_act <> func.types.t_out then
-            raise @@ Error (loc, sprintf "output: expected %s, got %s" (string_of_types_hl func.types.t_out) (string_of_types_hl t_out_act));
+        let t_out_exp = func.types.t_out
+        and t_out_act = take_top (List.length func.types.t_out) stack in
+
+        if not @@ compare t_out_exp t_out_act then
+        begin
+            let t_out_act = fst @@ List.split t_out_act in
+            raise @@ Error (loc, sprintf "output: expected %s, got %s" (string_of_types_hl func.types.t_out) (string_of_types_hl t_out_act))
+        end;
 
         replace_stack stack stack_before
 
@@ -140,8 +152,9 @@ let rec check_seq input stack takes seq =
 
         (* check that condition returns only bool *)
         let t_stack_after = check_seq input t_stack_before takes [cond] in
-        if t_stack_after <> Primitive Bool :: t_stack_before then
-            raise @@ Error (loc, "condition must only return bool");
+        (match t_stack_after with
+        | (Primitive Bool, _) :: tl when tl = t_stack_before -> ()
+        | _ -> raise @@ Error (loc, "condition must only return bool"));
 
         let t_stack_before = t_stack_after in
 
@@ -202,7 +215,7 @@ let rec check_seq input stack takes seq =
             raise @@ Error (loc, "operands must have the same type");
 
         let t_in_act =
-            try Stack.pop stack
+            try Stack.pop stack |> fst
             with Stack.Empty ->
                 raise @@ Error (loc, "not enough elements on the stack")
         in
@@ -226,7 +239,7 @@ let rec check_seq input stack takes seq =
                     | _ -> raise @@ Error (loc, sprintf "cannot deref %s" (string_of_type_hl t_in_act))
         in
 
-        match t_out with Some t -> Stack.push t stack
+        match t_out with Some t -> Stack.push (t, Some node) stack
         | None ->();
 
         node.t <- Option.map (fun t -> [t]) t_out
@@ -253,7 +266,7 @@ let rec check_seq input stack takes seq =
         | Push_take { name } ->
                 push_take node.l name
         | Push_data { data; _ } ->
-                push_literal data
+                push_literal data node
         | Proc_call { func; args } ->
                 handle_proc_call node.l func args
         | Macro_call { func; args } ->
@@ -280,10 +293,12 @@ let check input =
         if is_prototype then ()
         else
             let takes = Hashtbl.create 10 in
-            let t_out_actual = check_seq input types.t_in takes seq in
+            let t_in_act = List.map (fun t -> t, None) types.t_in in
+            let t_out_act = check_seq input t_in_act takes seq in
 
-            if not @@ compare types.t_out t_out_actual then
-                raise @@ Error (loc, sprintf "expected %s, got %s" (string_of_types_hl types.t_out) (string_of_types_hl t_out_actual))
+            if not @@ compare types.t_out t_out_act then
+                let t_out_act = List.map fst t_out_act in
+                raise @@ Error (loc, sprintf "expected %s, got %s" (string_of_types_hl types.t_out) (string_of_types_hl t_out_act))
     in
 
     Hashtbl.iter (fun _ f -> check_rec_macro f) input.macros;
