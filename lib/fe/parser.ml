@@ -65,12 +65,25 @@ let parse loc words =
         Hashtbl.mem takes take
     in
 
+    let raise_unknown_word loc word =
+        let vars   = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) takes ""
+        and mem    = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) output.mems ""
+        and procs  = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) output.procs ""
+        and macros = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) output.macros "" in
+        raise @@ Error (loc, 
+            sprintf "Unknown word: '%s'.\n"     word ^
+            sprintf "\tavailable vars: %s\n"    vars ^
+            sprintf "\tavailable mem: %s\n"     mem ^
+            sprintf "\tavailable macros: %s\n"  macros ^
+            sprintf "\tavailable procs: %s"     procs)
+    in
+
     let add_func table loc name types seq =
-        let is_prototype = false and is_unused = false in
-        Hashtbl.replace table name { loc; name; types; seq; is_prototype; is_unused };
+        let is_signature = false and is_unused = false in
+        Hashtbl.replace table name { loc; name; types; seq; is_signature; is_unused };
     and add_prototype table loc name types =
-        let seq = [] and is_prototype = true and is_unused = false in
-        Hashtbl.replace table name { loc; name; types; seq; is_prototype; is_unused };
+        let seq = [] and is_signature = true and is_unused = false in
+        Hashtbl.replace table name { loc; name; types; seq; is_signature; is_unused };
     in
 
     let make_proc_call loc func args =
@@ -189,6 +202,18 @@ let parse loc words =
                         let nargs = List.length proc.types.t_in in
                         let args, tl = parse_args loc name nargs rest in
                         make_proc_call loc proc args, tl
+                | Word name when Hashtbl.mem output.vars name ->
+                        let type_hl = Hashtbl.find output.vars name in
+                        let node = make_node loc @@ Push_var { name } in
+                        node.t <- Some [type_hl];
+                        node, rest
+                | Word name when Hashtbl.mem output.mems name ->
+                        let type_hl, _ = Hashtbl.find output.mems name in
+                        let node = make_node loc @@ Push_mem { name } in
+                        node.t <- Some [type_hl];
+                        node, rest
+                | Word word ->
+                        raise_unknown_word loc word
                 | Dot_dot ->
                         make_node loc @@ Unknown_sequence { length = 1 }, rest
                 | End | Sep ->
@@ -211,6 +236,9 @@ let parse loc words =
             | (l, _) :: _ as words ->
                     let node, rest = parse_polish words in
                     match node.n with
+                    | Unknown_sequence _ ->
+                            let length = n in
+                            List.rev ((make_node l @@ Unknown_sequence { length }) :: acc), rest
                     | Empty ->
                             let length = n in
                             List.rev ((make_node l @@ Unknown_sequence { length }) :: acc), rest
@@ -292,7 +320,7 @@ let parse loc words =
     (** parse array indexing *)
     and parse_indexing loc name words =
         let index, rest = parse_polish words in
-        make_node loc @@ Index_into { name; index }, rest
+        make_node loc @@ Push_member { name; index }, rest
 
     (** parse array element assignment *)
     and parse_assign_to_mem loc name words =
@@ -407,17 +435,8 @@ let parse loc words =
                 parse_polish words
 
         (* ERROR -- unknown word *)
-        | (loc, Word name) :: _ ->
-                let vars   = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) takes ""
-                and mem    = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) output.mems ""
-                and procs  = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) output.procs ""
-                and macros = Hashtbl.fold (fun acc _ v -> acc ^ sprintf " %s" v) output.macros "" in
-                raise @@ Error (loc, 
-                    sprintf "Unknown word: '%s'.\n"     name ^
-                    sprintf "\tavailable vars: %s\n"    vars ^
-                    sprintf "\tavailable mem: %s\n"     mem ^
-                    sprintf "\tavailable macros: %s\n"  macros ^
-                    sprintf "\tavailable procs: %s"     procs)
+        | (loc, Word word) :: _ ->
+                raise_unknown_word loc word
 
         (* ERROR -- function definitions only allowed in toplevel *)
         | (loc, Macro) :: _ -> raise @@ Error (loc, "macro definitions only allowed in toplevel")
@@ -470,10 +489,7 @@ let parse loc words =
 
         (* parse literal *)
         | (loc, Literal data) :: tl ->
-                let (data : data_hl) = Literal (data_lit_of_data_tok data) in
-                let node = make_node loc @@ Push_data { data } in
-                node.t <- Some [type_of_data_hl data];
-                node, tl
+                parse_literal loc data, tl
 
         | (loc, word) :: _ ->
                 raise @@ Error (loc, string_of_word word ^ ": word not allowed at the toplevel")

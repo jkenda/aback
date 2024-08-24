@@ -17,7 +17,7 @@ type func = {
     name   : string;
     seq    : node list;
     types  : func_format;
-    is_prototype : bool;
+    is_signature : bool;
     mutable is_unused : bool
 }
 and node = {
@@ -36,13 +36,15 @@ and node_hl =
     | Scoped_take of { vars : string list; body : node list }
     | Scoped_peek of { vars : string list; body : node list }
 
-    | Push_take of { name : string }
-    | Push_data of { data : data_hl }
+    | Push_take   of { name : string }
+    | Push_data   of { data : data_hl }
+    | Push_var    of { name : string }
+    | Push_mem    of { name : string }
+    | Push_member of { name : string; index : node }
 
     | Proc_call of { func : func; args : node list }
     | Macro_call of { func : func; args : node list }
 
-    | Index_into    of { name : string; index : node }
     | Assign_to_mem of { name : string; index : node; value : node }
     | Assign_to_var of { name : string; value : node }
     | If_statement  of { cond : node; true_branch : node list; false_branch : node list }
@@ -109,7 +111,7 @@ let string_of_func func =
     let unused = if func.is_unused then "(unused) " else "" in
     let t_in = string_of_types_hl func.types.t_in
     and t_out = string_of_types_hl func.types.t_out in
-    if func.is_prototype then
+    if func.is_signature then
         Format.sprintf "\n\t%s(prototype) func %s %s -> %s end\n" unused func.name t_in t_out
     else
         Format.sprintf "\n\t%sfunc %s %s -> %s is\n" unused func.name t_in t_out

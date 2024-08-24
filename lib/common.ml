@@ -158,7 +158,7 @@ let (type_ll_of_type_tok : type_tok -> type_ll) = function
     | U8 -> U8 | U16 -> U16 | U32 -> U32 | U64 -> U64
     | F32 -> F32 | F64 -> F64
     | Bool -> Bool
-    | t -> failwith @@ sprintf "%s not directly convertible" (show_type_tok t)
+    | t -> failwith @@ sprintf "%s not directly convertible to type_ll" (show_type_tok t)
 
 let rec type_gen_of_type_ll = function
     | I8 | I16 | I32 | I64 | U8 | U16 | U32 | U64 -> Integer

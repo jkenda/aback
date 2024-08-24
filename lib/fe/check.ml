@@ -35,7 +35,16 @@ let compare t_exp t_act =
                     (match node_opt with
                     | Some node -> node.t <- Some [t_exp]
                     | None -> ());
-                    acc && type_gen_of_type_hl t_exp = t_act
+                    let type_gen =
+                        try type_gen_of_type_hl t_exp
+                        with _ ->
+                            match node_opt with
+                            | Some node ->
+                                    raise @@ Not_implemented (node.l, sprintf "node doesn't have type: %s" (show_type_hl t_exp))
+                            | None ->
+                                    failwith @@ sprintf "node doesn't have type: %s" (show_type_hl t_exp)
+                    in
+                    acc && type_gen = t_act
             | t_exp, (t_act, _) ->
                     acc && t_exp = t_act
         in
@@ -181,7 +190,7 @@ let rec check_seq input stack takes seq =
             | _ -> 2
         in
         let check_node' loc = function
-            | { n = (Op _ | Push_data _ | Proc_call _ | Macro_call _); _ } as node ->
+            | { n = (Op _ | Push_data _ | Push_take _ | Proc_call _ | Macro_call _); _ } as node ->
                     check_node node
             | node ->
                     raise @@ Error (loc, sprintf "expected operand, got %s" (string_of_node node))
@@ -289,8 +298,8 @@ let rec check_seq input stack takes seq =
 
 
 let check input =
-    let check_func { loc; seq; types; is_prototype; _ } =
-        if is_prototype then ()
+    let check_func { loc; seq; types; is_signature; _ } =
+        if is_signature then ()
         else
             let takes = Hashtbl.create 10 in
             let t_in_act = List.map (fun t -> t, None) types.t_in in

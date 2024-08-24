@@ -1,0 +1,10 @@
+macro STDIN  -> i32 is 0 end
+macro STDOUT -> i32 is 1 end
+macro STDERR -> i32 is 2 end
+
+( ... )
+proc read i32 string -> i64 end
+proc write i32 string -> i64 end
+( ... )
+proc exit i32 -> end
+( ... )

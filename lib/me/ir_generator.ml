@@ -204,8 +204,8 @@ let generate_qbe_ir f path { procs; strings; _ } =
     let output_seq =
         List.iter output_node
     in
-    let output_proc _ { loc; name; types; seq; is_prototype; is_unused } = 
-        if is_prototype || is_unused then
+    let output_proc _ { loc; name; types; seq; is_signature; is_unused } = 
+        if is_signature || is_unused then
             ()
         else
             (* TODO: multiple return values, high-level types *)

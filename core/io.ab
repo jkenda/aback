@@ -1,14 +1,21 @@
 include "core/stack.ab"
 include "core/math.ab"
+include "core/unix.ab"
 
 macro $INT_BUFSIZ$ -> u64 is 64 end
 mem $int_buf$ is $INT_BUFSIZ$ u8 end
 var $int_len$ is u64 end
 
-proc putc u8  -> end
-proc puts str -> end
+proc putc
+    u8 ->
+is
+take char end
+    write STDOUT @ char 1
+end
 
-macro $puti$
+macro puts str -> is write STDOUT end
+
+proc $puti$
     int int ->
 is
 take radix n end
@@ -27,7 +34,7 @@ take radix n end
         := [] $int_buf$ $int_len$
     end
 
-    while > over 0 do
+    while > over .. 0 do
         take n in
             := $int_len$ - $int_len$ 1 ;;
             / n radix ;;
@@ -35,36 +42,37 @@ take radix n end
             + '0' % n radix ;;
             := [] $int_buf$ $int_len$ ;;
         end
-    end drop ;;
+    end drop .. ;;
 
     puts
         + $int_buf$ $int_len$
         - $INT_BUFSIZ$ $int_len$
 end
 
-macro puti is $puti$ 10 end
-macro putib is puts "0b" ;; $puti$ 2 end
-macro putix is puts "0x" ;; $puti$ 16 end
+macro puti  i32 -> is $puti$ 10 end
+macro putib i32 -> is puts "0b" ;; $puti$ 2 end
+macro putix i32 -> is puts "0x" ;; $puti$ 16 end
 
-macro $FLOAT_PREC$ is 6 end
+macro $FLOAT_PREC$ -> u64 is 6 end
 
 (print float)
 macro putf
     float ->
 is
     (if negative then print 0 and negate)
-    if < over 0. then
+    if < over .. 0. then
         putc '-'
-        -. 0.
+        - 0.
     end ;;
 
     (get the whole and the decimal part)
-    ftoi dup ;;                 (whole float --)
-    -. swap itof over over ;;   (dec whole float --)
-    drop -rot ;;                (dec whole --)
+    ftoi dup .. ;;                 (whole float --)
+    - swap .. itof over .. over .. ;;   (dec whole float --)
+    drop .. -rot .. ;;                (dec whole --)
 
     (print the whole part)
-    puti swap ;; (dec --)
+    swap .. ;; (dec --)
+    puti .. ;;
     putc '.'  ;; (dec --)
 
     (print the decimal part)
@@ -72,9 +80,9 @@ is
         (if the decimal part is non-zero then print it)
         if /= dec 0. then
             (dec *= 10^$float_prec$)
-            ftoi *. itof ** 10 $FLOAT_PREC$ dec
+            ftoi * itof ** 10 $FLOAT_PREC$ dec ;;
             (remove trailing zeros)
-            while = 0 % over 10 do
+            while = 0 % over .. 10 do
                 take dec in
                     / dec 10
                 end
@@ -90,7 +98,7 @@ macro putb
     bool ->
 is
 take b in
-    puts
+    puts .. ;;
         if b then "true"
         else "false" end
 end end
