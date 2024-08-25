@@ -3,6 +3,16 @@ open Unix
 open Common
 open Ir_generator
 
+let wait_for = function
+    | None -> ()
+    | Some pid ->
+            let status = snd @@ waitpid [] pid in
+            match status with
+            | WEXITED status ->
+                    if status <> 0 then
+                        exit status
+            | _ -> ()
+
 let compile options parser_output = 
     let path_out = Option.get options.path_out in
 
@@ -33,9 +43,9 @@ let compile options parser_output =
     if aback_output <> stdout then
         close aback_output;
 
-    (match qbe_pid_opt with Some pid -> waitpid [] pid |> ignore | None -> ());
+    wait_for qbe_pid_opt;
 
     if qbe_output <> stdout then
         close qbe_output;
 
-    (match gcc_pid_opt with Some pid -> waitpid [] pid |> ignore | None -> ());
+    wait_for gcc_pid_opt;

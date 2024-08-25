@@ -93,8 +93,6 @@ let exec options =
         | None -> "[STDIN]"
         | Some path -> path
     in
-    print_endline @@ show_options options;
-
     let src =
         match options.path_in with
         | None -> read_whole_stream stdin
