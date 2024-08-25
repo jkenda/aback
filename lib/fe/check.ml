@@ -40,7 +40,9 @@ let compare t_exp t_act =
                         with _ ->
                             match node_opt with
                             | Some node ->
-                                    raise @@ Not_implemented (node.l, sprintf "node doesn't have type: %s" (show_type_hl t_exp))
+                                    raise @@ Not_implemented (node.l, sprintf "node %s doesn't have type: %s"
+                                        (show_node_hl node.n)
+                                        (show_type_hl t_exp))
                             | None ->
                                     failwith @@ sprintf "node doesn't have type: %s" (show_type_hl t_exp)
                     in
@@ -49,6 +51,12 @@ let compare t_exp t_act =
                     acc && t_exp = t_act
         in
         List.fold_left compare true @@ List.combine t_exp t_act
+
+let raise_unexpected_stack msg loc t_exp t_act =
+    raise @@ Error (loc, sprintf "%s: expected %s, got %s" msg
+        (string_of_types_hl t_exp)
+        (string_of_types_hl t_act))
+
 
 (** check whether the function is recursive or not *)
 let is_recursive { name; seq; _ } =
@@ -102,7 +110,8 @@ let rec check_seq input stack takes seq =
     (* push a type from takes to stack *)
     and push_take loc name =
         try
-            Stack.push (Hashtbl.find takes name) stack
+            let type_hl, node_opt = Hashtbl.find takes name in
+            Stack.push (type_hl, node_opt) stack
         with Not_found ->
             raise @@ Error (loc, sprintf "take %s not found" name)
 
@@ -127,13 +136,8 @@ let rec check_seq input stack takes seq =
         if not @@ compare t_in_exp t_in_act then
         begin
             let t_in_act = fst @@ List.split t_in_act in
-            raise @@ Error (loc, sprintf "input: expected %s, got %s" (string_of_types_hl t_in_exp) (string_of_types_hl t_in_act));
+            raise_unexpected_stack "input" loc t_in_exp t_in_act
         end;
-
-        (*
-        let t_out_actual = check_seq input (list_of_stack stack) takes func.seq in
-        replace_stack stack t_out_actual;
-        *)
 
         if Stack.length stack < List.length func.types.t_out then
             raise @@ Error (loc, "not enough elements on the stack");
@@ -144,16 +148,21 @@ let rec check_seq input stack takes seq =
         if not @@ compare t_out_exp t_out_act then
         begin
             let t_out_act = fst @@ List.split t_out_act in
-            raise @@ Error (loc, sprintf "output: expected %s, got %s" (string_of_types_hl func.types.t_out) (string_of_types_hl t_out_act))
+            raise_unexpected_stack "output" loc t_out_exp t_out_act
         end;
 
         replace_stack stack stack_before
 
     (* handle a macro call *)
-    and handle_macro_call _loc func _args =
-        (* TODO: handle arguments *)
-        let t_out_actual = check_seq input (list_of_stack stack) takes func.seq in
-        replace_stack stack t_out_actual
+    and handle_macro_call loc func =
+        let t_out_exp = func.types.t_out
+        and t_out_act = check_seq input (list_of_stack stack) takes func.seq in
+        if not @@ compare t_out_exp t_out_act then
+        begin
+            let t_out_act = fst @@ List.split t_out_act in
+            raise_unexpected_stack "output" loc t_out_exp t_out_act
+        end;
+        replace_stack stack t_out_act
 
     (* check an if statement *)
     and check_if_statement loc cond true_branch false_branch =
@@ -170,8 +179,8 @@ let rec check_seq input stack takes seq =
         (* check that true and false branches leave the same stack *)
         let t_stack_after_true  = check_seq input t_stack_before takes true_branch
         and t_stack_after_false = check_seq input t_stack_before takes false_branch in
-        if t_stack_after_true <> t_stack_after_false then
-            raise @@ Error (loc, "true and false branches must have the same return types");
+        if List.map fst t_stack_after_true <> List.map fst t_stack_after_false then
+            raise @@ Error (loc, "true and false branches must have the same return types\n");
         if List.length t_stack_after_true < List.length t_stack_before then
             raise @@ Error (loc, "branches must not drain the stack");
 
@@ -231,8 +240,7 @@ let rec check_seq input stack takes seq =
         let t_in_gen = type_gen_of_type_hl t_in_act in
         let t_in_exp = t_in_exp t_in_gen op in
         if t_in_gen <> t_in_exp  then
-                raise @@ Error (loc, sprintf "expected %s, got %s"
-                    (string_of_type_gen t_in_exp) (string_of_type_hl t_in_act));
+            raise_unexpected_stack "" loc [General t_in_exp] [General t_in_gen];
 
         let (t_out : type_hl option) =
             match op with
@@ -257,8 +265,7 @@ let rec check_seq input stack takes seq =
         node.id <- Some (Stack.length stack);
 
         match node.n with
-        | Empty ->
-                ()
+        | Empty -> ()
         | Take { vars } -> pop_to_takes node.l vars
         | Peek { vars } -> peek_to_takes node.l vars
         | Scoped_take { vars; body }
@@ -272,14 +279,14 @@ let rec check_seq input stack takes seq =
                 check_seq input (list_of_stack stack) takes body
                 |> replace_stack stack
 
-        | Push_take { name } ->
+        | Push_take { name; _ } ->
                 push_take node.l name
         | Push_data { data; _ } ->
                 push_literal data node
         | Proc_call { func; args } ->
                 handle_proc_call node.l func args
-        | Macro_call { func; args } ->
-                handle_macro_call node.l func args
+        | Macro_call { func } ->
+                handle_macro_call node.l func
 
         | If_statement { cond; true_branch; false_branch } ->
                 check_if_statement node.l cond true_branch false_branch
@@ -287,10 +294,12 @@ let rec check_seq input stack takes seq =
         | Op { op; left; right } ->
                 check_operator node op left right
 
+        | Unknown_sequence _ ->
+                ()
         | Var _ | Mem _ ->
                 raise @@ Unreachable "out of place var/mem should be handled in Parser"
         (* TEMPORARY *)
-        | _ -> failwith @@ sprintf "checking %s not implemented yet" (show_node_hl node.n)
+        | _ -> raise @@ Not_implemented (node.l, sprintf "checking %s not implemented yet" (show_node_hl node.n))
     in
 
     List.iter check_node seq;
@@ -307,7 +316,7 @@ let check input =
 
             if not @@ compare types.t_out t_out_act then
                 let t_out_act = List.map fst t_out_act in
-                raise @@ Error (loc, sprintf "expected %s, got %s" (string_of_types_hl types.t_out) (string_of_types_hl t_out_act))
+                raise_unexpected_stack "output" loc types.t_out t_out_act
     in
 
     Hashtbl.iter (fun _ f -> check_rec_macro f) input.macros;

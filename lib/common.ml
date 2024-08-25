@@ -33,6 +33,29 @@ type strings = string list
 [@@deriving show { with_path = false }]
 
 
+type flag =
+    | Run
+    | Stdout_il
+    | Stdout_asm
+[@@deriving show { with_path = false }]
+
+type mode =
+    | Compile
+    | Interpret
+    | Check
+    | Print
+[@@deriving show { with_path = false }]
+
+type options = {
+    mutable mode     : mode;
+    mutable flags    : flag list;
+    mutable path_in  : string option;
+    mutable path_out : string option;
+    mutable run_args : string
+}
+[@@deriving show { with_path = false }]
+
+
 (*
    terminal colors
  *)
@@ -384,6 +407,10 @@ let data_hl_of_data_lit loc (t_hl : type_hl) data =
     | _, General _ -> raise @@ Error (loc, sprintf "cannot specialize a general type: %s" (string_of_type_hl t_hl))
     | _ -> raise @@ Error (loc, sprintf "cannot specialize %s with type %s" (string_of_data_lit data) (string_of_type_hl t_hl))
 
+let read_whole_stream ch =
+    let s = really_input_string ch (in_channel_length ch) in
+    close_in ch;
+    s
 
 (* read file from the current dir *)
 let read_src_file filename =
@@ -392,6 +419,4 @@ let read_src_file filename =
         raise @@ Error (loc, "Aback source files should have '.ab' extension"));
 
     let ch = open_in_bin filename in
-    let s = really_input_string ch (in_channel_length ch) in
-    close_in ch;
-    s
+    read_whole_stream ch

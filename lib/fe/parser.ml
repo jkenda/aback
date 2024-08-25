@@ -187,16 +187,14 @@ let parse loc words =
                         parse_literal loc data, rest
                 | Word name when Hashtbl.mem takes name ->
                         Hashtbl.find takes name;
-                        make_node loc @@ Push_take { name }, rest
+                        make_node loc @@ Push_take { name; type_hl = None }, rest
                 | Op op ->
                         let left , rest = parse_polish rest in
                         let right, rest = parse_polish rest in
                         make_node loc @@ Op { op; left; right }, rest
                 | Word name when Hashtbl.mem output.macros name ->
                         let func = Hashtbl.find output.macros name in
-                        let nargs = List.length func.types.t_in in
-                        let args, tl = parse_args loc name nargs rest in
-                        make_node loc @@ Macro_call { func; args }, tl
+                        make_node loc @@ Macro_call { func }, rest
                 | Word name when Hashtbl.mem output.procs name ->
                         let proc = Hashtbl.find output.procs name in
                         let nargs = List.length proc.types.t_in in
@@ -252,11 +250,14 @@ let parse loc words =
     in
 
     (** parse function call *)
-    let parse_func_call table f loc name words =
+    let parse_proc_call table loc name words =
         let func = Hashtbl.find table name in
         let nargs = List.length func.types.t_in in
         let args, rest = parse_args loc name nargs words in
-        f loc func args, rest
+        make_proc_call loc func args, rest
+    and parse_macro_call table loc name =
+        let func = Hashtbl.find table name in
+        make_macro_call loc func
     in
 
     (** get input and output types of function *)
@@ -416,7 +417,7 @@ let parse loc words =
 
         (* parse variable pushes *)
         | (loc, Word name) :: tl when has_take name ->
-                make_node loc @@ Push_take { name }, tl
+                make_node loc @@ Push_take { name; type_hl = None }, tl
         | (loc, Word name) :: tl when Hashtbl.mem output.vars name ->
                 let typ = Hashtbl.find output.vars name in
                 make_node loc @@ Var { name; typ }, tl
@@ -426,9 +427,9 @@ let parse loc words =
 
         (* parse function/macro call *)
         | (loc, Word name) :: tl when Hashtbl.mem output.macros name ->
-                parse_func_call output.macros make_macro_call loc name tl
+                parse_macro_call output.macros loc name, tl
         | (loc, Word name) :: tl when Hashtbl.mem output.procs name ->
-                parse_func_call output.procs make_proc_call loc name tl
+                parse_proc_call output.procs loc name tl
 
         (* parse operator *)
         | (_, Op _) :: _ ->
@@ -492,7 +493,7 @@ let parse loc words =
                 parse_literal loc data, tl
 
         | (loc, word) :: _ ->
-                raise @@ Error (loc, string_of_word word ^ ": word not allowed at the toplevel")
+                raise @@ Error (loc, sprintf "%s: word not allowed at the toplevel" (string_of_word word))
     in
 
     (** parse top-level program constructs -- global memory and functions *)
