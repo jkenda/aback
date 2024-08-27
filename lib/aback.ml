@@ -1,4 +1,4 @@
-open Format
+open Printf
 
 open Common
 open Lexer
@@ -11,15 +11,15 @@ open Compile
 
 
 let print_usage msg =
-    printf "%s\n" msg;
-    printf "usage: %s [mode] <options> <path> [-- <run-args>]\n\n" Sys.argv.(0);
-    printf "mode: int com print check\n\n";
-    printf "options:\n";
-    printf "\t-r: run program after compilation\n";
-    printf "\t-i: print intermediate language\n";
-    printf "\t-a: print assembly\n";
-    printf "\t-o <path>: write output to <path>\n\n";
-    printf "run-args: arguments to be passed to the compiler program\n\n";
+    eprintf "%s\n" msg;
+    eprintf "usage: %s [mode] <options> <path> [-- <run-args>]\n\n" Sys.argv.(0);
+    eprintf "mode: int com print check\n\n";
+    eprintf "options:\n";
+    eprintf "\t-r: run program after compilation\n";
+    eprintf "\t-i: print intermediate language\n";
+    eprintf "\t-a: print assembly\n";
+    eprintf "\t-o <path>: write output to <path>\n\n";
+    eprintf "run-args: arguments to be passed to the compiler program\n\n";
     exit 1
 
 let parse_args args =
@@ -105,8 +105,8 @@ let exec options =
         filename = path_in;
         included_from = [];
         expanded_from = [];
-        row = 1;
-        col = 1 }
+        row = 0;
+        col = 0 }
     in
 
     let lex = lex path_in []
@@ -140,20 +140,19 @@ let exec options =
                     Sys.command @@ sprintf "./%s %s" path_exe options.run_args
                     |> exit
         | _ ->
-                failwith @@ show_mode options.mode ^ " not implemented"
+                raise @@ Not_implemented (null_loc, sprintf "%s not implemented" (show_mode options.mode))
     with ex ->
         begin
             match ex with
             | Error (loc, msg) ->
-                print_error loc msg;
+                print_error loc msg
             | Not_implemented (loc, msg) ->
-                print_in_color Yellow "(NOT IMPLEMENTED)\n\n";
+                print_in_color stderr Yellow "(NOT IMPLEMENTED)\n\n";
                 print_error loc msg;
             | _ -> ()
         end;
 
-        printf "\n";
-        printf "%s\n" @@ Printexc.to_string ex;
-        printf "%s\n" @@ Printexc.get_backtrace ();
-        printf "%!";
+        eprintf "\n";
+        eprintf "%s\n" @@ Printexc.to_string ex;
+        eprintf "%s\n" @@ Printexc.get_backtrace ();
         exit 1

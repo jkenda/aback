@@ -1,10 +1,29 @@
+(file descriptors)
 macro STDIN  -> i32 is 0 end
 macro STDOUT -> i32 is 1 end
 macro STDERR -> i32 is 2 end
 
-( ... )
-proc read i32 string -> i64 end
-proc write i32 string -> i64 end
+
+(file access modes)
+macro O_ACCMODE -> i32 is 0003 end
+macro O_RDONLY  -> i32 is 00   end
+macro O_WRONLY  -> i32 is 01   end
+macro O_RDWR    -> i32 is 02   end
+
+macro O_CREAT    -> i32 is 0100     end
+macro O_EXCL     -> i32 is 0200     end
+macro O_NOCTTY   -> i32 is 0400     end
+macro O_TRUNC    -> i32 is 01000    end
+macro O_APPEND   -> i32 is 02000    end
+macro O_NONBLOCK -> i32 is 04000    end
+macro O_SYNC     -> i32 is 04010000 end
+macro O_ASYNC    -> i32 is 020000   end
+
+(UNIX syscall function signatures)
+proc read   i32 str         -> i32 end
+proc write  i32 str         -> i32 end
+proc open   cstr i32 i32    -> i32 end
+proc close  cstr            -> i32 end
 ( ... )
 proc exit i32 -> end
 ( ... )

@@ -225,4 +225,9 @@ let generate_qbe_ir f path { procs; strings; _ } =
     fprintf f "dbgfile \"%s\"\n\n" path;
     Hashtbl.iter output_proc procs;
 
-    fprintf f "data $strs = { b \"%s\" }\n" (String.escaped strings)
+    let strings =
+        (* replace OCaml's representation of null bytes with a more standard representation *)
+        String.escaped strings
+        |> Str.global_replace (Str.regexp {|\\000|}) {|\\0|}
+    in
+    fprintf f "data $strs = { b \"%s\" }\n" strings

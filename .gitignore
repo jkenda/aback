@@ -3,6 +3,10 @@
 !*.*
 !*/
 
+!Makefile
+
 _build/
+*.o
+*.so
 *.asm
 *.exe

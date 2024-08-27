@@ -81,7 +81,7 @@ let parse loc words =
     let add_func table loc name types seq =
         let is_signature = false and is_unused = false in
         Hashtbl.replace table name { loc; name; types; seq; is_signature; is_unused };
-    and add_prototype table loc name types =
+    and add_signature table loc name types =
         let seq = [] and is_signature = true and is_unused = false in
         Hashtbl.replace table name { loc; name; types; seq; is_signature; is_unused };
     in
@@ -271,7 +271,7 @@ let parse loc words =
     let rec parse_func loc table name words =
         let term, types, words = extract_types loc words in
         if term = End then
-            (add_prototype table loc name types;
+            (add_signature table loc name types;
             words)
         else
             (current_proc := name;

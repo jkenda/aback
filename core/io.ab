@@ -1,5 +1,5 @@
 include "core/stack.ab"
-include "core/math.ab"
+(include "core/math.ab")
 include "core/unix.ab"
 
 macro $INT_BUFSIZ$ -> u64 is 64 end
@@ -15,7 +15,7 @@ end
 
 macro puts str -> is write STDOUT end
 
-proc $puti$
+(proc $puti$
     int int ->
 is
 take radix n end
@@ -55,33 +55,33 @@ macro putix i32 -> is puts "0x" ;; $puti$ 16 end
 
 macro $FLOAT_PREC$ -> u64 is 6 end
 
-(print float)
+(print float
 macro putf
     float ->
 is
-    (if negative then print 0 and negate)
+    (if negative then print 0 and negate
     if < over .. 0. then
         putc '-'
         - 0.
     end ;;
 
-    (get the whole and the decimal part)
-    ftoi dup .. ;;                 (whole float --)
-    - swap .. itof over .. over .. ;;   (dec whole float --)
-    drop .. -rot .. ;;                (dec whole --)
+    (get the whole and the decimal part
+    ftoi dup .. ;;                 (whole float --
+    - swap .. itof over .. over .. ;;   (dec whole float --
+    drop .. -rot .. ;;                (dec whole --
 
-    (print the whole part)
-    swap .. ;; (dec --)
+    (print the whole part
+    swap .. ;; (dec --
     puti .. ;;
-    putc '.'  ;; (dec --)
+    putc '.'  ;; (dec --
 
-    (print the decimal part)
+    (print the decimal part
     take dec in
-        (if the decimal part is non-zero then print it)
+        (if the decimal part is non-zero then print it
         if /= dec 0. then
-            (dec *= 10^$float_prec$)
+            (dec *= 10^$float_prec$
             ftoi * itof ** 10 $FLOAT_PREC$ dec ;;
-            (remove trailing zeros)
+            (remove trailing zeros
             while = 0 % over .. 10 do
                 take dec in
                     / dec 10
@@ -90,15 +90,15 @@ is
             puti
         end
     end
-end
+end)
 
 (print boolean values
  as "true" or "false")
 macro putb
     bool ->
 is
-take b in
-    puts .. ;;
+take b end ;;
+    puts
         if b then "true"
         else "false" end
-end end
+end

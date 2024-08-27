@@ -1,19 +1,19 @@
-include "core/linux.ab"
+include "core/unix.ab"
 include "core/stack.ab"
 
-mem buffer is char 64 end
+mem buffer is 64 u8 end
 
 proc main
-    -> int
+    -> i32
 is
-    open c"examples/open.ab" O_RDONLY ;; (fd)
-    peek fd end
+    open c"examples/open.ab" 0 O_RDONLY ;; (fd)
+    peek fd end ;;
 
     read fd buffer 64 ;; (len fd)
     while > dup 0 do
         dup write STDOUT buffer ;; (fd)
         read fd buffer 64       ;; (len fd)
-    end
+    end ;;
     drop (fd) ;;
     drop close ;;
 

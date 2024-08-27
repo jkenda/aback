@@ -1,4 +1,4 @@
-open Format
+open Printf
 
 (*
     location of tokens, nodes
@@ -23,11 +23,11 @@ exception Not_implemented of location * string
 exception Unreachable of string
 
 let print_error loc msg =
-    List.iter (fun (loc, name) -> printf "expanded from %s (%s)\n" (string_of_location loc) name) loc.expanded_from;
-    printf "%s:\n" (string_of_location loc);
-    printf "\t%s\n" msg;
-    if List.length loc.included_from > 0 then printf "\n";
-    List.iter (fun filename -> printf "included from '%s'\n" filename) loc.included_from;
+    List.iter (fun (loc, name) -> eprintf "expanded from %s (%s)\n" (string_of_location loc) name) loc.expanded_from;
+    eprintf "%s:\n" (string_of_location loc);
+    eprintf "\t%s\n" msg;
+    if List.length loc.included_from > 0 then eprintf "\n";
+    List.iter (fun filename -> eprintf "included from '%s'\n" filename) loc.included_from;
 
 type strings = string list
 [@@deriving show { with_path = false }]
@@ -67,8 +67,8 @@ type color =
     | Magenta
     | Cyan
 
-let print_in_color color text =
-    printf "\o033[%dm%s\o033[39m"
+let print_in_color f color text =
+    fprintf f "\o033[%dm%s\o033[39m"
     (match color with
     | Red     -> 31
     | Green   -> 32

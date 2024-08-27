@@ -114,7 +114,7 @@ let string_of_func func =
     let t_in = string_of_types_hl func.types.t_in
     and t_out = string_of_types_hl func.types.t_out in
     if func.is_signature then
-        Format.sprintf "\n\t%s(prototype) func %s %s -> %s end\n" unused func.name t_in t_out
+        Format.sprintf "\n\t%s(signature) func %s %s -> %s end\n" unused func.name t_in t_out
     else
         Format.sprintf "\n\t%sfunc %s %s -> %s is\n" unused func.name t_in t_out
         ^ string_of_nodes func.seq

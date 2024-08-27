@@ -8,12 +8,12 @@ let lib_dirs = [
 
 (* read file from one of the dirs in lib_dirs *)
 let read_lib_file included_from filename =
+    let loc = { filename; included_from; expanded_from = []; row = 0; col = 0 } in
     if not (String.ends_with ~suffix:".ab" filename) then
-        (let loc = { filename; included_from; expanded_from = []; row = 0; col = 0 } in
-        raise @@ Error (loc, "Aback source files should have '.ab' extension"));
+        raise @@ Error (loc, "Aback source files should have '.ab' extension");
 
     let rec open_file = function
-        | [] -> raise_notrace @@ Failure (sprintf "cannot find file \"%s\"" filename)
+        | [] -> raise @@ Error (loc, sprintf "cannot find file \"%s\"" filename)
         | dir :: rest -> 
                 try
                     let f = open_in (dir ^ filename) in
