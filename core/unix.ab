@@ -10,6 +10,7 @@ macro O_RDONLY  -> i32 is 00   end
 macro O_WRONLY  -> i32 is 01   end
 macro O_RDWR    -> i32 is 02   end
 
+(file access flags)
 macro O_CREAT    -> i32 is 0100     end
 macro O_EXCL     -> i32 is 0200     end
 macro O_NOCTTY   -> i32 is 0400     end
@@ -19,11 +20,56 @@ macro O_NONBLOCK -> i32 is 04000    end
 macro O_SYNC     -> i32 is 04010000 end
 macro O_ASYNC    -> i32 is 020000   end
 
+
 (UNIX syscall function signatures)
-proc read   i32 str         -> i32 end
-proc write  i32 str         -> i32 end
-proc open   cstr i32 i32    -> i32 end
-proc close  cstr            -> i32 end
-( ... )
-proc exit i32 -> end
-( ... )
+proc read         i32 str i32                     -> i32       end
+proc write        i32 str i32                     -> i32       end
+proc open         cstr i32 i32                    -> i32       end
+proc close        i32                             -> i32       end
+proc exit         i32                             ->           end
+proc fork         void                            -> i32       end
+proc execve       cstr cstr cstr                  -> i32       end
+proc wait         i32 ptr                         -> i32       end
+proc waitpid      i32 i32 ptr i32                 -> i32       end
+proc kill         i32 i32                         -> i32       end
+proc pipe         i32 ptr                         -> i32       end
+proc dup          i32                             -> i32       end
+proc dup2         i32 i32                         -> i32       end
+proc chdir        cstr                            -> i32       end
+proc getcwd       str i32                         -> cstr      end
+proc mkdir        cstr i32                        -> i32       end
+proc rmdir        cstr                            -> i32       end
+proc link         cstr cstr                       -> i32       end
+proc unlink       cstr                            -> i32       end
+proc stat         cstr a' ptr                     -> i32       end
+proc fstat        i32 a' ptr                      -> i32       end
+proc lstat        cstr a' ptr                     -> i32       end
+proc chmod        cstr i32                        -> i32       end
+proc chown        cstr i32 i32                    -> i32       end
+proc lseek        i32 i32 i32                     -> i32       end
+proc mmap         a' ptr i32 i32 i32 i32 i32      -> a' ptr    end
+proc munmap       a' ptr i32                      -> i32       end
+proc socket       i32 i32 i32                     -> i32       end
+proc bind         i32 a' ptr i32                  -> i32       end
+proc listen       i32 i32                         -> i32       end
+proc accept       i32 a' ptr i32 ptr              -> i32       end
+proc connect      i32 a' ptr i32                  -> i32       end
+proc send         i32 a' ptr i32 i32              -> i32       end
+proc recv         i32 a' ptr i32 i32              -> i32       end
+proc gettimeofday a' ptr a' ptr                   -> i32       end
+proc setsockopt   i32 i32 i32 a' ptr i32          -> i32       end
+proc getsockopt   i32 i32 i32 a' ptr i32 ptr      -> i32       end
+proc select       i32 a' ptr a' ptr a' ptr a' ptr -> i32       end
+proc poll         a' ptr i32 i32                  -> i32       end
+proc getpid       void                            -> i32       end
+proc getppid      void                            -> i32       end
+proc setuid       i32                             -> i32       end
+proc getuid       void                            -> i32       end
+proc setgid       i32                             -> i32       end
+proc getgid       void                            -> i32       end
+proc alarm        i32                             -> i32       end
+proc sleep        i32                             -> i32       end
+proc nanosleep    a' ptr a' ptr                   -> i32       end
+proc signal       i32 a' ptr                      -> a' ptr    end
+proc sigaction    i32 a' ptr a' ptr               -> i32       end
+proc sigsuspend   a' ptr                          -> i32       end

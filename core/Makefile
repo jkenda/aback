@@ -10,9 +10,10 @@ ifeq ($(OS),Windows_NT)
 		$(error On Windows, only MinGW is supported. Please use MinGW GCC.)
 	endif
 else
-	CAT := cat
+	CAT  := cat
 	ARCH := $(shell uname -m)
-	ifeq ($(shell uname -s),Darwin)
+	OS 	 := $(shell uname -s)
+	ifeq ($(OS),Darwin)
 		ABI := apple
 	else
 		ABI := sysv
@@ -30,6 +31,8 @@ ifeq ($(ARCH),riscv64)
 	ARCH := rv64
 endif
 
+OS := $(shell echo $(OS) | tr A-Z a-z)
+
 
 CORE_FILES   := $(wildcard *.ab)
 CORE_OBJECTS := $(CORE_FILES:.ab=.o)
@@ -40,8 +43,8 @@ all: _build/scalls.o $(CORE_OBJECTS)
 _build:
 	mkdir -p _build
 
-_build/scalls.o: _build scalls/$(ARCH)-header.s scalls/$(ARCH)_$(ABI).s
-	$(CAT) scalls/$(ARCH)-header.s scalls/$(ARCH)_$(ABI).s | $(CC) -c $(CFLAGS) -o $@ -
+_build/scalls.o: _build scalls/$(ARCH)-header.s scalls/$(ARCH)_$(OS).s
+	$(CAT) scalls/$(ARCH)-header.s scalls/$(ARCH)_$(OS).s | $(CC) -c $(CFLAGS) -o $@ -
 
 %.o: %.ab
 	# TODO: implement a -c flag in aback
