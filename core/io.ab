@@ -1,19 +1,27 @@
 include "core/stack.ab"
-(include "core/math.ab")
-include "core/unix.ab"
+
+
+macro STDOUT -> i32 is 1 end
+proc write i32 u8 ptr u64 -> i32 end
+
+proc putc
+    u8 ->
+is
+take char end ;;
+    write STDOUT @ char 1 ;; drop
+end
+
 
 macro $INT_BUFSIZ$ -> u64 is 64 end
 mem $int_buf$ is $INT_BUFSIZ$ u8 end
 var $int_len$ is u64 end
 
-proc putc
-    u8 ->
-is
-take char end
-    write STDOUT @ char 1
-end
+
+include "core/unix.ab"
 
 macro puts str -> is write STDOUT ;; drop end
+
+(include "core/math.ab")
 
 (proc $puti$
     int int ->

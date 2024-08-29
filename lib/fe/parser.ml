@@ -190,7 +190,12 @@ let parse loc words =
                         make_node loc @@ Push_take { name; type_hl = None }, rest
                 | Op op ->
                         let left , rest = parse_polish rest in
-                        let right, rest = parse_polish rest in
+                        let right, rest =
+                            if n_operands op = 2 then
+                                parse_polish rest
+                            else
+                                make_node loc @@ Empty, rest
+                        in
                         make_node loc @@ Op { op; left; right }, rest
                 | Word name when Hashtbl.mem output.macros name ->
                         let func = Hashtbl.find output.macros name in
@@ -227,6 +232,7 @@ let parse loc words =
             | types, ((loc, Sep) :: _ as words)
             | types, (loc, Dot_dot) :: words ->
                     let node = make_node loc @@ Unknown_sequence { types } in
+                    node.t <- Some types;
                     List.rev (node :: acc), words
 
             (* parse next argument *)

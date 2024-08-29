@@ -70,11 +70,27 @@ let qbe_string_of_operator op (t_in : type_hl) =
     | Ref | Deref ->
             failwith @@ sprintf "operator %s not implemented" (show_operator op)
 
-let qbe_string_of_args =
+let qbe_string_of_params =
     let add_qbe_string_of_type_extty s t =
         sprintf "%s, %c" s (qbe_string_of_type_extty t)
     in
     List.fold_left add_qbe_string_of_type_extty ""
+
+let qbe_string_of_args var_id t_in =
+    let _, args =
+        let type_arg (t : type_hl) arg_n =
+            match t with
+            | Str  -> sprintf "l %%v%d.off, l %%v%d.len" arg_n arg_n
+            | CStr -> sprintf "l %%v%d.off" arg_n
+            | _ ->
+                    let t = type_ll_of_type_hl t in
+                    sprintf "%c %%v%d.arg%d" (qbe_string_of_type_extty t) var_id arg_n
+        in
+        match t_in with
+        | [] -> 0, ""
+        | hd :: tl -> List.fold_left (fun (i, acc) t -> i + 1, sprintf "%s, %s" acc (type_arg t i)) (1, type_arg hd 0) tl
+    in
+    args
 
 let generate_qbe_ir f path { procs; strings; _ } =
     (* auxiliary functions for outputting different node types *)
@@ -155,19 +171,8 @@ let generate_qbe_ir f path { procs; strings; _ } =
             try Option.get node.id
             with _ -> raise @@ Not_implemented (node.l, sprintf "node has no stack offset: %s" (show_node_hl node.n))
         in
-        let _, args =
-            let type_arg (t : type_hl) arg_n =
-                match t with
-                | Str  -> sprintf "l %%v%d.off, l %%v%d.len" arg_n arg_n
-                | CStr -> sprintf "l %%v%d.off" arg_n
-                | _ ->
-                        let t = type_ll_of_type_hl t in
-                        sprintf "%c %%v%d.arg%d" (qbe_string_of_type_extty t) var_id arg_n
-            in
-            match func.types.t_in with
-            | [] -> 0, ""
-            | hd :: tl -> List.fold_left (fun (i, acc) t -> i + 1, sprintf "%s, %s" acc (type_arg t i)) (1, type_arg hd 0) tl
-        in
+        let args = qbe_string_of_args var_id func.types.t_in in
+
         match types_hl with
         | [] -> fprintf f "\tcall $%s(%s)\n" func.name args
         | l -> raise @@ Not_implemented (node.l, sprintf "procs with return types not yet implemented. len: %s" (show_types_hl l))
@@ -175,7 +180,7 @@ let generate_qbe_ir f path { procs; strings; _ } =
 
     let rec output_node node =
         if node.t = None then
-            raise @@ Unreachable ("node has no type: " ^ show_node node)
+            raise @@ Unreachable ("node has no type: " ^ show_node_hl node.n)
         else
             if node.n = Empty then
                 ()
@@ -192,17 +197,16 @@ let generate_qbe_ir f path { procs; strings; _ } =
                         output_operator node op
                     end
                 | Proc_call { func; args } ->
-                        let output_node arg =
-                            output_node arg
-                        in
                         List.iter output_node args;
                         output_proc_call node types_hl func
+                | Macro_call { func; args } ->
+                        List.iter output_node args;
+                        output_seq func.seq
+                | Unknown_sequence _ -> ()
 
-                | Macro_call _ -> raise @@ Unreachable "macros should've been expanded by this point"
                 | n -> raise @@ Not_implemented (node.l, sprintf "IR generation of %s not yet supported" (show_node_hl n))
-    in
-    let output_seq =
-        List.iter output_node
+    and output_seq seq =
+        List.iter output_node seq
     in
     let output_proc _ { loc; name; types; seq; is_signature; is_unused } = 
         if is_signature || is_unused then
@@ -213,7 +217,7 @@ let generate_qbe_ir f path { procs; strings; _ } =
             and t_in  = List.map type_ll_of_type_hl types.t_in in
 
             output_loc loc;
-            fprintf f "export function %c $%s(%s) {\n" (qbe_string_of_type_extty t_out) name (qbe_string_of_args t_in);
+            fprintf f "export function %c $%s(%s) {\n" (qbe_string_of_type_extty t_out) name (qbe_string_of_params t_in);
             fprintf f "@start\n";
 
             output_seq seq;

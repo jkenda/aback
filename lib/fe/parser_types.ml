@@ -59,7 +59,9 @@ let make_node loc node_hl =
     { l = loc; t = None; n = node_hl; id = None }
 
 let make_macro_call loc func args =
-    make_node loc @@ Macro_call { func; args }
+    let node = make_node loc @@ Macro_call { func; args } in
+    node.t <- Some func.types.t_out;
+    node
 
 let string_of_node node =
     let rec string_of_nodes' ind nodes =

@@ -129,7 +129,7 @@ let rec check_seq stack takes seq =
         in
 
         (* push args *)
-        List.iter check_node args;
+        List.iter check_node @@ List.rev args;
 
         if List.exists is_generic func.types.t_in then
             (* check function on the inside *)
@@ -219,7 +219,7 @@ let rec check_seq stack takes seq =
         if right.n <> Empty then check_node' loc right;
 
         if left.n <> Empty && right.n <> Empty && left.t <> right.t then
-            raise @@ Error (loc, "operands must have the same type");
+            raise @@ Error (loc, sprintf "%s: operands must have the same type" (show_operator op));
 
         let t_in_act =
             try Stack.pop stack |> fst

@@ -94,6 +94,15 @@ type operator =
     | Ref | Deref
 [@@deriving show { with_path = false }]
 
+let n_operands = function
+    | Eq | NEq | Lt | LEq | Gt | GEq
+    | Add | Sub | Mul | Div | Mod
+    | LAnd | LOr | LXor | Lsl | Lsr
+    | And  | Or -> 2
+
+    | Itof | Ftoi
+    | Ref | Deref -> 1
+
 
 type type_gen =
     | Numeric
@@ -211,7 +220,7 @@ let rec string_of_type_hl = function
     | Struc tl -> Format.sprintf "struc { %s }" @@ (List.map (fun t -> snd t |> string_of_type_hl) tl |> List.fold_left (^) "")
     | Union tl -> Format.sprintf "union { %s }" @@ (List.map (fun t -> snd t |> string_of_type_hl) tl |> List.fold_left (^) "")
     | Str -> "str" | CStr -> "cstr"
-    | Ptr t -> string_of_type_hl t
+    | Ptr t -> string_of_type_hl t ^ " ptr"
     | General t -> string_of_type_gen t
     | Generic s -> s
 
