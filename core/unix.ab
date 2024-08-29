@@ -22,8 +22,8 @@ macro O_ASYNC    -> i32 is 020000   end
 
 
 (UNIX syscall function signatures)
-proc read         i32 str i32                     -> i32       end
-proc write        i32 str i32                     -> i32       end
+proc read         i32 str                         -> i32       end
+proc write        i32 str                         -> i32       end
 proc open         cstr i32 i32                    -> i32       end
 proc close        i32                             -> i32       end
 proc exit         i32                             ->           end
@@ -36,7 +36,7 @@ proc pipe         i32 ptr                         -> i32       end
 proc dup          i32                             -> i32       end
 proc dup2         i32 i32                         -> i32       end
 proc chdir        cstr                            -> i32       end
-proc getcwd       str i32                         -> cstr      end
+proc getcwd       str                             -> cstr      end
 proc mkdir        cstr i32                        -> i32       end
 proc rmdir        cstr                            -> i32       end
 proc link         cstr cstr                       -> i32       end
@@ -54,8 +54,8 @@ proc bind         i32 a' ptr i32                  -> i32       end
 proc listen       i32 i32                         -> i32       end
 proc accept       i32 a' ptr i32 ptr              -> i32       end
 proc connect      i32 a' ptr i32                  -> i32       end
-proc send         i32 a' ptr i32 i32              -> i32       end
-proc recv         i32 a' ptr i32 i32              -> i32       end
+proc send         i32 str i32                     -> i32       end
+proc recv         i32 str i32                     -> i32       end
 proc gettimeofday a' ptr a' ptr                   -> i32       end
 proc setsockopt   i32 i32 i32 a' ptr i32          -> i32       end
 proc getsockopt   i32 i32 i32 a' ptr i32 ptr      -> i32       end

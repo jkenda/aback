@@ -43,7 +43,7 @@ and node_hl =
     | Push_member of { name : string; index : node }
 
     | Proc_call of { func : func; args : node list }
-    | Macro_call of { func : func }
+    | Macro_call of { func : func; args : node list }
 
     | Assign_to_mem of { name : string; index : node; value : node }
     | Assign_to_var of { name : string; value : node }
@@ -52,14 +52,14 @@ and node_hl =
 
     | Op of { op : operator; left : node; right : node }
 
-    | Unknown_sequence of { length : int }
+    | Unknown_sequence of { types: type_hl list }
 [@@deriving show { with_path = false }]
 
 let make_node loc node_hl =
     { l = loc; t = None; n = node_hl; id = None }
 
-let make_macro_call loc func =
-    make_node loc @@ Macro_call { func }
+let make_macro_call loc func args =
+    make_node loc @@ Macro_call { func; args }
 
 let string_of_node node =
     let rec string_of_nodes' ind nodes =
@@ -90,11 +90,10 @@ let string_of_node node =
                         tabs
             | Push_take { name; _ } -> name ^ "\n"
 
-            | Proc_call  { func; args } ->
+            | Proc_call  { func; args }
+            | Macro_call { func; args } ->
                     func.name ^ "\n"
                    ^ string_of_nodes' (ind + 1) args
-            | Macro_call { func } ->
-                    func.name ^ "\n"
 
             | _ ->
                     show_node node

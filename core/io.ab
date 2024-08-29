@@ -13,7 +13,7 @@ take char end
     write STDOUT @ char 1
 end
 
-macro puts str -> is write STDOUT end
+macro puts str -> is write STDOUT ;; drop end
 
 (proc $puti$
     int int ->
@@ -98,7 +98,7 @@ macro putb
     bool ->
 is
 take b end ;;
+    if b then "true"
+    else "false" end ;;
     puts
-        if b then "true"
-        else "false" end
 end

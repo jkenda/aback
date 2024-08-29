@@ -194,11 +194,11 @@ let parse loc words =
                         make_node loc @@ Op { op; left; right }, rest
                 | Word name when Hashtbl.mem output.macros name ->
                         let func = Hashtbl.find output.macros name in
-                        make_node loc @@ Macro_call { func }, rest
+                        let args, tl = parse_args func.types.t_in rest in
+                        make_macro_call loc func args, tl
                 | Word name when Hashtbl.mem output.procs name ->
                         let proc = Hashtbl.find output.procs name in
-                        let nargs = List.length proc.types.t_in in
-                        let args, tl = parse_args loc name nargs rest in
+                        let args, tl = parse_args proc.types.t_in rest in
                         make_proc_call loc proc args, tl
                 | Word name when Hashtbl.mem output.vars name ->
                         let type_hl = Hashtbl.find output.vars name in
@@ -212,52 +212,36 @@ let parse loc words =
                         node, rest
                 | Word word ->
                         raise_unknown_word loc word
-                | Dot_dot ->
-                        make_node loc @@ Unknown_sequence { length = 1 }, rest
                 | End | Sep ->
                         make_node loc @@ Empty, words
 
                 | word -> raise @@ Error (loc, sprintf "expected expression, got '%s'" (string_of_word word))
 
     (** parse function arguments *)
-    and parse_args loc name n words =
-        let rec parse' n acc = function
+    and parse_args types words =
+        let rec parse' acc = function
             (* all arguments parsed *)
-            | words when n = 0 -> List.rev acc, words
+            | [], words -> List.rev acc, words
 
             (* invalid arguments *)
-            | _ when n < 0 -> raise @@ Error (loc, "Too many arguments for function " ^ name)
-            | [] -> raise @@ Error (loc, "Not enough arguments for function " ^ name)
-            | (loc, Sep) :: _ -> raise @@ Error (loc, "Expected argument, got " ^ string_of_word Sep)
+            | types, ((loc, Sep) :: _ as words)
+            | types, (loc, Dot_dot) :: words ->
+                    let node = make_node loc @@ Unknown_sequence { types } in
+                    List.rev (node :: acc), words
 
             (* parse next argument *)
-            | (l, _) :: _ as words ->
+            | _t_hl :: types, words ->
                     let node, rest = parse_polish words in
-                    match node.n with
-                    | Unknown_sequence _ ->
-                            let length = n in
-                            List.rev ((make_node l @@ Unknown_sequence { length }) :: acc), rest
-                    | Empty ->
-                            let length = n in
-                            List.rev ((make_node l @@ Unknown_sequence { length }) :: acc), rest
-                    | Proc_call { func; _ } | Macro_call { func; _ } ->
-                            let nargs = List.length func.types.t_in in
-                            parse' (n - nargs) (node :: acc) rest
-                    | _ ->
-                            parse' (n - 1) (node :: acc) rest
+                    parse' (node :: acc) (types, rest)
         in
-        parse' n [] words
+        parse' [] (types, words)
     in
 
     (** parse function call *)
-    let parse_proc_call table loc name words =
+    let parse_func_call f table loc name words =
         let func = Hashtbl.find table name in
-        let nargs = List.length func.types.t_in in
-        let args, rest = parse_args loc name nargs words in
-        make_proc_call loc func args, rest
-    and parse_macro_call table loc name =
-        let func = Hashtbl.find table name in
-        make_macro_call loc func
+        let args, rest = parse_args func.types.t_in words in
+        f loc func args, rest
     in
 
     (** get input and output types of function *)
@@ -427,9 +411,9 @@ let parse loc words =
 
         (* parse function/macro call *)
         | (loc, Word name) :: tl when Hashtbl.mem output.macros name ->
-                parse_macro_call output.macros loc name, tl
+                parse_func_call make_macro_call output.macros loc name tl
         | (loc, Word name) :: tl when Hashtbl.mem output.procs name ->
-                parse_proc_call output.procs loc name tl
+                parse_func_call make_proc_call output.procs loc name tl
 
         (* parse operator *)
         | (_, Op _) :: _ ->
