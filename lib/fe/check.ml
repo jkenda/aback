@@ -123,27 +123,37 @@ let rec check_seq stack takes seq =
 
     (* handle a proc call *)
     let rec handle_func_call loc func args =
-        (* only check the inside of the function of it has generic arguments *)
-        (* TODO: type specialization (a' -> int) *)
+        let is_generic = function
+            | Generic _ -> true
+            | _ -> false
+        in
 
+        (* push args *)
         List.iter check_node args;
 
-        let t_in_exp = func.types.t_in
-        and t_in_act = take_top (List.length func.types.t_in) stack in
+        if List.exists is_generic func.types.t_in then
+            (* check function on the inside *)
+            check_seq (list_of_stack stack) takes func.seq
+            |> replace_stack stack
+        else
+            (* check function on the outside *)
+            let t_in_exp = func.types.t_in
+            and t_in_act = take_top (List.length func.types.t_in) stack in
 
-        if not @@ compare t_in_exp t_in_act then
-        begin
-            let t_in_act = fst @@ List.split t_in_act in
-            raise_unexpected_stack "input" loc t_in_exp t_in_act
-        end;
+            if not @@ compare t_in_exp t_in_act then
+            begin
+                let t_in_act = fst @@ List.split t_in_act in
+                raise_unexpected_stack "input" loc t_in_exp t_in_act
+            end;
 
-        (* simulate calling the function *)
-        if Stack.length stack < List.length func.types.t_in then
-            raise @@ Error (loc, "not enough elements on the stack");
-        List.iter (fun _ -> Stack.pop stack |> ignore) func.types.t_in;
+            (* simulate calling the function *)
+            if Stack.length stack < List.length func.types.t_in then
+                raise @@ Error (loc, "not enough elements on the stack");
+            List.iter (fun _ -> Stack.pop stack |> ignore) func.types.t_in;
 
-        let t_out = List.map (fun t -> t, None) func.types.t_out in
-        List.iter (fun s -> Stack.push s stack) t_out;
+            (* push return values *)
+            let t_out = List.map (fun t -> t, None) func.types.t_out in
+            List.iter (fun s -> Stack.push s stack) t_out;
 
     (* check an if statement *)
     and check_if_statement loc cond true_branch false_branch =
