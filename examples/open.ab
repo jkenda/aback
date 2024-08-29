@@ -10,7 +10,7 @@ is
     peek fd end ;;
 
     read fd buffer 64 ;; (len fd)
-    while > dup 0 do
+    while > dup .. 0 do
         dup write STDOUT buffer ;; (fd)
         read fd buffer 64       ;; (len fd)
     end ;;
