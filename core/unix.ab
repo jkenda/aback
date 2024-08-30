@@ -27,7 +27,7 @@ proc write        i32 str                         -> i32       end
 proc open         cstr i32 i32                    -> i32       end
 proc close        i32                             -> i32       end
 proc exit         i32                             ->           end
-proc fork         void                            -> i32       end
+proc fork                                         -> i32       end
 proc execve       cstr cstr cstr                  -> i32       end
 proc wait         i32 ptr                         -> i32       end
 proc waitpid      i32 i32 ptr i32                 -> i32       end
@@ -61,12 +61,12 @@ proc setsockopt   i32 i32 i32 a' ptr i32          -> i32       end
 proc getsockopt   i32 i32 i32 a' ptr i32 ptr      -> i32       end
 proc select       i32 a' ptr a' ptr a' ptr a' ptr -> i32       end
 proc poll         a' ptr i32 i32                  -> i32       end
-proc getpid       void                            -> i32       end
-proc getppid      void                            -> i32       end
+proc getpid                                       -> i32       end
+proc getppid                                      -> i32       end
 proc setuid       i32                             -> i32       end
-proc getuid       void                            -> i32       end
+proc getuid                                       -> i32       end
 proc setgid       i32                             -> i32       end
-proc getgid       void                            -> i32       end
+proc getgid                                       -> i32       end
 proc alarm        i32                             -> i32       end
 proc sleep        i32                             -> i32       end
 proc nanosleep    a' ptr a' ptr                   -> i32       end
