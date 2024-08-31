@@ -30,27 +30,30 @@ let compare t_exp t_act =
     if List.length t_exp <> List.length t_act then
         false
     else
-        let compare acc = function
-            | t_exp, (General t_act, node_opt) ->
+        let compare = function
+            (* TEMPORARY: special case for character -> u8 *)
+            | (Primitive U8 : type_hl), (General Character, _) -> true
+            | t_spec, (General t_gen, node_opt)
+            | (General t_gen), (t_spec, node_opt) ->
                     (match node_opt with
-                    | Some node -> node.t <- Some [t_exp]
+                    | Some node -> node.t <- Some [t_spec]
                     | None -> ());
                     let type_gen =
-                        try type_gen_of_type_hl t_exp
+                        try type_gen_of_type_hl t_spec
                         with _ ->
                             match node_opt with
                             | Some node ->
                                     raise @@ Not_implemented (node.l, sprintf "node %s doesn't have type: %s"
                                         (show_node_hl node.n)
-                                        (show_type_hl t_exp))
+                                        (show_type_hl t_spec))
                             | None ->
-                                    failwith @@ sprintf "node doesn't have type: %s" (show_type_hl t_exp)
+                                    failwith @@ sprintf "node doesn't have type: %s" (show_type_hl t_spec)
                     in
-                    acc && type_gen = t_act
+                    type_gen = t_gen
             | t_exp, (t_act, _) ->
-                    acc && t_exp = t_act
+                    t_exp = t_act
         in
-        List.fold_left compare true @@ List.combine t_exp t_act
+        List.for_all compare @@ List.combine t_exp t_act
 
 let raise_unexpected_stack msg loc t_exp t_act =
     raise @@ Error (loc, sprintf "%s: expected %s, got %s" msg
@@ -81,7 +84,7 @@ let check_rec_macro ({ loc; _ } as func : func) =
     if is_recursive func then
         raise @@ Error (loc, "recursive macro")
 
-let rec check_seq stack takes seq =
+let rec check_seq input stack takes seq =
     let stack = stack_of_list stack in
 
     (* pop types from the stack and add them to takes *)
@@ -108,12 +111,13 @@ let rec check_seq stack takes seq =
 
 
     (* push a type from takes to stack *)
-    and push_take loc name =
+    and push_take node name =
         try
             let type_hl, node_opt = Hashtbl.find takes name in
-            Stack.push (type_hl, node_opt) stack
+            Stack.push (type_hl, node_opt) stack;
+            node.t <- Some [type_hl]
         with Not_found ->
-            raise @@ Error (loc, sprintf "take %s not found" name)
+            raise @@ Error (node.l, sprintf "take %s not found" name)
 
     and push_literal data node =
         let type_hl = type_of_data_hl data in
@@ -122,7 +126,7 @@ let rec check_seq stack takes seq =
     in
 
     (* handle a proc call *)
-    let rec handle_func_call loc func args =
+    let rec check_func_call loc func args =
         let is_generic = function
             | Generic _ -> true
             | _ -> false
@@ -133,7 +137,7 @@ let rec check_seq stack takes seq =
 
         if List.exists is_generic func.types.t_in then
             (* check function on the inside *)
-            check_seq (list_of_stack stack) takes func.seq
+            check_seq input (list_of_stack stack) takes func.seq
             |> replace_stack stack
         else
             (* check function on the outside *)
@@ -160,33 +164,45 @@ let rec check_seq stack takes seq =
         let t_stack_before = list_of_stack stack in
 
         (* check that condition returns only bool *)
-        let (t_stack_after : (type_hl * node option) list) = check_seq t_stack_before takes [cond] in
+        let (t_stack_after : (type_hl * node option) list) = check_seq input t_stack_before takes [cond] in
         (match t_stack_after with
         | (Primitive Bool, _) :: tl when tl = t_stack_before -> ()
-        | _ -> raise @@ Error (loc, "condition must only return bool"));
+        | _ ->
+                let t_stack_before = List.map fst t_stack_before
+                and t_stack_after = List.map fst t_stack_after in
+                raise_unexpected_stack "condition" loc ((Primitive Bool) :: t_stack_before) t_stack_after);
 
         (* check that true and false branches leave the same stack *)
-        let t_stack_after_true  = check_seq t_stack_before takes true_branch
-        and t_stack_after_false = check_seq t_stack_before takes false_branch in
+        let t_stack_after_true  = check_seq input t_stack_before takes true_branch
+        and t_stack_after_false = check_seq input t_stack_before takes false_branch in
         if List.map fst t_stack_after_true <> List.map fst t_stack_after_false then
             raise @@ Error (loc, "true and false branches must have the same return types\n");
         if List.length t_stack_after_true < List.length t_stack_before then
             raise @@ Error (loc, "branches must not drain the stack");
 
         replace_stack stack t_stack_after_true
+    
+    and check_assign node =
+        let type_stack =
+            try Stack.pop stack
+            with _ -> raise @@ Error (node.l, "not enough elements on the stack")
+        and type_mem =
+            match node.n with
+            | Assign_to_mem { name; _ } ->
+                    Hashtbl.find input.mems name |> fst
+            | Assign_to_var { name; _ } ->
+                    Hashtbl.find input.vars name
+            | _ -> raise @@ Unreachable ""
+        in
+        if not @@ compare [type_mem] [type_stack] then
+            let t_exp = fst type_stack in
+            raise_unexpected_stack "assign" node.l [t_exp] [type_mem]
 
     and check_operator node op left right =
         (* add stack offset *)
         node.id <- Some (Stack.length stack);
 
         let loc = node.l in
-        let n_operands =
-            match op with
-            | Itof | Ftoi
-            | Ref  | Deref
-                -> 1
-            | _ -> 2
-        in
         let check_node' loc = function
             | { n = (Op _ | Push_data _ | Push_take _ | Proc_call _ | Macro_call _); _ } as node ->
                     check_node node
@@ -202,53 +218,84 @@ let rec check_seq stack takes seq =
             | Ftoi -> Floating
 
             | And | Or -> Boolean
-            | Ref -> top
+            | Ref -> type_gen_of_type_hl top
             | Deref ->
-                    match top with
+                    match type_gen_of_type_hl top with
                     | Pointer t -> t
-                    | _ -> raise @@ Error (loc, "can only deref pointer")
+                    | _ -> raise @@ Error (loc, sprintf "cannot deref %s" (string_of_type_hl top))
         in
 
         if left.n = Empty && right.n = Empty then
             raise @@ Error (loc, "expected at least one operand")
-        else if n_operands = 2 && right.n == Empty then
+        else if n_operands op = 2 && right.n == Empty then
             raise @@ Error (loc, "expected 2 operands, got 1");
 
         (* check operands *)
         if left.n  <> Empty then check_node' loc left;
         if right.n <> Empty then check_node' loc right;
 
-        if left.n <> Empty && right.n <> Empty && left.t <> right.t then
-            raise @@ Error (loc, sprintf "%s: operands must have the same type" (show_operator op));
+        if left.n <> Empty && right.n <> Empty then
+        begin
+            let left_t =
+                try List.hd @@ Option.get left.t
+                with _ -> raise @@ Not_implemented (left.l, sprintf "%s: no return type" (show_node_hl left.n))
+            and right_t =
+                try List.hd @@ Option.get right.t
+                with _ -> raise @@ Not_implemented (right.l, sprintf "%s: no return type" (show_node_hl right.n)) in
+
+            match left_t, right_t with
+            | Generic t_genl, Generic t_genr ->
+                    if t_genl <> t_genr then
+                        raise_unexpected_stack (show_operator op) loc [left_t; left_t] [left_t; right_t]
+            | Generic _, t_spec
+            | t_spec, Generic _ ->
+                    left.t  <- Some [t_spec];
+                    right.t <- Some [t_spec];
+            | t_specl, t_specr ->
+                    if not @@ compare [t_specl] [t_specr, None] then
+                        raise_unexpected_stack (show_operator op) loc [left_t; left_t] [left_t; right_t];
+        end;
 
         let t_in_act =
             try Stack.pop stack |> fst
             with Stack.Empty ->
                 raise @@ Error (loc, "not enough elements on the stack")
         in
-        let t_in_gen = type_gen_of_type_hl t_in_act in
-        let t_in_exp = t_in_exp t_in_gen op in
-        if t_in_gen <> t_in_exp  then
-            raise_unexpected_stack "" loc [General t_in_exp] [General t_in_gen];
 
-        let (t_out : type_hl option) =
+        if right.n <> Empty then
+            Stack.pop stack |> ignore;
+        
+        begin
+            match t_in_act with
+            | Generic _ -> 
+                    left.t  <- Some [General (t_in_exp t_in_act op)];
+                    right.t <- Some [General (t_in_exp t_in_act op)];
+            | _ ->
+                let t_in_gen =
+                    try type_gen_of_type_hl t_in_act
+                    with Failure str -> raise @@ Error (loc, str)
+                in
+                let t_in_exp = t_in_exp t_in_act op in
+                if not @@ type_gen_eq t_in_gen t_in_exp  then
+                    raise_unexpected_stack "" loc [General t_in_exp] [General t_in_gen]
+        end;
+
+        let (t_out : type_hl) =
             match op with
-            | Eq | NEq | Lt | LEq | Gt | GEq -> Some (Primitive Bool)
-            | Add | Sub | Mul | Div | Mod -> Some (t_in_act)
-            | Itof -> Some (Primitive (if t_in_act = Primitive I32 then F32 else F64))
-            | Ftoi -> Some (Primitive (if t_in_act = Primitive F32 then I32 else I64))
-            | LAnd | LOr | LXor | Lsl | Lsr -> Some t_in_act
-            | And | Or -> Some (Primitive Bool)
-            | Ref -> Some (Ptr (t_in_act))
+            | Eq | NEq | Lt | LEq | Gt | GEq -> Primitive Bool
+            | Add | Sub | Mul | Div | Mod -> t_in_act
+            | Itof -> Primitive (if t_in_act = Primitive I32 then F32 else F64)
+            | Ftoi -> Primitive (if t_in_act = Primitive F32 then I32 else I64)
+            | LAnd | LOr | LXor | Lsl | Lsr -> t_in_act
+            | And | Or -> Primitive Bool
+            | Ref -> Ptr t_in_act
             | Deref ->
-                    match t_in_act with Ptr t -> Some t
+                    match t_in_act with Ptr t -> t
                     | _ -> raise @@ Error (loc, sprintf "cannot deref %s" (string_of_type_hl t_in_act))
         in
 
-        match t_out with Some t -> Stack.push (t, Some node) stack
-        | None ->();
-
-        node.t <- Option.map (fun t -> [t]) t_out
+        Stack.push (t_out, Some node) stack;
+        node.t <- Some [t_out]
 
     and check_node node =
         node.id <- Some (Stack.length stack);
@@ -265,16 +312,21 @@ let rec check_seq stack takes seq =
                 | _ ->
                         peek_to_takes node.l vars);
 
-                check_seq (list_of_stack stack) takes body
+                check_seq input (list_of_stack stack) takes body
                 |> replace_stack stack
 
         | Push_take { name; _ } ->
-                push_take node.l name
+                push_take node name
         | Push_data { data; _ } ->
                 push_literal data node
         | Proc_call { func; args }
         | Macro_call { func; args } ->
-                handle_func_call node.l func args
+                check_func_call node.l func args
+
+        | Assign_to_mem { value; _ }
+        | Assign_to_var { value; _ } ->
+                check_node value;
+                check_assign node
 
         | If_statement { cond; true_branch; false_branch } ->
                 check_if_statement node.l cond true_branch false_branch
@@ -283,6 +335,7 @@ let rec check_seq stack takes seq =
                 check_operator node op left right
 
         | Unknown_sequence _ ->
+                (* TODO: check the types on stack *)
                 ()
         | Var _ | Mem _ ->
                 raise @@ Unreachable "out of place var/mem should be handled in Parser"
@@ -300,7 +353,7 @@ let check input =
         else
             let takes = Hashtbl.create 10 in
             let t_in_act = List.map (fun t -> t, None) types.t_in in
-            let t_out_act = check_seq t_in_act takes seq in
+            let t_out_act = check_seq input t_in_act takes seq in
 
             if not @@ compare types.t_out t_out_act then
                 let t_out_act = List.map fst t_out_act in

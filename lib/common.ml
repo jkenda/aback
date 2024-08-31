@@ -128,6 +128,12 @@ let rec string_of_type_gen = function
 let string_of_types_gen =
     List.fold_left (fun acc typ -> acc ^ string_of_type_gen typ ^ " ") ""
 
+let type_gen_eq a b =
+    match a, b with
+    | Numeric, (Integer | Floating)
+    | (Integer | Floating), Numeric -> true
+    | _ -> a = b
+
 
 (*
     types produced by the lexer
