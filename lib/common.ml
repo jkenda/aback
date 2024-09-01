@@ -79,31 +79,6 @@ let print_in_color f color text =
     text
 
 
-(*
-    operators
-    intrinsic functions that have one or two arguments
- *)
-type operator =
-    | Eq | NEq | Lt | LEq | Gt | GEq
-    | Add | Sub | Mul | Div | Mod
-
-    | Itof | Ftoi
-
-    | LAnd | LOr | LXor | Lsl | Lsr
-    | And  | Or
-    | Ref | Deref
-[@@deriving show { with_path = false }]
-
-let n_operands = function
-    | Eq | NEq | Lt | LEq | Gt | GEq
-    | Add | Sub | Mul | Div | Mod
-    | LAnd | LOr | LXor | Lsl | Lsr
-    | And  | Or -> 2
-
-    | Itof | Ftoi
-    | Ref | Deref -> 1
-
-
 type type_gen =
     | Numeric
     | Integer
@@ -273,9 +248,10 @@ type data_tok =
 let string_of_data_tok = function
     | Integer i -> string_of_int i
     | Decimal f -> string_of_float f
-    | Char c -> String.make 1 c
+    | Char c -> sprintf "'%c'" c
     | Bool b -> string_of_bool b
-    | String s -> sprintf "\"%s\"" (String.escaped s) | CString s -> sprintf "c\"%s\"" (String.escaped s)
+    | String s  -> sprintf "\"%s\"" (String.escaped s)
+    | CString s -> sprintf "c\"%s\"" (String.escaped s)
 
 let (type_of_data_tok : data_tok -> type_gen) = function
     | Integer _ -> Integer
@@ -421,6 +397,32 @@ let data_hl_of_data_lit loc (t_hl : type_hl) data =
     | Const_cstr (str, off), CStr -> CStr (str, off)
     | _, General _ -> raise @@ Error (loc, sprintf "cannot specialize a general type: %s" (string_of_type_hl t_hl))
     | _ -> raise @@ Error (loc, sprintf "cannot specialize %s with type %s" (string_of_data_lit data) (string_of_type_hl t_hl))
+
+
+(*
+    operators
+    intrinsic functions that have one or two arguments
+ *)
+type operator =
+    | Eq | NEq | Lt | LEq | Gt | GEq
+    | Add | Sub | Mul | Div | Mod
+
+    | Cast_to of type_tok
+
+    | LAnd | LOr | LXor | Lsl | Lsr
+    | And  | Or
+    | Ref | Deref
+[@@deriving show { with_path = false }]
+
+let n_operands = function
+    | Eq | NEq | Lt | LEq | Gt | GEq
+    | Add | Sub | Mul | Div | Mod
+    | LAnd | LOr | LXor | Lsl | Lsr
+    | And  | Or -> 2
+
+    | Cast_to _
+    | Ref | Deref -> 1
+
 
 let read_whole_stream ch =
     let s = really_input_string ch (in_channel_length ch) in

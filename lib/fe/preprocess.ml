@@ -31,28 +31,7 @@ and preprocess words =
                 acc, remove_comment words
 
         | (loc, word) :: tl ->
-                (loc, match word with
-                | Literal l -> Literal l
-
-                | Macro -> Macro | Proc -> Proc | Is -> Is
-                | If -> If | Then -> Then | Else -> Else
-                | While -> While | Do -> Do
-                | Peek -> Peek | Take -> Take | In -> In
-                | Mem -> Mem | Var -> Var
-                | End -> End
-
-                | Sep -> Sep
-
-                | Type t -> Type t
-
-                | Dot_dot -> Dot_dot
-
-                | Assign -> Assign | Index -> Index | Return -> Return
-
-                | Op op -> Op op
-
-                | Word w -> Word w
-                | _ -> raise @@ Not_implemented (loc, show_word word)) :: acc, tl
+                (loc, word) :: acc, tl
 
 
     in

@@ -63,7 +63,7 @@ let qbe_string_of_operator op (t_in : type_hl) =
     | Mul -> "mul" | Div -> "div"
     | Mod -> if signed then "mod" else "umod"
 
-    | Itof | Ftoi
+    | Cast_to _
 
     | LAnd | LOr | LXor | Lsl | Lsr
     | And  | Or

@@ -1,7 +1,7 @@
 macro min
     a' a' -> a'
 is
-take a b end ;;
+take a b end
     if <= a b then a
     else b end
 end
@@ -9,20 +9,20 @@ end
 macro max
     a' a' -> a'
 is
-take a b end ;;
+take a b end
     if >= a b then a
     else b end
 end
 
 proc **
-    int int -> int
+    a' a' -> a'
 is
-take a b end ;;
+take a b end
     0 1 ;;
     while < dup .. b do
         take i pow in
             + 1 i
             * a pow
-        end ;;
-    end ;; drop
+        end
+    end drop
 end

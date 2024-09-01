@@ -32,6 +32,7 @@ type word =
 
     | Literal of data_tok
     | Type of type_tok
+    | To
 
     | Sep | Return
 
@@ -53,6 +54,7 @@ let string_of_word = function
     | Include -> "include"
     | Literal a -> string_of_data_tok a
     | Type t -> string_of_type_tok t
+    | To -> "to"
 
     | Sep -> ";;" | Return -> "->"
 
@@ -75,7 +77,7 @@ let string_of_word = function
     | Op Div -> "/"
     | Op Mod -> "%"
 
-    | Op Itof -> "itof" | Op Ftoi -> "ftoi"
+    | Op Cast_to t -> sprintf "to %s" (string_of_type_tok t)
 
     | Op LAnd -> "&"  | Op LOr -> "|" | Op LXor -> "^" | Op Lsl -> "<<" | Op Lsr -> ">>"
     | Op And  -> "&&" | Op Or -> "||"
@@ -110,6 +112,7 @@ let instr_of_word (loc, word) =
         | "bool" -> Type Bool
         | "ptr" -> Type Ptr
         | "str" -> Type Str | "cstr" -> Type CStr
+        | "to" -> To
 
         | "=" -> Op Eq | "/=" -> Op NEq
         | "<" -> Op Lt | "<=" -> Op LEq
@@ -118,8 +121,6 @@ let instr_of_word (loc, word) =
         | "+" -> Op Add | "-" -> Op Sub
         | "*" -> Op Mul | "/" -> Op Div
         | "%" -> Op Mod
-
-        | "itof" -> Op Itof | "ftoi" -> Op Ftoi
 
         | "&"  -> Op LAnd | "|"  -> Op LOr | "^" -> Op LXor
         | "<<" -> Op Lsl  | ">>" -> Op Lsr

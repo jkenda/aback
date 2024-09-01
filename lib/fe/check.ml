@@ -60,6 +60,9 @@ let raise_unexpected_stack msg loc t_exp t_act =
         (string_of_types_hl t_exp)
         (string_of_types_hl t_act))
 
+let raise_not_enough_elements loc =
+    raise @@ Error (loc, "not enough elements on the stack")
+
 
 (** check whether the function is recursive or not *)
 let is_recursive { name; seq; _ } =
@@ -84,14 +87,19 @@ let check_rec_macro ({ loc; _ } as func : func) =
     if is_recursive func then
         raise @@ Error (loc, "recursive macro")
 
-let rec check_seq input stack takes seq =
+let rec check_seq caller input stack takes seq =
     let stack = stack_of_list stack in
 
     (* pop types from the stack and add them to takes *)
     let pop_to_takes loc names =
         let pop_to_takes' name =
+            let loc =
+                match caller with
+                | Some l -> { loc with expanded_from = l :: loc.expanded_from }
+                | None -> loc
+            in
             match Stack.pop_opt stack with
-            | None -> raise @@ Error (loc, "not enough elements on the stack")
+            | None -> raise_not_enough_elements loc
             | Some type_src -> Hashtbl.add takes name type_src
         in
         List.iter pop_to_takes' names
@@ -102,9 +110,14 @@ let rec check_seq input stack takes seq =
             Hashtbl.add takes name type_source
         in
         let stack = Stack.to_seq stack
-        and names = List.to_seq names in
+        and names = List.to_seq names
+        and loc =
+            match caller with
+            | Some l -> { loc with expanded_from = l :: loc.expanded_from }
+            | None -> loc
+        in
         if Seq.length stack < Seq.length names then
-            raise @@ Error (loc, "not enough elements on the stack");
+            raise_not_enough_elements loc;
 
         Seq.zip names stack
         |> Seq.iter peek_to_takes'
@@ -115,6 +128,20 @@ let rec check_seq input stack takes seq =
         try
             let type_hl, node_opt = Hashtbl.find takes name in
             Stack.push (type_hl, node_opt) stack;
+            node.t <- Some [type_hl]
+        with Not_found ->
+            raise @@ Error (node.l, sprintf "take %s not found" name)
+    and push_mem node name =
+        try
+            let type_hl, _len = Hashtbl.find input.mems name in
+            Stack.push (type_hl, Some node) stack;
+            node.t <- Some [type_hl]
+        with Not_found ->
+            raise @@ Error (node.l, sprintf "take %s not found" name)
+    and push_var node name =
+        try
+            let type_hl = Hashtbl.find input.vars name in
+            Stack.push (type_hl, Some node) stack;
             node.t <- Some [type_hl]
         with Not_found ->
             raise @@ Error (node.l, sprintf "take %s not found" name)
@@ -137,7 +164,7 @@ let rec check_seq input stack takes seq =
 
         if List.exists is_generic func.types.t_in then
             (* check function on the inside *)
-            check_seq input (list_of_stack stack) takes func.seq
+            check_seq (Some (loc, "")) input (list_of_stack stack) takes func.seq
             |> replace_stack stack
         else
             (* check function on the outside *)
@@ -152,7 +179,7 @@ let rec check_seq input stack takes seq =
 
             (* simulate calling the function *)
             if Stack.length stack < List.length func.types.t_in then
-                raise @@ Error (loc, "not enough elements on the stack");
+                raise_not_enough_elements loc;
             List.iter (fun _ -> Stack.pop stack |> ignore) func.types.t_in;
 
             (* push return values *)
@@ -164,7 +191,7 @@ let rec check_seq input stack takes seq =
         let t_stack_before = list_of_stack stack in
 
         (* check that condition returns only bool *)
-        let (t_stack_after : (type_hl * node option) list) = check_seq input t_stack_before takes [cond] in
+        let (t_stack_after : (type_hl * node option) list) = check_seq caller input t_stack_before takes [cond] in
         (match t_stack_after with
         | (Primitive Bool, _) :: tl when tl = t_stack_before -> ()
         | _ ->
@@ -173,21 +200,45 @@ let rec check_seq input stack takes seq =
                 raise_unexpected_stack "condition" loc ((Primitive Bool) :: t_stack_before) t_stack_after);
 
         (* check that true and false branches leave the same stack *)
-        let t_stack_after_true  = check_seq input t_stack_before takes true_branch
-        and t_stack_after_false = check_seq input t_stack_before takes false_branch in
-        if List.map fst t_stack_after_true <> List.map fst t_stack_after_false then
-            raise @@ Error (loc, "true and false branches must have the same return types\n");
+        let t_stack_after_true  = check_seq caller input t_stack_before takes true_branch
+        and t_stack_after_false = check_seq caller input t_stack_before takes false_branch in
+        if not @@ compare (List.map fst t_stack_after_true) t_stack_after_false then
+        begin
+            let msg =
+                sprintf "true and false branches must have the same return types\n\ttrue: %s\n\tfalse: %s"
+                (string_of_types_hl (List.map fst t_stack_after_true))
+                (string_of_types_hl (List.map fst t_stack_after_false))
+            in
+            raise @@ Error (loc, msg)
+        end;
         if List.length t_stack_after_true < List.length t_stack_before then
-            raise @@ Error (loc, "branches must not drain the stack");
+            raise @@ Error (loc, "branches must not shrink the stack");
 
         replace_stack stack t_stack_after_true
+
+    and check_while_statement loc cond body =
+        let t_stack_before = list_of_stack stack in
+
+        (* check that condition returns only bool *)
+        let (t_stack_after : (type_hl * node option) list) = check_seq caller input t_stack_before takes [cond] in
+        (match t_stack_after with
+        | (Primitive Bool, _) :: tl when tl = t_stack_before -> ()
+        | _ ->
+                let t_stack_before = List.map fst t_stack_before
+                and t_stack_after = List.map fst t_stack_after in
+                raise_unexpected_stack "condition" loc ((Primitive Bool) :: t_stack_before) t_stack_after);
+
+        let t_stack_after_body  = check_seq caller input t_stack_before takes body in
+        if List.length t_stack_after_body <> List.length t_stack_before then
+            raise @@ Error (loc, "loops must not grow or shrink");
     
-    and check_assign node =
+    and check_assign value mem_node =
+        check_node value;
         let type_stack =
             try Stack.pop stack
-            with _ -> raise @@ Error (node.l, "not enough elements on the stack")
+            with _ -> raise_not_enough_elements mem_node.l;
         and type_mem =
-            match node.n with
+            match mem_node.n with
             | Assign_to_mem { name; _ } ->
                     Hashtbl.find input.mems name |> fst
             | Assign_to_var { name; _ } ->
@@ -196,26 +247,25 @@ let rec check_seq input stack takes seq =
         in
         if not @@ compare [type_mem] [type_stack] then
             let t_exp = fst type_stack in
-            raise_unexpected_stack "assign" node.l [t_exp] [type_mem]
+            raise_unexpected_stack "assign" mem_node.l [t_exp] [type_mem]
 
     and check_operator node op left right =
         (* add stack offset *)
         node.id <- Some (Stack.length stack);
 
         let loc = node.l in
-        let check_node' loc = function
-            | { n = (Op _ | Push_data _ | Push_take _ | Proc_call _ | Macro_call _); _ } as node ->
-                    check_node node
-            | node ->
-                    raise @@ Error (loc, sprintf "expected operand, got %s" (string_of_node node))
+        let check_node' loc node =
+            if is_node_operand node.n then
+                check_node node
+            else
+                raise @@ Error (loc, sprintf "expected operand, got %s" (show_node_hl node.n))
         and t_in_exp top = function
-            | Eq | NEq | Lt | LEq | Gt | GEq -> Numeric
+            | Eq | NEq | Lt | LEq | Gt | GEq
+            | Add | Sub | Mul | Div | Mod -> Numeric
 
-            | Add | Sub | Mul | Div | Mod
-            | LAnd | LOr | LXor | Lsl | Lsr
-            | Itof -> Integer
+            | LAnd | LOr | LXor | Lsl | Lsr -> Integer
 
-            | Ftoi -> Floating
+            | Cast_to _ -> type_gen_of_type_hl top
 
             | And | Or -> Boolean
             | Ref -> type_gen_of_type_hl top
@@ -259,7 +309,7 @@ let rec check_seq input stack takes seq =
         let t_in_act =
             try Stack.pop stack |> fst
             with Stack.Empty ->
-                raise @@ Error (loc, "not enough elements on the stack")
+                raise_not_enough_elements loc;
         in
 
         if right.n <> Empty then
@@ -277,15 +327,14 @@ let rec check_seq input stack takes seq =
                 in
                 let t_in_exp = t_in_exp t_in_act op in
                 if not @@ type_gen_eq t_in_gen t_in_exp  then
-                    raise_unexpected_stack "" loc [General t_in_exp] [General t_in_gen]
+                    raise_unexpected_stack (show_operator op) loc [General t_in_exp] [General t_in_gen]
         end;
 
         let (t_out : type_hl) =
             match op with
             | Eq | NEq | Lt | LEq | Gt | GEq -> Primitive Bool
             | Add | Sub | Mul | Div | Mod -> t_in_act
-            | Itof -> Primitive (if t_in_act = Primitive I32 then F32 else F64)
-            | Ftoi -> Primitive (if t_in_act = Primitive F32 then I32 else I64)
+            | Cast_to t -> Primitive (type_ll_of_type_tok t)
             | LAnd | LOr | LXor | Lsl | Lsr -> t_in_act
             | And | Or -> Primitive Bool
             | Ref -> Ptr t_in_act
@@ -312,33 +361,41 @@ let rec check_seq input stack takes seq =
                 | _ ->
                         peek_to_takes node.l vars);
 
-                check_seq input (list_of_stack stack) takes body
+                check_seq caller input (list_of_stack stack) takes body
                 |> replace_stack stack
 
-        | Push_take { name; _ } ->
-                push_take node name
         | Push_data { data; _ } ->
                 push_literal data node
+        | Push_take { name; _ } ->
+                push_take node name
+        | Push_var  { name } ->
+                push_var node name
+        | Push_mem  { name } ->
+                push_mem node name
+
         | Proc_call { func; args }
         | Macro_call { func; args } ->
                 check_func_call node.l func args
 
         | Assign_to_mem { value; _ }
         | Assign_to_var { value; _ } ->
-                check_node value;
-                check_assign node
-
+                let mem_node = node in
+                check_assign value mem_node
         | If_statement { cond; true_branch; false_branch } ->
                 check_if_statement node.l cond true_branch false_branch
+        | While_statement { cond; body } ->
+                check_while_statement node.l cond body
 
         | Op { op; left; right } ->
                 check_operator node op left right
 
-        | Unknown_sequence _ ->
-                (* TODO: check the types on stack *)
-                ()
+        | Unknown_sequence { length } ->
+                if Stack.length stack < length then
+                    raise_not_enough_elements node.l;
+                node.t <- Some (take_top length stack |> List.map fst)
+
         | Var _ | Mem _ ->
-                raise @@ Unreachable "out of place var/mem should be handled in Parser"
+                raise @@ Unreachable "out of place var/mem should be handled in parser"
         (* TEMPORARY *)
         | _ -> raise @@ Not_implemented (node.l, sprintf "checking %s not implemented yet" (show_node_hl node.n))
     in
@@ -353,7 +410,7 @@ let check input =
         else
             let takes = Hashtbl.create 10 in
             let t_in_act = List.map (fun t -> t, None) types.t_in in
-            let t_out_act = check_seq input t_in_act takes seq in
+            let t_out_act = check_seq None input t_in_act takes seq in
 
             if not @@ compare types.t_out t_out_act then
                 let t_out_act = List.map fst t_out_act in

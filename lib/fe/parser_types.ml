@@ -48,11 +48,11 @@ and node_hl =
     | Assign_to_mem of { name : string; index : node; value : node }
     | Assign_to_var of { name : string; value : node }
     | If_statement  of { cond : node; true_branch : node list; false_branch : node list }
-    | While_statement of { cond : node; body : node list}
+    | While_statement of { cond : node; body : node list }
 
     | Op of { op : operator; left : node; right : node }
 
-    | Unknown_sequence of { types: type_hl list }
+    | Unknown_sequence of { length: int }
 [@@deriving show { with_path = false }]
 
 let make_node loc node_hl =
@@ -62,6 +62,37 @@ let make_macro_call loc func args =
     let node = make_node loc @@ Macro_call { func; args } in
     node.t <- Some func.types.t_out;
     node
+
+let is_node_reversible = function
+    | Take _
+    | Peek _
+    | Scoped_take _
+    | Scoped_peek _ -> false
+
+    | Push_take   _
+    | Push_data   _
+    | Push_var    _
+    | Push_mem    _
+    | Push_member _ -> true
+
+    | Proc_call  _
+    | Macro_call _ -> true
+
+    | Assign_to_mem   _
+    | Assign_to_var   _
+    | If_statement    _
+    | While_statement _ -> false
+
+    | Op _ -> true
+
+    | node -> raise @@ Unreachable ("why are you asking this about this node??: " ^ (show_node_hl node))
+
+let is_node_operand = function
+    | Op _
+    | Proc_call _ | Macro_call _
+    | Push_data _ | Push_take _ | Push_var _
+    | Unknown_sequence _ -> true
+    | _ -> false
 
 let string_of_node node =
     let rec string_of_nodes' ind nodes =

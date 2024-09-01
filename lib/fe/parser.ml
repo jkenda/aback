@@ -131,8 +131,10 @@ let parse loc words =
             | (_, Type t) :: tl -> parse_typ' ((type_hl_of_type_tok t) :: acc) tl
             | (_, Word w) :: tl when Hashtbl.mem output.typs w ->
                     parse_typ' (Hashtbl.find output.typs w :: acc) tl
-            | (_, Word w) :: tl ->
+            | (_, Word w) :: tl when String.ends_with ~suffix:"'" w ->
                     parse_typ' ((Generic w) :: acc) tl
+            | (loc, Word w) :: _ ->
+                    raise @@ Error (loc, sprintf "unknown type: %s (generics should end in ')" w)
 
             | (loc, word) :: _ ->
                     let expected_words = Array.to_list terminators in
@@ -181,6 +183,14 @@ let parse loc words =
     let rec parse_polish words =
         match words with
         | [] -> make_node loc @@ Empty, []
+        | (loc, To) :: (_, Type t) :: rest ->
+                let op = Cast_to t
+                and left, rest = parse_polish rest
+                and right = make_node loc @@ Empty in
+                make_node loc @@ Op { op; left; right }, rest
+        | (_, To) :: (loc, word) :: _ ->
+                raise @@ Error (loc, sprintf "expected type, got '%s'" (string_of_word word))
+
         | (loc, word : location * word) :: rest ->
                 match word with
                 | Literal data ->
@@ -217,6 +227,8 @@ let parse loc words =
                         node, rest
                 | Word word ->
                         raise_unknown_word loc word
+                | Dot_dot ->
+                        make_node loc @@ Unknown_sequence { length = 1 }, rest
                 | End | Sep ->
                         make_node loc @@ Empty, words
 
@@ -231,7 +243,7 @@ let parse loc words =
             (* invalid arguments *)
             | types, ((loc, Sep) :: _ as words)
             | types, (loc, Dot_dot) :: words ->
-                    let node = make_node loc @@ Unknown_sequence { types } in
+                    let node = make_node loc @@ Unknown_sequence { length = List.length types } in
                     node.t <- Some types;
                     List.rev (node :: acc), words
 
@@ -290,8 +302,13 @@ let parse loc words =
                     | [] -> raise_unreachable_eof None
                     | [loc, EOF] -> raise_unexpected_eof loc
 
-                    | (_, word) :: tl when Array.mem word separators ->
-                            parse' ([], (node :: top) :: rest) tl
+                    | (loc, word) :: tl when Array.mem word separators ->
+                            if is_node_reversible node.n then
+                                parse' ([], (node :: top) :: rest) tl
+                            else
+                                raise @@ Error (loc, "unexpected separator after non-reversible expression");
+                    | words when not @@ is_node_reversible node.n ->
+                            parse' ([], (node :: top) :: rest) words
                     | _ ->
                             parse' (node :: top, rest) words
 
@@ -422,7 +439,7 @@ let parse loc words =
                 parse_func_call make_proc_call output.procs loc name tl
 
         (* parse operator *)
-        | (_, Op _) :: _ ->
+        | (_, (Op _ | To)) :: _ ->
                 parse_polish words
 
         (* ERROR -- unknown word *)
@@ -482,8 +499,8 @@ let parse loc words =
         | (loc, Literal data) :: tl ->
                 parse_literal loc data, tl
 
-        | (loc, word) :: _ ->
-                raise @@ Error (loc, sprintf "%s: word not allowed at the toplevel" (string_of_word word))
+        | (loc, word) :: _tl ->
+                raise @@ Error (loc, sprintf "'%s': unexpected word" (string_of_word word))
     in
 
     (** parse top-level program constructs -- global memory and functions *)
@@ -519,6 +536,7 @@ let parse loc words =
         |> ignore
     in
 
+    (* mark function unused if it's not reachable from main *)
     let mark_unused _ func =
         let rec is_called_from_main func_name =
             let callers = Hashtbl.find_all func_callers func_name in

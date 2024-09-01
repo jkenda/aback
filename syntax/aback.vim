@@ -24,12 +24,16 @@ syn keyword abackStack 3dup 4dup 5dup 3drop 4drop 5drop
 syn keyword abackInclude include
 
 syn keyword abackBool true false
-syn keyword abackFunc puts putc puti putf putb itof ftoi
+syn keyword abackFunc puts putc puti putf putb
+
+" Types
+syn keyword abackType i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 bool ptr
 
 syn keyword abackOperator +  -  *  /  %
 syn keyword abackOperator +. -. *. /.
 syn keyword abackOperator = /= < > <= >=
 syn keyword abackOperator ; ;; -> :=
+syn keyword abackOperator to
 syn match   abackOperator '\<\(||\||\|&&\|&\|\[\]\)\>'
 
 " Int
@@ -62,3 +66,4 @@ hi def link abackFunc     Function
 hi def link abackStack    Macro
 hi def link abackInclude  Include
 hi def link abackComment  Comment
+hi def link abackType     Type

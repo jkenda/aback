@@ -148,7 +148,10 @@ let exec options =
                 print_error loc msg
             | Not_implemented (loc, msg) ->
                 print_in_color stderr Yellow "(NOT IMPLEMENTED)\n\n";
-                print_error loc msg;
+                print_error loc msg
+            | Unreachable msg ->
+                print_in_color stderr Red "(STATE SHOULD NOT BE REACHABLE!)\n";
+                print_endline msg
             | _ -> ()
         end;
 
