@@ -33,6 +33,7 @@ let parse_args args =
         | 'r' -> add_flag Run
         | 'i' -> add_flag Stdout_il
         | 'a' -> add_flag Stdout_asm
+        | 'c' -> add_flag Output_obj
         | c -> raise @@ Invalid_argument (sprintf "unknown flag: '%c'" c)
     in
     let rec parse_args' args =

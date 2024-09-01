@@ -47,8 +47,7 @@ _build/scalls.o: _build scalls/$(ARCH)-header.s scalls/$(ARCH)_$(OS).s
 	$(CAT) scalls/$(ARCH)-header.s scalls/$(ARCH)_$(OS).s | $(CC) -c $(CFLAGS) -o $@ -
 
 %.o: %.ab
-	@# TODO: implement a -c flag in aback
-	aback -a $^ | $(CC) -c $(CFLAGS) -o _build/$@ -
+	aback -c -o _build/$@ $^
 
 clean:
 	rm -rf _build

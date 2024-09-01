@@ -23,7 +23,16 @@ let compile options parser_output =
         if List.mem Stdout_asm options.flags || List.mem Stdout_il options.flags then
             stdout, None
         else
-            let pid_gcc = create_process "gcc" [| "gcc"; "-xassembler"; "-o"; path_out; "-" |] gcc_in stdout stderr in
+            let gcc_args =
+                let add_flag acc = function
+                    | Output_obj -> "-c" :: acc
+                    | _ -> acc
+                in
+                let gcc_flags = List.fold_left add_flag ["-xassembler"] options.flags in
+                "gcc" :: gcc_flags @ ["-o"; path_out; "-"]
+                |> Array.of_list
+            in
+            let pid_gcc = create_process "gcc" gcc_args gcc_in stdout stderr in
             close gcc_in;
             gcc_out, Some pid_gcc
     in

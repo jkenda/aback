@@ -37,6 +37,7 @@ type flag =
     | Run
     | Stdout_il
     | Stdout_asm
+    | Output_obj
 [@@deriving show { with_path = false }]
 
 type mode =
