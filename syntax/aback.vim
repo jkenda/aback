@@ -27,12 +27,11 @@ syn keyword abackBool true false
 syn keyword abackFunc puts putc puti putf putb
 
 " Types
-syn keyword abackType i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 bool ptr
+syn keyword abackType i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 bool char ptr
 
 syn keyword abackOperator +  -  *  /  %
-syn keyword abackOperator +. -. *. /.
 syn keyword abackOperator = /= < > <= >=
-syn keyword abackOperator ; ;; -> :=
+syn keyword abackOperator ;; -> := @
 syn keyword abackOperator to
 syn match   abackOperator '\<\(||\||\|&&\|&\|\[\]\)\>'
 

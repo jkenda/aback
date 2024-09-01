@@ -46,7 +46,7 @@ let (type_null : type_ll -> data_ll) = function
     | I8 -> I8 0 | I16 -> I16 0 | I32 -> I32 0 | I64 -> I64 0
     | U8 -> U8 0 | U16 -> U16 0 | U32 -> U32 0 | U64 -> U64 0
     | F32 -> F32 0.0 | F64 -> F64 0.0
-    | Bool -> Bool false
+    | Char -> Char '\000' | Bool -> Bool false
     | Ptr _ -> Ptr (U64, "", 0)
 
 let interpret program =

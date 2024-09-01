@@ -1,3 +1,5 @@
+include "stack.ab"
+
 macro min
     a' a' -> a'
 is

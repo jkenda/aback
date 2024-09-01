@@ -3,7 +3,7 @@ open Common
 open Parser_types
 
 let (qbe_string_of_type_extty : type_ll -> char) = function
-    | I8 | U8 | Bool -> 'b'
+    | I8 | U8 | Char | Bool -> 'b'
     | I16 | U16 -> 'h'
     | I32 | U32 -> 'w'
     | I64 | U64 | Ptr _ -> 'l'
@@ -11,13 +11,13 @@ let (qbe_string_of_type_extty : type_ll -> char) = function
     | F64 -> 'd'
 
 let (qbe_string_of_type_basety : type_ll -> char) = function
-    | I8 | U8 | Bool | I16 | U16 | I32 | U32 -> 'w'
+    | I8 | U8 | Char | Bool | I16 | U16 | I32 | U32 -> 'w'
     | I64 | U64 | Ptr _ -> 'l'
     | F32 -> 's'
     | F64 -> 'd'
 
 let (qbe_string_of_type_signed : type_ll -> string) = function
-    | I8 -> "sb" | U8 | Bool -> "ub"
+    | I8 -> "sb" | U8 | Bool | Char -> "ub"
     | I16 -> "sh" | U16 -> "uh"
     | I32 -> "sw" | U32 -> "uw"
     | I64 | U64 | Ptr _ -> "l"
@@ -164,47 +164,50 @@ let generate_qbe_ir f path { procs; strings; _ } =
         output_loc node.l;
         fprintf f "\t%%v%d =%c %s\n" var_id (qbe_string_of_type_basety t_ll) op
 
-    and output_proc_call node types_hl func =
+    and output_proc_call node func =
         output_loc node.l;
 
         let var_id =
             try Option.get node.id
             with _ -> raise @@ Not_implemented (node.l, sprintf "node has no stack offset: %s" (show_node_hl node.n))
         in
+        let types_hl =
+            try Option.get node.t
+            with _ -> raise @@ Unreachable ("node has no type: " ^ show_node_hl node.n)
+        in
         let args = qbe_string_of_args var_id func.types.t_in in
 
         match types_hl with
         | [] -> fprintf f "\tcall $%s(%s)\n" func.name args
-        | l -> raise @@ Not_implemented (node.l, sprintf "procs with return types not yet implemented. len: %s" (show_types_hl l))
+        | [Primitive t] -> fprintf f "\t%%v%d =%c call $%s(%s)\n" var_id (qbe_string_of_type_basety t) func.name args
+
+        | [_] -> raise @@ Not_implemented (node.l, "procs with complex return types not yet")
+        | l -> raise @@ Not_implemented (node.l, sprintf "procs with return types not yet implemented: %s" (show_types_hl l))
     in
 
     let rec output_node node =
-        if node.t = None then
-            raise @@ Unreachable ("node has no type: " ^ show_node_hl node.n)
+        if node.n = Empty then
+            ()
         else
-            if node.n = Empty then
-                ()
-            else
-                let types_hl = Option.get node.t in
-                match node.n with
-                | Empty -> ()
-                | Push_data { data } ->
-                        output_data node data
-                | Op { op; left; right; _ } ->
-                    begin
-                        output_node left;
-                        output_node right;
-                        output_operator node op
-                    end
-                | Proc_call { func; args } ->
-                        List.iter output_node args;
-                        output_proc_call node types_hl func
-                | Macro_call { func; args } ->
-                        List.iter output_node args;
-                        output_seq func.seq
-                | Unknown_sequence _ -> ()
+            match node.n with
+            | Push_data { data } ->
+                    output_data node data
+            | Op { op; left; right; _ } ->
+                begin
+                    output_node left;
+                    output_node right;
+                    output_operator node op
+                end
+            | Proc_call { func; args } ->
+                    List.iter output_node args;
+                    output_proc_call node func
+            | Macro_call { func; args } ->
+                    List.iter output_node args;
+                    output_seq func.seq
+            | Unknown_sequence _ -> ()
 
-                | n -> raise @@ Not_implemented (node.l, sprintf "IR generation of %s not yet supported" (show_node_hl n))
+            | Empty -> raise @@ Unreachable ""
+            | n -> raise @@ Not_implemented (node.l, sprintf "IR generation of %s not yet supported" (show_node_hl n))
     and output_seq seq =
         List.iter output_node seq
     in

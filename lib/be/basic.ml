@@ -308,6 +308,7 @@ let to_fasm_x64_linux program =
                             [sprintf "push"; Int64.to_string i]]
                 | Bool true -> [["push"; "1"]]
                 | Bool false -> [["push"; "0"]]
+                | Char c -> [["push"; sprintf "'%c'" c]]
                 | Ptr (_, space, off) ->
                         if off = 0 then [
                             ["push"; space]]

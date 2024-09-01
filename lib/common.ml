@@ -117,9 +117,9 @@ type type_tok =
     | I8 | I16 | I32 | I64
     | U8 | U16 | U32 | U64
     | F32 | F64
-    | Bool
-    | Ptr
+    | Char | Bool
     | Str | CStr
+    | Ptr
     | Generic of string
 [@@deriving show { with_path = false }]
 
@@ -127,10 +127,9 @@ let string_of_type_tok = function
     | I8 -> "i8" | I16 -> "i16" | I32 -> "i32" | I64 -> "i64"
     | U8 -> "u8" | U16 -> "u16" | U32 -> "u32" | U64 -> "u64"
     | F32 -> "f32" | F64 -> "f64"
-    | Bool -> "bool"
+    | Char -> "char" | Bool -> "bool"
+    | Str -> "str" | CStr -> "cstr"
     | Ptr -> "ptr"
-    | Str -> "str"
-    | CStr -> "cstr"
     | Generic s -> s
 
 let string_of_types_tok =
@@ -144,7 +143,7 @@ type type_ll =
     | I8 | I16 | I32 | I64
     | U8 | U16 | U32 | U64
     | F32 | F64
-    | Bool
+    | Char| Bool 
     | Ptr of type_ll
 [@@deriving show { with_path = false }]
 
@@ -152,7 +151,7 @@ let rec string_of_type_ll = function
     | I8 -> "i8" | I16 -> "i16" | I32 -> "i32" | I64 -> "i64"
     | U8 -> "u8" | U16 -> "u16" | U32 -> "u32" | U64 -> "u64"
     | F32 -> "f32" | F64 -> "f64"
-    | Bool -> "bool"
+    | Char -> "char"| Bool -> "bool" 
     | Ptr t -> sprintf "%s ptr" (string_of_type_ll t)
 
 let string_of_types_ll =
@@ -170,13 +169,13 @@ let (type_ll_of_type_tok : type_tok -> type_ll) = function
     | I8 -> I8 | I16 -> I16 | I32 -> I32 | I64 -> I64
     | U8 -> U8 | U16 -> U16 | U32 -> U32 | U64 -> U64
     | F32 -> F32 | F64 -> F64
-    | Bool -> Bool
+    | Char -> Char | Bool -> Bool
     | t -> failwith @@ sprintf "%s not directly convertible to type_ll" (show_type_tok t)
 
 let rec type_gen_of_type_ll = function
     | I8 | I16 | I32 | I64 | U8 | U16 | U32 | U64 -> Integer
     | F32 | F64 -> Floating
-    | Bool -> Boolean
+    | Char -> Character | Bool -> Boolean
     | Ptr t -> Pointer (type_gen_of_type_ll t)
 
 
@@ -215,7 +214,7 @@ let rec type_ll_of_type_hl = function
     | Primitive t -> t
     | Ptr t -> Ptr (type_ll_of_type_hl t)
     | General Boolean -> Bool
-    | General Character -> U8
+    | General Character -> Char
     | t -> failwith @@ sprintf "%s not directly convertible to type_ll" (show_type_hl t)
 
 let rec type_gen_of_type_hl = function
@@ -229,7 +228,7 @@ let (type_hl_of_type_tok : type_tok -> type_hl) = function
     | (I8 | I16 | I32 | I64
     | U8 | U16 | U32 | U64
     | F32 | F64
-    | Bool as t) -> Primitive (type_ll_of_type_tok t)
+    | Char | Bool as t) -> Primitive (type_ll_of_type_tok t)
     | Str -> Str | CStr -> CStr
     | t -> failwith @@ sprintf "%s not directly convertible to type_hl" (show_type_tok t)
 
@@ -300,7 +299,7 @@ let (type_gen_of_data_lit : data_lit -> type_gen) = function
 type data_ll =
     | I8 of int | I16 of int | I32 of int | I64 of int
     | U8 of int | U16 of int | U32 of int | U64 of int
-    | Bool of bool
+    | Char of char | Bool of bool
     | F32 of float | F64 of float
     | Ptr of type_ll * string * int
 [@@deriving show { with_path = false }]
@@ -308,7 +307,7 @@ type data_ll =
 let string_of_data_ll = function
     | I8 d | I16 d | I32 d | I64 d -> string_of_int d
     | U8 d | U16 d | U32 d | U64 d -> string_of_int d
-    | Bool b -> string_of_bool b
+    | Char c -> sprintf "'%c'" c | Bool b -> string_of_bool b
     | F32 f | F64 f -> string_of_float f
     | Ptr (_, s, i) -> sprintf "&%s[%d]" s i
 
@@ -316,7 +315,7 @@ let (type_of_data_ll : data_ll -> type_ll) = function
     | I8  _ -> I8 | I16 _ -> I16 | I32 _ -> I32 | I64 _ -> I64
     | U8  _ -> U8 | U16 _ -> U16 | U32 _ -> U32 | U64 _ -> U64
     | F32 _ -> F32 | F64 _ -> F64
-    | Bool _ -> Bool
+    | Char _ -> Char | Bool _ -> Bool
     | Ptr (t, _, _) -> Ptr t
 
 
@@ -391,7 +390,7 @@ let data_hl_of_data_lit loc (t_hl : type_hl) data =
                 (string_of_type_gen @@ type_gen_of_data_lit data)
                 (string_of_type_hl t_hl)))
 
-    | Char c, Primitive U8 -> Primitive (U8 (Char.code c))
+    | Char c, Primitive Char -> Primitive (Char c)
     | Bool b, Primitive Bool -> Primitive (Bool b)
     | Const_str (str, off, len), Str -> Str (str, off, len)
     | Const_cstr (str, off), CStr -> CStr (str, off)

@@ -10,7 +10,7 @@ core: install
 	cd core && make
 
 
-install: aback core
+install: aback
 	dune install
 
 

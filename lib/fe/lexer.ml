@@ -110,7 +110,7 @@ let instr_of_word (loc, word) =
         | "u8" -> Type U8 | "u16" -> Type U16 | "u32" -> Type U32 | "u64" -> Type U64
         | "f32" -> Type F32 | "f64" -> Type F64
         | "bool" -> Type Bool
-        | "ptr" -> Type Ptr
+        | "char" -> Type Char | "ptr" -> Type Ptr
         | "str" -> Type Str | "cstr" -> Type CStr
         | "to" -> To
 

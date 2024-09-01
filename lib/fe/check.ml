@@ -26,19 +26,28 @@ let take_top n stack =
     |> Seq.take n
     |> List.of_seq
 
+let add_none =
+    List.map (fun t -> t, None)
+
 let compare t_exp t_act =
     if List.length t_exp <> List.length t_act then
         false
     else
         let compare = function
             (* TEMPORARY: special case for character -> u8 *)
-            | (Primitive U8 : type_hl), (General Character, _) -> true
-            | t_spec, (General t_gen, node_opt)
-            | (General t_gen), (t_spec, node_opt) ->
+            | (t_spec, _), (Generic _, node_opt)
+            | (Generic _, node_opt), (t_spec, _) ->
                     (match node_opt with
                     | Some node -> node.t <- Some [t_spec]
                     | None -> ());
-                    let type_gen =
+                    true
+
+            | (t_spec, _), (General t_gen, node_opt)
+            | (General t_gen, node_opt), (t_spec, _) ->
+                    (match node_opt with
+                    | Some node -> node.t <- Some [t_spec]
+                    | None -> ());
+                    let t_gen_of_spec =
                         try type_gen_of_type_hl t_spec
                         with _ ->
                             match node_opt with
@@ -49,8 +58,9 @@ let compare t_exp t_act =
                             | None ->
                                     failwith @@ sprintf "node doesn't have type: %s" (show_type_hl t_spec)
                     in
-                    type_gen = t_gen
-            | t_exp, (t_act, _) ->
+                    t_gen_of_spec = t_gen
+
+            | (t_exp, _), (t_act, _) ->
                     t_exp = t_act
         in
         List.for_all compare @@ List.combine t_exp t_act
@@ -171,7 +181,7 @@ let rec check_seq caller input stack takes seq =
             let t_in_exp = func.types.t_in
             and t_in_act = take_top (List.length func.types.t_in) stack in
 
-            if not @@ compare t_in_exp t_in_act then
+            if not @@ compare (add_none t_in_exp) t_in_act then
             begin
                 let t_in_act = fst @@ List.split t_in_act in
                 raise_unexpected_stack "input" loc t_in_exp t_in_act
@@ -202,7 +212,7 @@ let rec check_seq caller input stack takes seq =
         (* check that true and false branches leave the same stack *)
         let t_stack_after_true  = check_seq caller input t_stack_before takes true_branch
         and t_stack_after_false = check_seq caller input t_stack_before takes false_branch in
-        if not @@ compare (List.map fst t_stack_after_true) t_stack_after_false then
+        if not @@ compare t_stack_after_true t_stack_after_false then
         begin
             let msg =
                 sprintf "true and false branches must have the same return types\n\ttrue: %s\n\tfalse: %s"
@@ -232,22 +242,22 @@ let rec check_seq caller input stack takes seq =
         if List.length t_stack_after_body <> List.length t_stack_before then
             raise @@ Error (loc, "loops must not grow or shrink");
     
-    and check_assign value mem_node =
-        check_node value;
-        let type_stack =
+    and check_assign node val_node =
+        check_node val_node;
+        let t_act =
             try Stack.pop stack
-            with _ -> raise_not_enough_elements mem_node.l;
-        and type_mem =
-            match mem_node.n with
+            with _ -> raise_not_enough_elements node.l;
+        and t_exp =
+            match node.n with
             | Assign_to_mem { name; _ } ->
                     Hashtbl.find input.mems name |> fst
             | Assign_to_var { name; _ } ->
                     Hashtbl.find input.vars name
             | _ -> raise @@ Unreachable ""
         in
-        if not @@ compare [type_mem] [type_stack] then
-            let t_exp = fst type_stack in
-            raise_unexpected_stack "assign" mem_node.l [t_exp] [type_mem]
+        if not @@ compare [t_exp, None] [t_act] then
+            let t_act = fst t_act in
+            raise_unexpected_stack "assign" val_node.l [t_exp] [t_act]
 
     and check_operator node op left right =
         (* add stack offset *)
@@ -301,8 +311,12 @@ let rec check_seq caller input stack takes seq =
             | t_spec, Generic _ ->
                     left.t  <- Some [t_spec];
                     right.t <- Some [t_spec];
+            | (Primitive Ptr _ | Ptr _ as ptr), (Primitive U64 as off) ->
+                    left.t  <- Some [ptr];
+                    right.t <- Some [off];
+                    node.t  <- Some [ptr]
             | t_specl, t_specr ->
-                    if not @@ compare [t_specl] [t_specr, None] then
+                    if not @@ compare [t_specl, None] [t_specr, None] then
                         raise_unexpected_stack (show_operator op) loc [left_t; left_t] [left_t; right_t];
         end;
 
@@ -343,6 +357,11 @@ let rec check_seq caller input stack takes seq =
                     | _ -> raise @@ Error (loc, sprintf "cannot deref %s" (string_of_type_hl t_in_act))
         in
 
+        let t_out =
+            match node.t with
+            | Some [t] -> t
+            | _ -> t_out
+        in
         Stack.push (t_out, Some node) stack;
         node.t <- Some [t_out]
 
@@ -379,8 +398,7 @@ let rec check_seq caller input stack takes seq =
 
         | Assign_to_mem { value; _ }
         | Assign_to_var { value; _ } ->
-                let mem_node = node in
-                check_assign value mem_node
+                check_assign node value
         | If_statement { cond; true_branch; false_branch } ->
                 check_if_statement node.l cond true_branch false_branch
         | While_statement { cond; body } ->
@@ -412,7 +430,7 @@ let check input =
             let t_in_act = List.map (fun t -> t, None) types.t_in in
             let t_out_act = check_seq None input t_in_act takes seq in
 
-            if not @@ compare types.t_out t_out_act then
+            if not @@ compare (add_none types.t_out) t_out_act then
                 let t_out_act = List.map fst t_out_act in
                 raise_unexpected_stack "output" loc types.t_out t_out_act
     in

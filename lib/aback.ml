@@ -23,7 +23,7 @@ let print_usage msg =
     exit 1
 
 let parse_args args =
-    let options = { mode = Interpret; flags = []; path_in = None; path_out = None; run_args = "" } in
+    let options = { mode = Compile; flags = []; path_in = None; path_out = None; run_args = "" } in
 
     let add_flag flag =
         options.flags <- flag :: options.flags
@@ -151,7 +151,7 @@ let exec options =
                 print_error loc msg
             | Unreachable msg ->
                 print_in_color stderr Red "(STATE SHOULD NOT BE REACHABLE!)\n";
-                print_endline msg
+                eprintf "%s\n" msg
             | _ -> ()
         end;
 

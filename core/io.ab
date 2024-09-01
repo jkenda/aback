@@ -2,29 +2,25 @@ include "core/stack.ab"
 
 
 macro STDOUT -> i32 is 1 end
-proc write i32 u8 ptr u64 -> i32 end
+proc write i32 char ptr u64 -> i32 end
 
 proc putc
-    u8 ->
+    char ->
 is
-take char end
-    write STDOUT @ char 1 ;; drop
+take c end
+    write STDOUT @ c 1 ;; drop
 end
 
 
 macro $INT_BUFSIZ$ -> u64 is 64 end
-mem $int_buf$ is $INT_BUFSIZ$ u8 end
+mem $int_buf$ is $INT_BUFSIZ$ char end
 var $int_len$ is u64 end
 
-
-include "core/unix.ab"
-
-macro puts str -> is write STDOUT ;; drop end
 
 include "core/math.ab"
 
 proc $puti$
-    i64 i64 ->
+    u64 i64 ->
 is
 take radix n end
     := $int_len$ $INT_BUFSIZ$
@@ -33,33 +29,40 @@ take radix n end
         putc '-' ;;
         - 0 n
     else n end
+    to u64 .. ;;
 
     take n in
         := $int_len$ - $int_len$ 1
         / n radix ;;
 
-        + '0' to u8 % n radix ;;
-        := [] $int_buf$ $int_len$
+        + to u64 '0' % n radix ;;
+        := [] $int_buf$ $int_len$ to char ..
     end
 
-    while > over .. 0 do
+    while > dup .. 0 do
         take n in
             := $int_len$ - $int_len$ 1
             / n radix ;;
 
-            + '0' % n radix ;;
-            := [] $int_buf$ $int_len$
+            + to u64 '0' % n radix ;;
+            := [] $int_buf$ $int_len$ to char ..
         end
-    end drop .. ;;
+    end
+    drop .. ;;
 
-    puts
-        + $int_buf$ $int_len$
-        - $INT_BUFSIZ$ $int_len$
+    write STDOUT
+        + @ $int_buf$ $int_len$
+        - $INT_BUFSIZ$ $int_len$ ;;
+    drop
 end
+
+include "core/unix.ab"
+macro puts str -> is write STDOUT ;; drop end
 
 macro puti  i64 -> is $puti$ 10 end
 macro putib i64 -> is puts "0b" ;; $puti$ 2 end
 macro putix i64 -> is puts "0x" ;; $puti$ 16 end
+
 
 macro $FLOAT_PREC$ -> u64 is 6 end
 

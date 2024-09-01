@@ -90,7 +90,7 @@ let is_node_reversible = function
 let is_node_operand = function
     | Op _
     | Proc_call _ | Macro_call _
-    | Push_data _ | Push_take _ | Push_var _
+    | Push_data _ | Push_take _ | Push_var _ | Push_mem _
     | Unknown_sequence _ -> true
     | _ -> false
 
