@@ -36,10 +36,10 @@ and node_hl =
     | Scoped_take of { vars : string list; body : node list }
     | Scoped_peek of { vars : string list; body : node list }
 
-    | Push_take   of { name : string; mutable type_hl : type_hl option }
-    | Push_data   of { data : data_hl }
-    | Push_var    of { name : string }
-    | Push_mem    of { name : string }
+    | Push_take   of string
+    | Push_data   of data_hl
+    | Push_var    of string
+    | Push_mem    of string
     | Push_member of { name : string; index : node }
 
     | Proc_call of { func : func; args : node list }
@@ -108,7 +108,7 @@ let string_of_node node =
             match node.n with
             | Empty -> ""
             | Unknown_sequence _ -> "..\n"
-            | Push_data { data; _ } ->
+            | Push_data data ->
                     show_data_hl data ^ "\n"
             | Op { op; left; right } ->
                     show_operator op ^ "\n"
@@ -121,7 +121,7 @@ let string_of_node node =
                         (List.fold_left (sprintf "%s %s") "" vars)
                         (string_of_nodes' (ind + 1) body)
                         tabs
-            | Push_take { name; _ } -> name ^ "\n"
+            | Push_take name -> name ^ "\n"
 
             | Proc_call  { func; args }
             | Macro_call { func; args } ->

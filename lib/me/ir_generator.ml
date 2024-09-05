@@ -92,7 +92,9 @@ let qbe_string_of_args var_id t_in =
     in
     args
 
-let generate_qbe_ir f path { procs; strings; _ } =
+let generate_qbe_ir f path_in { procs; strings; _ } =
+    let eliminate_unused = Hashtbl.mem procs "main" in
+
     (* auxiliary functions for outputting different node types *)
     let output_loc loc =
         fprintf f ".loc %d, %d\n" loc.row loc.col
@@ -151,6 +153,21 @@ let generate_qbe_ir f path { procs; strings; _ } =
 
         | d -> raise @@ Not_implemented (node.l, sprintf "IR generation not implemented for %s" (show_data_hl d))
 
+    in
+    let output_take_peek node vars =
+        let start_id = Option.get node.id in
+        let output_take_peek' i (type_hl, var) =
+            let t =
+                try qbe_string_of_type_basety @@ type_ll_of_type_hl type_hl
+                with _ -> raise @@ Not_implemented (node.l, "peeking complex types not yet implemented")
+            in
+            fprintf f "\t%%take_%s =%c %%v%d\n" var t (start_id - i - 1)
+        in
+        let types =
+            try Option.get node.t
+            with _ -> raise @@ Unreachable (sprintf "node has no types: %s" (show_node node))
+        in
+        List.iteri output_take_peek' @@ List.combine types vars;
     and output_operator node op =
         let op, t_hl =
             match node.t with
@@ -181,7 +198,7 @@ let generate_qbe_ir f path { procs; strings; _ } =
         | [] -> fprintf f "\tcall $%s(%s)\n" func.name args
         | [Primitive t] -> fprintf f "\t%%v%d =%c call $%s(%s)\n" var_id (qbe_string_of_type_basety t) func.name args
 
-        | [_] -> raise @@ Not_implemented (node.l, "procs with complex return types not yet")
+        | [_] -> raise @@ Not_implemented (node.l, "procs with complex return types not yet implemented")
         | l -> raise @@ Not_implemented (node.l, sprintf "procs with return types not yet implemented: %s" (show_types_hl l))
     in
 
@@ -190,20 +207,23 @@ let generate_qbe_ir f path { procs; strings; _ } =
             ()
         else
             match node.n with
-            | Push_data { data } ->
+            | Take { vars }
+            | Peek { vars } ->
+                    output_take_peek node vars
+            | Push_data data ->
                     output_data node data
-            | Op { op; left; right; _ } ->
-                begin
-                    output_node left;
-                    output_node right;
-                    output_operator node op
-                end
             | Proc_call { func; args } ->
                     List.iter output_node args;
                     output_proc_call node func
             | Macro_call { func; args } ->
                     List.iter output_node args;
                     output_seq func.seq
+            | Op { op; left; right; _ } ->
+                begin
+                    output_node left;
+                    output_node right;
+                    output_operator node op
+                end
             | Unknown_sequence _ -> ()
 
             | Empty -> raise @@ Unreachable ""
@@ -212,15 +232,26 @@ let generate_qbe_ir f path { procs; strings; _ } =
         List.iter output_node seq
     in
     let output_proc _ { loc; name; types; seq; is_signature; is_unused } = 
-        if is_signature || is_unused then
+        if is_signature || (eliminate_unused && is_unused) then
             ()
         else
             (* TODO: multiple return values, high-level types *)
-            let t_out = type_ll_of_type_hl (List.hd types.t_out)
-            and t_in  = List.map type_ll_of_type_hl types.t_in in
+            let t_in =
+                try List.map type_ll_of_type_hl types.t_in
+                with _ -> 
+                    raise @@ Not_implemented (loc, "functions with complex return values not yet implemented")
+            and t_out =
+                match types.t_out with
+                | [] -> ""
+                | [t] ->
+                        (try String.make 1 @@ qbe_string_of_type_extty @@ type_ll_of_type_hl t
+                        with _ ->
+                            raise @@ Not_implemented (loc, "functions with complex returns not yet implemented"))
+                | _ -> raise @@ Not_implemented (loc, "functions with multiple returns not yet implemented")
+            in
 
             output_loc loc;
-            fprintf f "export function %c $%s(%s) {\n" (qbe_string_of_type_extty t_out) name (qbe_string_of_params t_in);
+            fprintf f "export function %s $%s(%s) {\n" (t_out) name (qbe_string_of_params t_in);
             fprintf f "@start\n";
 
             output_seq seq;
@@ -229,7 +260,7 @@ let generate_qbe_ir f path { procs; strings; _ } =
             fprintf f "}\n\n";
     in
 
-    fprintf f "dbgfile \"%s\"\n\n" path;
+    fprintf f "dbgfile \"%s\"\n\n" path_in;
     Hashtbl.iter output_proc procs;
 
     let strings =

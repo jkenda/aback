@@ -1,4 +1,4 @@
-include "stack.ab"
+include "core/stack.ab"
 
 macro min
     a' a' -> a'

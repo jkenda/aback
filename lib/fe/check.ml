@@ -101,36 +101,38 @@ let rec check_seq caller input stack takes seq =
     let stack = stack_of_list stack in
 
     (* pop types from the stack and add them to takes *)
-    let pop_to_takes loc names =
+    let pop_to_takes node names =
         let pop_to_takes' name =
             let loc =
                 match caller with
-                | Some l -> { loc with expanded_from = l :: loc.expanded_from }
-                | None -> loc
+                | Some l -> { node.l with expanded_from = l :: node.l.expanded_from }
+                | None -> node.l
             in
             match Stack.pop_opt stack with
             | None -> raise_not_enough_elements loc
-            | Some type_src -> Hashtbl.add takes name type_src
+            | Some type_src ->
+                    Hashtbl.add takes name type_src;
+                    fst type_src
         in
-        List.iter pop_to_takes' names
+        node.t <- Some (List.map pop_to_takes' names)
 
     (* peek types from the stack and add them to takes *)
-    and peek_to_takes loc names =
+    and peek_to_takes node names =
         let peek_to_takes' (name, type_source) =
             Hashtbl.add takes name type_source
         in
-        let stack = Stack.to_seq stack
-        and names = List.to_seq names
+        let names = List.to_seq names
         and loc =
             match caller with
-            | Some l -> { loc with expanded_from = l :: loc.expanded_from }
-            | None -> loc
+            | Some l -> { node.l with expanded_from = l :: node.l.expanded_from }
+            | None -> node.l
         in
-        if Seq.length stack < Seq.length names then
+        if Stack.length stack < Seq.length names then
             raise_not_enough_elements loc;
 
-        Seq.zip names stack
-        |> Seq.iter peek_to_takes'
+        Seq.zip names (Stack.to_seq stack)
+        |> Seq.iter peek_to_takes';
+        node.t <- Some (List.map fst @@ take_top (Seq.length names) stack)
 
 
     (* push a type from takes to stack *)
@@ -370,26 +372,26 @@ let rec check_seq caller input stack takes seq =
 
         match node.n with
         | Empty -> ()
-        | Take { vars } -> pop_to_takes node.l vars
-        | Peek { vars } -> peek_to_takes node.l vars
+        | Take { vars } -> pop_to_takes node vars
+        | Peek { vars } -> peek_to_takes node vars
         | Scoped_take { vars; body }
         | Scoped_peek { vars; body } ->
                 (match node.n with
                 | Scoped_take _ ->
-                        pop_to_takes node.l vars
+                        pop_to_takes node vars
                 | _ ->
-                        peek_to_takes node.l vars);
+                        peek_to_takes node vars);
 
                 check_seq caller input (list_of_stack stack) takes body
                 |> replace_stack stack
 
-        | Push_data { data; _ } ->
+        | Push_data data ->
                 push_literal data node
-        | Push_take { name; _ } ->
+        | Push_take name ->
                 push_take node name
-        | Push_var  { name } ->
+        | Push_var  name ->
                 push_var node name
-        | Push_mem  { name } ->
+        | Push_mem  name ->
                 push_mem node name
 
         | Proc_call { func; args }
@@ -423,6 +425,7 @@ let rec check_seq caller input stack takes seq =
 
 
 let check input =
+    print_endline "CHKECKING";
     let check_func { loc; seq; types; is_signature; _ } =
         if is_signature then ()
         else

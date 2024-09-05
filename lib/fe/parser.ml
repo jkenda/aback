@@ -112,7 +112,7 @@ let parse loc words =
 
         in
         let (data : data_hl) = Literal data in
-        let node = make_node loc @@ Push_data { data } in
+        let node = make_node loc @@ Push_data data in
         node.t <- Some [type_of_data_hl data];
         node
     in
@@ -168,7 +168,7 @@ let parse loc words =
                         with _ -> raise @@ Error (loc, "Unknown value")
                     in
                     match macro with
-                    | { seq = [{ n = Push_data { data = Literal Integer size; _ }; _ }]; _ } -> size, tl
+                    | { seq = [{ n = Push_data (Literal Integer size); _ }]; _ } -> size, tl
                     | _ -> raise @@ Error (loc, "size has to be of constant value"))
             | (_, Literal Integer size) :: tl -> size, tl
             | (_, w) :: _ -> raise @@ Error (loc, sprintf "expected size, got '%s'\nusage: mem <name> <type> <size> end" (string_of_word w))
@@ -197,7 +197,7 @@ let parse loc words =
                         parse_literal loc data, rest
                 | Word name when Hashtbl.mem takes name ->
                         Hashtbl.find takes name;
-                        make_node loc @@ Push_take { name; type_hl = None }, rest
+                        make_node loc @@ Push_take name, rest
                 | Op op ->
                         let left , rest = parse_polish rest in
                         let right, rest =
@@ -217,12 +217,12 @@ let parse loc words =
                         make_proc_call loc proc args, tl
                 | Word name when Hashtbl.mem output.vars name ->
                         let type_hl = Hashtbl.find output.vars name in
-                        let node = make_node loc @@ Push_var { name } in
+                        let node = make_node loc @@ Push_var name in
                         node.t <- Some [type_hl];
                         node, rest
                 | Word name when Hashtbl.mem output.mems name ->
                         let type_hl, _ = Hashtbl.find output.mems name in
-                        let node = make_node loc @@ Push_mem { name } in
+                        let node = make_node loc @@ Push_mem name in
                         node.t <- Some [type_hl];
                         node, rest
                 | Word word ->
@@ -270,8 +270,10 @@ let parse loc words =
     in
 
     (** add a proc to the table of procs *)
-    let rec parse_func loc table name words =
+    let rec parse_func recurs table loc name words =
         let term, types, words = extract_types loc words in
+        if recurs then
+            add_func table loc name types [];
         if term = End then
             (add_signature table loc name types;
             words)
@@ -346,23 +348,41 @@ let parse loc words =
 
         (** parse if statement *)
         let parse_if loc words =
-            let cond, rest = parse_polish words in
-            let rest =
-                match rest with
-                | [] -> raise_unreachable_eof None
-                | [loc, EOF] -> raise_unexpected_eof loc
+            let parse_cond' words =
+                let cond, rest = parse_polish words in
+                let rest =
+                    match rest with
+                    | [] -> raise_unreachable_eof None
+                    | [loc, EOF] -> raise_unexpected_eof loc
 
-                | (_, Then) :: tl -> tl
-                | (loc, word) :: _ -> raise_unexpected_word loc [Then] word
+                    | (_, Then) :: tl -> tl
+                    | (loc, word) :: _ -> raise_unexpected_word loc [Then] word
+                in
+                cond, rest
             in
-            let t, true_branch, rest = parse_scope [|Else; End|] [|Sep|] parse_next rest in
-            let _, false_branch, rest =
-                match t with
-                | End -> End, [], rest
-                | Else -> parse_scope [|End|] [|Sep|] parse_next rest
-                | word -> raise_unexpected_word loc [Else; End] word
+
+            let rec parse_if' words =
+                let cond, rest = parse_cond' words in
+                let last_word, true_branch, rest =
+                    parse_scope [|Else; End|] [|Sep|] parse_next rest
+                in
+                let false_branch, rest =
+                    match last_word, rest with
+                    | Else, (_, If) :: tl ->
+                            let false_branch, rest = parse_if' tl in
+                            [false_branch], rest
+                    | Else, rest ->
+                            let _, false_branch, rest = parse_scope [|End|] [|Sep|] parse_next rest in
+                            false_branch, rest
+                    | End, rest ->
+                            [], rest
+                    | word, _ ->
+                            raise_unexpected_word loc [Else; End] word;
+                in
+                make_node loc @@ If_statement { cond; true_branch; false_branch }, rest
             in
-            make_node loc @@ If_statement { cond; true_branch; false_branch }, rest
+            parse_if' words
+
 
         (** parse while statement *)
         and parse_while loc words =
@@ -424,7 +444,7 @@ let parse loc words =
 
         (* parse variable pushes *)
         | (loc, Word name) :: tl when has_take name ->
-                make_node loc @@ Push_take { name; type_hl = None }, tl
+                make_node loc @@ Push_take name, tl
         | (loc, Word name) :: tl when Hashtbl.mem output.vars name ->
                 let typ = Hashtbl.find output.vars name in
                 make_node loc @@ Var { name; typ }, tl
@@ -521,9 +541,9 @@ let parse loc words =
 
             (* parse functions -- macros ans procs, don't add anyting to the AST *)
             | (_, (Macro : word)) :: (loc, Word name) :: tl ->
-                    make_node loc @@ Empty, parse_func loc output.macros name tl
+                    make_node loc @@ Empty, parse_func false output.macros loc name tl
             | (_, Proc ) :: (loc, Word name) :: tl ->
-                    make_node loc @@ Empty, parse_func loc output.procs name tl
+                    make_node loc @@ Empty, parse_func true output.procs loc name tl
 
             (* ERROR -- missing the name of the function *)
             | (loc, Macro) :: _ -> raise @@ Error (loc, "macro: expected name")
@@ -538,12 +558,18 @@ let parse loc words =
 
     (* mark function unused if it's not reachable from main *)
     let mark_unused _ func =
+        let checked = Hashtbl.create 10 in
         let rec is_called_from_main func_name =
-            let callers = Hashtbl.find_all func_callers func_name in
-            if List.mem "main" callers then
-                true
-            else
-                List.exists is_called_from_main callers
+            if Hashtbl.mem checked func_name then
+                false
+            else (
+                Hashtbl.replace checked func_name ();
+                let callers = Hashtbl.find_all func_callers func_name in
+                if List.mem "main" callers then
+                    true
+                else
+                    List.exists is_called_from_main callers)
+
         in
         if (not @@ is_called_from_main func.name) && func.name <> "main" then
             func.is_unused <- true

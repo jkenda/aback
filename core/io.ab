@@ -12,48 +12,22 @@ take c end
 end
 
 
-macro $INT_BUFSIZ$ -> u64 is 64 end
-mem $int_buf$ is $INT_BUFSIZ$ char end
-var $int_len$ is u64 end
-
-
 include "core/math.ab"
 
+(print integer)
 proc $puti$
-    u64 i64 ->
+    i64 i64 ->
 is
 take radix n end
-    := $int_len$ $INT_BUFSIZ$
-
     if < n 0 then
         putc '-' ;;
-        - 0 n
-    else n end
-    to u64 .. ;;
-
-    take n in
-        := $int_len$ - $int_len$ 1
-        / n radix ;;
-
-        + to u64 '0' % n radix ;;
-        := [] $int_buf$ $int_len$ to char ..
+        $puti$ radix - 0 n
+    else if < n radix then
+        putc to char + to i64 '0' n
+    else
+        $puti$ radix % n 10 ;;
+        putc to char + % n radix to i64 '0'
     end
-
-    while > dup .. 0 do
-        take n in
-            := $int_len$ - $int_len$ 1
-            / n radix ;;
-
-            + to u64 '0' % n radix ;;
-            := [] $int_buf$ $int_len$ to char ..
-        end
-    end
-    drop .. ;;
-
-    write STDOUT
-        + @ $int_buf$ $int_len$
-        - $INT_BUFSIZ$ $int_len$ ;;
-    drop
 end
 
 include "core/unix.ab"
@@ -111,5 +85,5 @@ is
 take b end
     if b then "true"
     else "false" end
-    puts
+    puts ..
 end

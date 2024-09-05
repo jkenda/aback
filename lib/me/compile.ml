@@ -14,7 +14,11 @@ let wait_for = function
             | _ -> ()
 
 let compile options parser_output = 
-    let path_out = Option.get options.path_out in
+    let path_in =
+        match options.path_in with
+        | None -> "[STDIN]"
+        | Some path -> path
+    and path_out = Option.get options.path_out in
 
     let qbe_in, qbe_out = pipe ~cloexec:true ()
     and gcc_in, gcc_out = pipe ~cloexec:true () in
@@ -46,7 +50,7 @@ let compile options parser_output =
     in
 
     let aback_out = out_channel_of_descr aback_output in
-    generate_qbe_ir aback_out path_out parser_output;
+    generate_qbe_ir aback_out path_in parser_output;
     flush aback_out;
 
     if aback_output <> stdout then
