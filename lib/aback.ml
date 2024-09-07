@@ -117,8 +117,8 @@ let exec options =
 
     let lex = lex path_in []
     and parse = parse null_loc
-    and check = check options
     and compile = compile options in
+
     (* compile the program *)
     try
         let parsed =
@@ -135,6 +135,10 @@ let exec options =
                 |> ignore;
                 print_endline "OK."
         | Print ->
+                let check =
+                    if List.mem No_check options.flags then check
+                    else Fun.id
+                in
                 parsed
                 |> check
                 |> show_parser_output

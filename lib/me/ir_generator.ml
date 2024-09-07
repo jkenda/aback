@@ -29,54 +29,67 @@ let (qbe_string_of_type_hl : type_hl -> string option) = function
     | CStr -> Some "{ l }"
     | _ -> None
 
+let get_node_id node =
+    try Option.get node.id
+    with _ -> raise @@ Not_implemented (node.l, sprintf "node has no stack offset: %s" (show_node_hl node.n))
 
-let qbe_string_of_operator node op =
+let get_node_types node =
+    try Option.get node.t
+    with _ -> raise @@ Not_implemented (node.l, sprintf "node has no concrete type: %s" (show_node_hl node.n))
+
+
+let qbe_string_of_operator node op t_in =
     let t_in =
-        match node.t with
-        | Some [t_hl] -> t_hl
-        | _ -> raise @@ Not_implemented (node.l, "multiple return types not supported on operators")
+        try type_ll_of_type_hl t_in
+        with _ -> raise @@ Not_implemented (node.l, "complex types not yet implemented")
     in
+
     let signed =
         match t_in with
-        | Primitive (I8 | I16 | I32 | I64 | F32 | F64) -> true
-        | Primitive (U8 | U16 | U32 | U64| Bool| Ptr _)
-        | Ptr _ -> false
-        | t -> raise @@ Unreachable (sprintf "%s not directly comparable" (show_type_hl t))
-    and (_type_width : type_hl -> int) = function
-        | Primitive (I8 | U8 | Bool) -> 1
-        | Primitive (I16 | U16) -> 2
-        | Primitive (I32 | U32 | F32) -> 4
-        | Primitive (I64 | U64 | F64) -> 8
-        | Ptr _ -> 8
-        | t -> raise @@ Unreachable (sprintf "%s not convertible" (show_type_hl t))
+        | I8 | I16 | I32 | I64 | F32 | F64 -> true
+        | U8 | U16 | U32 | U64 | Char | Bool  | Ptr _ -> false
     in
 
-    let s = if signed then "s" else "u"
-    and t =
-        (* TODO: high-level types *)
-        t_in
-        |> type_ll_of_type_hl 
-        |> qbe_string_of_type_basety
-    in
+    let s = if signed then 's' else 'u'
+    and t = qbe_string_of_type_basety t_in in
 
-    let expr =
+    let op_str =
         match op with
-        | Eq -> "c" ^ s ^ "eq" ^ Char.escaped t | NEq -> "c" ^ s ^ "ne" ^ Char.escaped t
-        | Lt -> "c" ^ s ^ "lt" ^ Char.escaped t | LEq -> "c" ^ s ^ "le" ^ Char.escaped t
-        | Gt -> "c" ^ s ^ "gt" ^ Char.escaped t | GEq -> "c" ^ s ^ "ge" ^ Char.escaped t
+        | Eq -> sprintf "c%ceq%c" s t | NEq -> sprintf "c%cne%c" s t
+        | Lt -> sprintf "c%clt%c" s t | LEq -> sprintf "c%cle%c" s t
+        | Gt -> sprintf "c%cgt%c" s t | GEq -> sprintf "c%cge%c" s t
 
         | Add -> "add" | Sub -> "sub"
         | Mul -> "mul" | Div -> "div"
         | Mod -> if signed then "mod" else "umod"
 
-        | Cast_to _
+        | Cast_to t_out ->
+            begin
+                match t_in, t_out with
+                | _, Generic _ -> raise @@ Unreachable ("No generic types should be present in ir_generator")
+                | F32, F64 -> "exts"
+                | F64, F32 -> "truncd"
+                | F32, _ -> sprintf "sto%ci" s
+                | F64, _ -> sprintf "dto%ci" s
+                | _, (F32 | F64) -> sprintf "%c%ctof" s t
+                | _, _ -> sprintf "ext%c%c" s t
+            end
 
-        | LAnd | LOr | LXor | Lsl | Lsr
-        | And  | Or
+        | LAnd -> "and" | LOr -> "or" | LXor -> "xor" | Lsl -> "shl" | Lsr -> "sar"
+        | And  -> "and" | Or -> "or"
         | Ref | Deref ->
                 raise @@ Not_implemented (node.l, sprintf "operator %s not implemented" (show_operator op))
     in
 
+    let expr =
+        if n_operands op = 1 then
+            let var_id = get_node_id node in
+            sprintf "%s %%v%d" op_str var_id
+        else
+            let var_id_l = get_node_id node in
+            let var_id_r = var_id_l + 1 in
+            sprintf "%s %%v%d, %%v%d" op_str var_id_l var_id_r
+    in
     expr, t_in
 
 let qbe_string_of_params =
@@ -101,22 +114,13 @@ let qbe_string_of_args var_id t_in =
     in
     args
 
-let get_node_id node =
-    try Option.get node.id
-    with _ -> raise @@ Not_implemented (node.l, sprintf "node has no stack offset: %s" (show_node_hl node.n))
-
-let get_node_types node =
-    try Option.get node.t
-    with _ -> raise @@ Not_implemented (node.l, sprintf "node has no concrete type: %s" (show_node_hl node.n))
-
 let generate_qbe_ir f path_in { procs; strings; _ } =
     let eliminate_unused = Hashtbl.mem procs "main" in
     let branch_counter = ref 0 in
 
-    let get_branch_name b =
+    let get_branch_names () =
         branch_counter := !branch_counter + 1;
-        if b then sprintf "true_branch_%d" !branch_counter
-        else sprintf "false_branch_%d" !branch_counter
+        sprintf "true_branch_%d" !branch_counter, sprintf "false_branch_%d" !branch_counter
     in
 
     (* auxiliary functions for outputting different node types *)
@@ -175,7 +179,10 @@ let generate_qbe_ir f path_in { procs; strings; _ } =
 
     in
     let output_take_peek node vars =
-        let start_id = Option.get node.id in
+        let start_id =
+            try Option.get node.id
+            with _ -> raise @@ Unreachable (sprintf "node has no id: %s" (show_node_hl node.n))
+        in
         let output_take_peek' i (type_hl, var) =
             let t =
                 try qbe_string_of_type_basety @@ type_ll_of_type_hl type_hl
@@ -196,10 +203,18 @@ let generate_qbe_ir f path_in { procs; strings; _ } =
             with Invalid_argument str | Failure str -> raise @@ Not_implemented (node.l, str)
         in
         fprintf f "\t%%v%d =%c %%t_%s\n" var_id t name
-    and output_operator node op =
+    and output_operator node op left =
+        let t_in =
+            match left.t with
+            | Some [t_hl] ->
+                begin
+                    try t_hl
+                    with _ -> raise @@ Not_implemented (node.l, sprintf "%s: typecasting complex types not yet supported" (string_of_type_hl t_hl))
+                end
+            | _ -> raise @@ Not_implemented (node.l, "multiple return types not supported on operators")
+        in
         let var_id = get_node_id node
-        and op, t_hl = qbe_string_of_operator node op in
-        let t_ll = type_ll_of_type_hl t_hl in
+        and op, t_ll = qbe_string_of_operator node op t_in in
         output_loc node.l;
         fprintf f "\t%%v%d =%c %s\n" var_id (qbe_string_of_type_basety t_ll) op
 
@@ -224,10 +239,12 @@ let generate_qbe_ir f path_in { procs; strings; _ } =
     let rec output_if_statement node cond true_branch false_branch =
         let var_id = get_node_id node in
         output_node cond;
-        fprintf f "\tjnz %%v%d, @%s, @%s\n" var_id (get_branch_name true) (get_branch_name false);
-        output_label @@ get_branch_name true;
+
+        let true_name, false_name = get_branch_names () in
+        fprintf f "\tjnz %%v%d, @%s, @%s\n" var_id true_name false_name;
+        output_label true_name;
         output_seq true_branch;
-        output_label @@ get_branch_name false;
+        output_label false_name;
         output_seq false_branch;
         fprintf f "\n"
 
@@ -251,11 +268,11 @@ let generate_qbe_ir f path_in { procs; strings; _ } =
                     output_seq func.seq
             | If_statement { cond; true_branch; false_branch } ->
                     output_if_statement node cond true_branch false_branch
-            | Op { op; left; right; _ } ->
+            | Op { op; left; right } ->
                 begin
                     output_node left;
                     output_node right;
-                    output_operator node op
+                    output_operator node op left
                 end
             | Unknown_sequence _ -> ()
 

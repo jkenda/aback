@@ -429,7 +429,7 @@ let rec check_seq caller input stack takes seq =
     list_of_stack stack
 
 
-let check options input =
+let check input =
     let check_func { loc; seq; types; is_signature; _ } =
         if is_signature then ()
         else
@@ -442,7 +442,6 @@ let check options input =
                 raise_unexpected_stack "output" loc types.t_out t_out_act
     in
 
-    if not @@ List.mem No_check options.flags then
     begin
         Hashtbl.iter (fun _ f -> check_rec_macro f) input.macros;
         Hashtbl.iter (fun _ f -> check_func f) input.macros;
