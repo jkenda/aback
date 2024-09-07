@@ -2,8 +2,7 @@ open Common
 open Lexer
 
 let rec include_file included_from src =
-    let text = read_lib_file included_from src in
-    text
+    read_lib_file included_from src
     |> lex src included_from
     |> preprocess
     |> List.rev

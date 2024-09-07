@@ -270,18 +270,29 @@ let parse loc words =
     in
 
     (** add a proc to the table of procs *)
-    let rec parse_func recurs table loc name words =
+    let rec parse_func is_proc table loc name words =
         let term, types, words = extract_types loc words in
-        if recurs then
+        if is_proc then
             add_func table loc name types [];
+
         if term = End then
             (add_signature table loc name types;
             words)
         else
-            (current_proc := name;
+        begin
+            current_proc := name;
             let _, seq, words = parse_scope [|End|] [|Sep|] parse_next words in
             add_func table loc name types seq;
-            words)
+
+            (* mark procs from included files as signatures *)
+            if table = output.procs && loc.included_from <> [] then
+            begin
+                let func = Hashtbl.find table name in
+                Hashtbl.replace table name { func with is_signature = true }
+            end;
+
+            words
+        end
 
     (** parse sequence of statements *)
     and parse_scope terminators separators f words =

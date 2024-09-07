@@ -136,8 +136,8 @@ let exec options =
                 print_endline "OK."
         | Print ->
                 let check =
-                    if List.mem No_check options.flags then check
-                    else Fun.id
+                    if List.mem No_check options.flags then Fun.id
+                    else check
                 in
                 parsed
                 |> check
