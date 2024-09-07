@@ -38,6 +38,7 @@ type flag =
     | Stdout_il
     | Stdout_asm
     | Output_obj
+    | No_check
 [@@deriving show { with_path = false }]
 
 type mode =
@@ -395,6 +396,8 @@ let data_hl_of_data_lit loc (t_hl : type_hl) data =
     | Bool b, Primitive Bool -> Primitive (Bool b)
     | Const_str (str, off, len), Str -> Str (str, off, len)
     | Const_cstr (str, off), CStr -> CStr (str, off)
+    | Bool b, General Boolean -> Primitive (Bool b)
+    | Char c, General Character -> Primitive (Char c)
     | _, General _ -> raise @@ Error (loc, sprintf "cannot specialize a general type: %s" (string_of_type_hl t_hl))
     | _ -> raise @@ Error (loc, sprintf "cannot specialize %s with type %s" (string_of_data_lit data) (string_of_type_hl t_hl))
 

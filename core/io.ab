@@ -1,18 +1,18 @@
 include "core/stack.ab"
+include "core/math.ab"
 
 
 macro STDOUT -> i32 is 1 end
 proc write i32 char ptr u64 -> i32 end
 
+(print char)
 proc putc
     char ->
 is
 take c end
-    write STDOUT @ c 1 ;; drop
+    write STDOUT @ c 1 ;;
+    drop
 end
-
-
-include "core/math.ab"
 
 (print integer)
 proc $puti$

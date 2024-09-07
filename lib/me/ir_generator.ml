@@ -30,20 +30,25 @@ let (qbe_string_of_type_hl : type_hl -> string option) = function
     | _ -> None
 
 
-let qbe_string_of_operator op (t_in : type_hl) =
+let qbe_string_of_operator node op =
+    let t_in =
+        match node.t with
+        | Some [t_hl] -> t_hl
+        | _ -> raise @@ Not_implemented (node.l, "multiple return types not supported on operators")
+    in
     let signed =
         match t_in with
         | Primitive (I8 | I16 | I32 | I64 | F32 | F64) -> true
         | Primitive (U8 | U16 | U32 | U64| Bool| Ptr _)
         | Ptr _ -> false
-        | t -> failwith @@ sprintf "%s not directly comparable" (show_type_hl t)
+        | t -> raise @@ Unreachable (sprintf "%s not directly comparable" (show_type_hl t))
     and (_type_width : type_hl -> int) = function
         | Primitive (I8 | U8 | Bool) -> 1
         | Primitive (I16 | U16) -> 2
         | Primitive (I32 | U32 | F32) -> 4
         | Primitive (I64 | U64 | F64) -> 8
         | Ptr _ -> 8
-        | t -> failwith @@ sprintf "%s not convertible" (show_type_hl t)
+        | t -> raise @@ Unreachable (sprintf "%s not convertible" (show_type_hl t))
     in
 
     let s = if signed then "s" else "u"
@@ -54,21 +59,25 @@ let qbe_string_of_operator op (t_in : type_hl) =
         |> qbe_string_of_type_basety
     in
 
-    match op with
-    | Eq -> "c" ^ s ^ "eq" ^ Char.escaped t | NEq -> "c" ^ s ^ "ne" ^ Char.escaped t
-    | Lt -> "c" ^ s ^ "lt" ^ Char.escaped t | LEq -> "c" ^ s ^ "le" ^ Char.escaped t
-    | Gt -> "c" ^ s ^ "gt" ^ Char.escaped t | GEq -> "c" ^ s ^ "ge" ^ Char.escaped t
+    let expr =
+        match op with
+        | Eq -> "c" ^ s ^ "eq" ^ Char.escaped t | NEq -> "c" ^ s ^ "ne" ^ Char.escaped t
+        | Lt -> "c" ^ s ^ "lt" ^ Char.escaped t | LEq -> "c" ^ s ^ "le" ^ Char.escaped t
+        | Gt -> "c" ^ s ^ "gt" ^ Char.escaped t | GEq -> "c" ^ s ^ "ge" ^ Char.escaped t
 
-    | Add -> "add" | Sub -> "sub"
-    | Mul -> "mul" | Div -> "div"
-    | Mod -> if signed then "mod" else "umod"
+        | Add -> "add" | Sub -> "sub"
+        | Mul -> "mul" | Div -> "div"
+        | Mod -> if signed then "mod" else "umod"
 
-    | Cast_to _
+        | Cast_to _
 
-    | LAnd | LOr | LXor | Lsl | Lsr
-    | And  | Or
-    | Ref | Deref ->
-            failwith @@ sprintf "operator %s not implemented" (show_operator op)
+        | LAnd | LOr | LXor | Lsl | Lsr
+        | And  | Or
+        | Ref | Deref ->
+                raise @@ Not_implemented (node.l, sprintf "operator %s not implemented" (show_operator op))
+    in
+
+    expr, t_in
 
 let qbe_string_of_params =
     let add_qbe_string_of_type_extty s t =
@@ -92,12 +101,29 @@ let qbe_string_of_args var_id t_in =
     in
     args
 
+let get_node_id node =
+    try Option.get node.id
+    with _ -> raise @@ Not_implemented (node.l, sprintf "node has no stack offset: %s" (show_node_hl node.n))
+
+let get_node_types node =
+    try Option.get node.t
+    with _ -> raise @@ Not_implemented (node.l, sprintf "node has no concrete type: %s" (show_node_hl node.n))
+
 let generate_qbe_ir f path_in { procs; strings; _ } =
     let eliminate_unused = Hashtbl.mem procs "main" in
+    let branch_counter = ref 0 in
+
+    let get_branch_name b =
+        branch_counter := !branch_counter + 1;
+        if b then sprintf "true_branch_%d" !branch_counter
+        else sprintf "false_branch_%d" !branch_counter
+    in
 
     (* auxiliary functions for outputting different node types *)
     let output_loc loc =
         fprintf f ".loc %d, %d\n" loc.row loc.col
+    and output_label name =
+        fprintf f "\n@%s\n" name
     and output_ret loc = function
         | 0 -> fprintf f "\tret\n"
         | 1 -> fprintf f "\tret %%v0\n"
@@ -105,10 +131,7 @@ let generate_qbe_ir f path_in { procs; strings; _ } =
     in
     let rec output_data node (data : data_hl) =
         output_loc node.l;
-        let var_id =
-            try Option.get node.id
-            with _ -> raise @@ Not_implemented (node.l, sprintf "node has no stack offset: %s" (show_node_hl node.n))
-        in
+        let var_id = get_node_id node in
 
         (* TODO: high-level types *)
         match data with
@@ -122,10 +145,7 @@ let generate_qbe_ir f path_in { procs; strings; _ } =
                 fprintf f "\t%%v%d.off =l add $strs, %d\n" var_id off;
 
         | Literal l ->
-                let type_hl =
-                    try Option.get node.t |> List.hd
-                    with _ -> raise @@ Not_implemented (node.l, sprintf "node has no concrete type: %s" (show_node_hl node.n))
-                in
+                let type_hl = get_node_types node |> List.hd in
                 let data_hl = data_hl_of_data_lit node.l type_hl l
                 and char_type = qbe_string_of_type_basety @@ type_ll_of_type_hl type_hl in
                 fprintf f "\t%%v%d =%c copy %s\n" var_id char_type (string_of_data_hl data_hl)
@@ -161,22 +181,24 @@ let generate_qbe_ir f path_in { procs; strings; _ } =
                 try qbe_string_of_type_basety @@ type_ll_of_type_hl type_hl
                 with _ -> raise @@ Not_implemented (node.l, "peeking complex types not yet implemented")
             in
-            fprintf f "\t%%take_%s =%c %%v%d\n" var t (start_id - i - 1)
+            fprintf f "\t%%t_%s =%c %%v%d\n" var t (start_id - i - 1)
         in
         let types =
             try Option.get node.t
             with _ -> raise @@ Unreachable (sprintf "node has no types: %s" (show_node node))
         in
         List.iteri output_take_peek' @@ List.combine types vars;
-    and output_operator node op =
-        let op, t_hl =
-            match node.t with
-            | Some [t_hl] -> qbe_string_of_operator op t_hl, t_hl
-            | _ -> failwith @@ "multiple return types not supported on operators"
-        and var_id =
-            try Option.get node.id
-            with _ -> raise @@ Not_implemented (node.l, sprintf "node has no stack offset: %s" (show_node_hl node.n))
+    and output_push_take node name =
+        let var_id = get_node_id node in
+        let t =
+            let type_hl = List.hd @@ get_node_types node in
+            try qbe_string_of_type_basety @@ type_ll_of_type_hl type_hl
+            with Invalid_argument str | Failure str -> raise @@ Not_implemented (node.l, str)
         in
+        fprintf f "\t%%v%d =%c %%t_%s\n" var_id t name
+    and output_operator node op =
+        let var_id = get_node_id node
+        and op, t_hl = qbe_string_of_operator node op in
         let t_ll = type_ll_of_type_hl t_hl in
         output_loc node.l;
         fprintf f "\t%%v%d =%c %s\n" var_id (qbe_string_of_type_basety t_ll) op
@@ -184,11 +206,8 @@ let generate_qbe_ir f path_in { procs; strings; _ } =
     and output_proc_call node func =
         output_loc node.l;
 
-        let var_id =
-            try Option.get node.id
-            with _ -> raise @@ Not_implemented (node.l, sprintf "node has no stack offset: %s" (show_node_hl node.n))
-        in
-        let types_hl =
+        let var_id = get_node_id node
+        and types_hl =
             try Option.get node.t
             with _ -> raise @@ Unreachable ("node has no type: " ^ show_node_hl node.n)
         in
@@ -202,7 +221,17 @@ let generate_qbe_ir f path_in { procs; strings; _ } =
         | l -> raise @@ Not_implemented (node.l, sprintf "procs with return types not yet implemented: %s" (show_types_hl l))
     in
 
-    let rec output_node node =
+    let rec output_if_statement node cond true_branch false_branch =
+        let var_id = get_node_id node in
+        output_node cond;
+        fprintf f "\tjnz %%v%d, @%s, @%s\n" var_id (get_branch_name true) (get_branch_name false);
+        output_label @@ get_branch_name true;
+        output_seq true_branch;
+        output_label @@ get_branch_name false;
+        output_seq false_branch;
+        fprintf f "\n"
+
+    and output_node node =
         if node.n = Empty then
             ()
         else
@@ -210,6 +239,8 @@ let generate_qbe_ir f path_in { procs; strings; _ } =
             | Take { vars }
             | Peek { vars } ->
                     output_take_peek node vars
+            | Push_take name ->
+                    output_push_take node name
             | Push_data data ->
                     output_data node data
             | Proc_call { func; args } ->
@@ -218,6 +249,8 @@ let generate_qbe_ir f path_in { procs; strings; _ } =
             | Macro_call { func; args } ->
                     List.iter output_node args;
                     output_seq func.seq
+            | If_statement { cond; true_branch; false_branch } ->
+                    output_if_statement node cond true_branch false_branch
             | Op { op; left; right; _ } ->
                 begin
                     output_node left;

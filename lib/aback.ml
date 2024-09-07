@@ -35,6 +35,9 @@ let parse_args args =
         | 'a' -> add_flag Stdout_asm
         | 'c' -> add_flag Output_obj
         | c -> raise @@ Invalid_argument (sprintf "unknown flag: '%c'" c)
+    and parse_long_flag = function
+        | "no-check" -> add_flag No_check
+        | s -> raise @@ Invalid_argument (sprintf "unknown flag: '%s'" s)
     in
     let rec parse_args' args =
         match args with
@@ -57,7 +60,9 @@ let parse_args args =
                 | "com" -> options.mode <- Compile
                 | "check" -> options.mode <- Check
                 | "print" -> options.mode <- Print
-                | arg when String.starts_with ~prefix:"-" arg && not @@ String.starts_with ~prefix:"--" arg ->
+                | arg when String.starts_with ~prefix:"--" arg ->
+                        parse_long_flag @@ String.sub arg 2 (String.length arg - 2)
+                | arg when String.starts_with ~prefix:"-" arg ->
                         String.iter parse_flag @@ String.sub arg 1 (String.length arg - 1)
                 | word ->
                         raise @@ Invalid_argument (sprintf "invalid argument: '%s'" word)
@@ -111,7 +116,9 @@ let exec options =
     in
 
     let lex = lex path_in []
-    and parse = parse null_loc in
+    and parse = parse null_loc
+    and check = check options
+    and compile = compile options in
     (* compile the program *)
     try
         let parsed =
@@ -129,12 +136,13 @@ let exec options =
                 print_endline "OK."
         | Print ->
                 parsed
+                |> check
                 |> show_parser_output
                 |> print_string
         | Compile ->
                 parsed 
                 |> check
-                |> compile options;
+                |> compile;
 
                 if List.mem Run options.flags then
                     let path_exe = Option.get options.path_out in

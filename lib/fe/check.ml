@@ -33,7 +33,7 @@ let compare t_exp t_act =
     if List.length t_exp <> List.length t_act then
         false
     else
-        let compare = function
+        let compare' = function
             (* TEMPORARY: special case for character -> u8 *)
             | (t_spec, _), (Generic _, node_opt)
             | (Generic _, node_opt), (t_spec, _) ->
@@ -63,7 +63,7 @@ let compare t_exp t_act =
             | (t_exp, _), (t_act, _) ->
                     t_exp = t_act
         in
-        List.for_all compare @@ List.combine t_exp t_act
+        List.for_all compare' @@ List.combine t_exp t_act
 
 let raise_unexpected_stack msg loc t_exp t_act =
     raise @@ Error (loc, sprintf "%s: expected %s, got %s" msg
@@ -303,7 +303,8 @@ let rec check_seq caller input stack takes seq =
                 with _ -> raise @@ Not_implemented (left.l, sprintf "%s: no return type" (show_node_hl left.n))
             and right_t =
                 try List.hd @@ Option.get right.t
-                with _ -> raise @@ Not_implemented (right.l, sprintf "%s: no return type" (show_node_hl right.n)) in
+                with _ -> raise @@ Not_implemented (right.l, sprintf "%s: no return type" (show_node_hl right.n))
+            in
 
             match left_t, right_t with
             | Generic t_genl, Generic t_genr ->
@@ -318,18 +319,22 @@ let rec check_seq caller input stack takes seq =
                     right.t <- Some [off];
                     node.t  <- Some [ptr]
             | t_specl, t_specr ->
-                    if not @@ compare [t_specl, None] [t_specr, None] then
+                    if not @@ compare [t_specl, Some left] [t_specr, Some right] then
                         raise_unexpected_stack (show_operator op) loc [left_t; left_t] [left_t; right_t];
         end;
 
         let t_in_act =
-            try Stack.pop stack |> fst
-            with Stack.Empty ->
-                raise_not_enough_elements loc;
+            if right.n <> Empty then
+                match fst @@ Stack.pop stack, fst @@ Stack.pop stack with
+                | (General _ | Generic _), t_spec
+                | t_spec, (General _ | Generic _) ->
+                        t_spec
+                | tl, _tr -> tl
+            else
+                try Stack.pop stack |> fst
+                with Stack.Empty -> raise_not_enough_elements loc;
         in
 
-        if right.n <> Empty then
-            Stack.pop stack |> ignore;
         
         begin
             match t_in_act with
@@ -424,8 +429,7 @@ let rec check_seq caller input stack takes seq =
     list_of_stack stack
 
 
-let check input =
-    print_endline "CHKECKING";
+let check options input =
     let check_func { loc; seq; types; is_signature; _ } =
         if is_signature then ()
         else
@@ -438,9 +442,12 @@ let check input =
                 raise_unexpected_stack "output" loc types.t_out t_out_act
     in
 
-    Hashtbl.iter (fun _ f -> check_rec_macro f) input.macros;
-    Hashtbl.iter (fun _ f -> check_func f) input.macros;
-    Hashtbl.iter (fun _ f -> check_func f) input.procs;
+    if not @@ List.mem No_check options.flags then
+    begin
+        Hashtbl.iter (fun _ f -> check_rec_macro f) input.macros;
+        Hashtbl.iter (fun _ f -> check_func f) input.macros;
+        Hashtbl.iter (fun _ f -> check_func f) input.procs
+    end;
 
     let output = input in
     output
