@@ -37,6 +37,17 @@ let get_node_types node =
     try Option.get node.t
     with _ -> raise @@ Not_implemented (node.l, sprintf "node has no concrete type: %s" (show_node_hl node.n))
 
+let sanitize_name name =
+    let char_map = function
+        | ':' -> "_DVOP_"
+        | '$' -> "_DOLA_"
+        | '%' -> "_PROC_"
+        | '@' -> "_AFNA_"
+        | c   -> String.make 1 c
+    in
+    String.to_seq name
+    |> Seq.map char_map
+    |> Seq.fold_left (^) ""
 
 let qbe_string_of_operator node op t_in =
     let t_in =
@@ -227,10 +238,11 @@ let generate_qbe_ir f path_in { procs; strings; _ } =
             with _ -> raise @@ Unreachable ("node has no type: " ^ show_node_hl node.n)
         in
         let args = qbe_string_of_args var_id func.types.t_in in
+        let name = sanitize_name func.name in
 
         match types_hl with
-        | [] -> fprintf f "\tcall $%s(%s)\n" func.name args
-        | [Primitive t] -> fprintf f "\t%%v%d =%c call $%s(%s)\n" var_id (qbe_string_of_type_basety t) func.name args
+        | [] -> fprintf f "\tcall $%s(%s)\n" name args
+        | [Primitive t] -> fprintf f "\t%%v%d =%c call $%s(%s)\n" var_id (qbe_string_of_type_basety t) name args
 
         | [_] -> raise @@ Not_implemented (node.l, "procs with complex return types not yet implemented")
         | l -> raise @@ Not_implemented (node.l, sprintf "procs with return types not yet implemented: %s" (show_types_hl l))
@@ -301,7 +313,10 @@ let generate_qbe_ir f path_in { procs; strings; _ } =
             in
 
             output_loc loc;
-            fprintf f "export function %s $%s(%s) {\n" (t_out) name (qbe_string_of_params t_in);
+
+            let sanitized_name = sanitize_name name in
+            (*if sanitized_name = name then fprintf f "export ";*)
+            fprintf f "export function %s $%s(%s) {\n" (t_out) sanitized_name (qbe_string_of_params t_in);
             fprintf f "@start\n";
 
             output_seq seq;
