@@ -1,6 +1,6 @@
 (executable
  (public_name aback)
  (name main)
- (modes native js)
+ (modes native byte js)
  (preprocess (pps ppx_deriving.show))
  (libraries aback str))
